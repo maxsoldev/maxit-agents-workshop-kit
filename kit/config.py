@@ -32,10 +32,14 @@ class Settings:
     n8n_mode: str         # local | hosted
     n8n_url: str          # base URL, e.g. http://localhost:5702
     n8n_api_key: str      # written by `kit setup` for local; given by the trainer for hosted
+    n8n_owner_email: str  # local: owner login that `kit setup` creates
+    n8n_owner_password: str
+    n8n_openai_credential_id: str  # written by `kit setup`: the n8n credential made from OPENAI_API_KEY
     langfuse_mode: str    # local | hosted | off
     langfuse_host: str
     langfuse_public_key: str
     langfuse_secret_key: str
+    langfuse_user_email: str  # local: the login Langfuse creates at first start
     trains_url: str       # our MOTIS; empty = use the fallback only
     trains_fallback_url: str
 
@@ -66,10 +70,14 @@ def settings() -> Settings:
         n8n_mode=n8n_mode,
         n8n_url=_env("N8N_URL", "http://localhost:5702").rstrip("/"),
         n8n_api_key=_env("N8N_API_KEY"),
+        n8n_owner_email=_env("N8N_OWNER_EMAIL", "kit@example.com"),
+        n8n_owner_password=_env("N8N_OWNER_PASSWORD"),
+        n8n_openai_credential_id=_env("N8N_OPENAI_CREDENTIAL_ID"),
         langfuse_mode=lf_mode,
         langfuse_host=_env("LANGFUSE_HOST", "http://localhost:5703").rstrip("/"),
         langfuse_public_key=_env("LANGFUSE_PUBLIC_KEY"),
         langfuse_secret_key=_env("LANGFUSE_SECRET_KEY"),
+        langfuse_user_email=_env("LANGFUSE_INIT_USER_EMAIL", "kit@example.com"),
         trains_url=_env("TRAINS_URL").rstrip("/"),
         trains_fallback_url=_env("TRAINS_FALLBACK_URL", "https://api.transitous.org").rstrip("/"),
     )
