@@ -285,6 +285,21 @@ def setup_credential(n8n: N8n) -> str:
     return cred_id
 
 
+def webhook_paths(wf: dict) -> set[str]:
+    return {n.get("parameters", {}).get("path", "") for n in wf.get("nodes", [])
+            if n.get("type") == "n8n-nodes-base.webhook"} - {""}
+
+
+def free_webhook_paths(n8n: N8n, body: dict, wid: str) -> None:
+    """n8n allows one active workflow per webhook path. Deactivate any other workflow on our path
+    (an old copy, or one you renamed in n8n), and say so."""
+    paths = webhook_paths(body)
+    for w in n8n.workflows():
+        if w["id"] != wid and w.get("active") and webhook_paths(w) & paths:
+            n8n.api("POST", f"/workflows/{w['id']}/deactivate")
+            warn(f"deactivated '{w['name']}': it used the same webhook path ({', '.join(sorted(paths))})")
+
+
 def import_workflows(n8n: N8n, cred_id: str) -> bool:
     """Create or update each usecases/*/n8n/workflow.json by name, then activate it.
     Before an update, the old n8n copy goes to runs/n8n-backup/ (you may have edited it in n8n)."""
@@ -331,6 +346,7 @@ def import_workflows(n8n: N8n, cred_id: str) -> bool:
             if full.get("active") and state == "unchanged":
                 ok(f"{body['name']}: {state}, active")
                 continue
+        free_webhook_paths(n8n, body, wid)
         r = n8n.api("POST", f"/workflows/{wid}/activate")
         if r.status_code >= 300:
             fail(f"{body['name']}: {state}, but activation failed ({r.status_code}): {r.text[:200]}")
