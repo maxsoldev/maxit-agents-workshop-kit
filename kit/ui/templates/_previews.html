@@ -1,0 +1,20 @@
+{% for p in previews %}
+<div class="file">
+  {% if p.missing %}
+  <p class="bad">File not found: <code>{{ p.path }}</code></p>
+  {% elif p.email %}
+  <div class="mail">
+    <div class="mail-head">
+      <div><b>From:</b> {{ p.email.from }}</div>
+      <div><b>Date:</b> {{ p.email.date }}</div>
+      <div><b>Subject:</b> {{ p.email.subject }}</div>
+      <div class="muted small"><code>{{ p.path }}</code></div>
+    </div>
+    <pre class="mail-body">{{ p.email.body }}</pre>
+  </div>
+  {% else %}
+  <div class="muted small"><code>{{ p.path }}</code></div>
+  <pre class="mail-body">{{ p.text }}</pre>
+  {% endif %}
+</div>
+{% endfor %}

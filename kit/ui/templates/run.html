@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Run · {{ uc }}{% endblock %}
+{% block main %}
+<h1>Run eval <span class="muted">· {{ uc }}</span></h1>
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
+<div id="progress">{% include "_progress.html" %}</div>
+<form method="post" action="/uc/{{ uc }}/run" class="run-form">
+  <div class="row3">
+    <fieldset class="engines"><legend>Engine</legend>
+      {% for e in engines %}<label class="radio"><input type="radio" name="engine" value="{{ e }}" {{ 'checked' if e == engine }}> {{ e }}</label>{% endfor %}
+    </fieldset>
+    <label class="grow">Run name (optional) <input name="name" placeholder="e.g. stricter prompt for offers"></label>
+    <div class="go"><button class="btn primary big">Run eval</button></div>
+  </div>
+  <p class="muted small">Tick cases to run only those. Tick none to run all {{ cases|length }} cases.</p>
+  <table class="pick">
+    <thead><tr><th><input type="checkbox" onclick="document.querySelectorAll('input[name=case]').forEach(b => b.checked = this.checked)"></th><th>id</th><th>Title</th></tr></thead>
+    <tbody>
+    {% for c in cases %}
+    <tr><td><input type="checkbox" name="case" value="{{ c.id }}" id="pick-{{ c.id }}"></td>
+        <td><label for="pick-{{ c.id }}"><code>{{ c.id }}</code></label></td><td>{{ c.title }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</form>
+{% endblock %}

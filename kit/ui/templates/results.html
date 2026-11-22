@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Results · {{ run.run_id }}{% endblock %}
+{% block main %}
+{% set s = run.summary or {} %}
+<div class="head">
+  <h1>{{ run.name or run.run_id }} <span class="muted">· {{ run.engine }} · {{ run.started_at|when }}</span></h1>
+</div>
+<div class="summary">
+  <div class="score {{ 'all' if s.passed == s.cases else ('none' if not s.passed else '') }}">
+    <span class="big">{{ s.passed }}/{{ s.cases }}</span><span class="muted">cases passed</span></div>
+  <div class="by-check">
+    {% for t, pair in (s.by_check or {}).items() %}
+    <span class="chip t-{{ t }} {{ 'ok' if pair[0] == pair[1] else 'ko' }}">{{ t }} {{ pair[0] }}/{{ pair[1] }}</span>
+    {% endfor %}
+  </div>
+  <form method="get" class="compare">
+    <label>Compare with
+      <select name="vs" onchange="this.form.submit()">
+        <option value="none" {{ 'selected' if not other }}>— no compare —</option>
+        {% for r in others %}
+        <option value="{{ r.run_id }}" {{ 'selected' if r.run_id == vs }}>{{ r.engine }} · {{ r.name or r.run_id }} · {{ r.started_at|when }} ·{{ (r.summary or {}).passed }}/{{ (r.summary or {}).cases }}</option>
+        {% endfor %}
+      </select></label>
+    {% if other %}
+    <div class="diff"><span class="better">▲ {{ counts.better }} better</span> <span class="worse">▼ {{ counts.worse }} worse</span>
+      <span class="muted">{{ counts.same }} same{% if counts.new %} · {{ counts.new }} new{% endif %}</span></div>
+    {% endif %}
+  </form>
+</div>
+
+<div class="results">
+  <div class="res-head"><span></span><span>Case</span><span>Time</span><span>First failing reason</span><span>{{ 'vs other' if other }}</span></div>
+  {% for c in run.cases or [] %}
+  {% set ch = changes.get(c.id) %}
+  <details class="res {{ 'pass' if c.passed else 'fail' }} {{ 'chg-' ~ ch if ch }}" id="c-{{ c.id }}">
+    <summary>
+      <span class="mark">{{ '✓' if c.passed else '✗' }}</span>
+      <span><code>{{ c.id }}</code> {{ c.title }}</span>
+      <span class="muted">{{ '%.1f'|format(c.seconds or 0) }} s</span>
+      <span class="reason">{{ c._first_fail or '' }}</span>
+      <span>{% if ch %}<span class="badge {{ ch }}">{{ {'better': '▲ better', 'worse': '▼ worse', 'same': 'same', 'new': 'new'}[ch] }}</span>{% endif %}</span>
+    </summary>
+    <div class="detail">
+      {% if c.error %}<div class="alert"><b>Error:</b> {{ c.error }}</div>{% endif %}
+      <table class="checks-res">
+        {% for k in c.checks or [] %}
+        <tr class="{{ 'pass' if k.passed else 'fail' }}"><td class="mark">{{ '✓' if k.passed else '✗' }}</td>
+          <td><b>{{ k.type }}</b> <code>{{ k.field }}</code></td><td>{{ k.reason }}</td></tr>
+        {% endfor %}
+      </table>
+      <div class="links">
+        {% if c.trace_url and langfuse_link %}<a href="{{ c.trace_url }}" target="_blank">Langfuse trace ↗</a>{% endif %}
+        {% if c.n8n_execution_url %}<a href="{{ c.n8n_execution_url }}" target="_blank">n8n execution ↗</a>{% endif %}
+      </div>
+      <div class="cols3">
+        <div><h3>Input</h3><pre>{{ c.input|pretty }}</pre>{% with previews = c._files %}{% include "_previews.html" %}{% endwith %}</div>
+        <div><h3>Expected</h3><pre>{{ c.expected|pretty }}</pre></div>
+        <div><h3>Output</h3><pre>{{ c.output|pretty }}</pre></div>
+      </div>
+    </div>
+  </details>
+  {% endfor %}
+</div>
+{% endblock %}

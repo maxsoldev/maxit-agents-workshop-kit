@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Docs{% endblock %}
+{% block main %}
+<div class="docs">
+  <nav class="doc-list">
+    {% for f in files %}<a href="/docs?name={{ f }}" class="{{ 'on' if f == doc }}">{{ f }}</a>{% endfor %}
+  </nav>
+  <article><h1>{{ doc }}</h1><pre class="doc">{{ text }}</pre></article>
+</div>
+{% endblock %}

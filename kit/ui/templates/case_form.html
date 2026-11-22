@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit ' ~ original_id if original_id else 'New case' }} · {{ uc }}{% endblock %}
+{% block main %}
+<h1>{{ 'Edit case ' ~ original_id if original_id else 'New case' }} <span class="muted">· {{ uc }}</span></h1>
+{% if errors %}
+<div class="alert"><b>Not saved. Fix this:</b><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+{% endif %}
+<form method="post" action="/uc/{{ uc }}/cases/save" class="case-form">
+  <input type="hidden" name="original_id" value="{{ original_id }}">
+  <div class="row3">
+    <label>id <input name="id" value="{{ case.id }}" required placeholder="m24"></label>
+    <label class="grow">Title <input name="title" value="{{ case.title }}" placeholder="Short name of the case"></label>
+    <label>Today <input type="date" name="today" value="{{ case.today or '' }}"></label>
+  </div>
+
+  <div class="cols">
+    <div>
+      <label>Input (JSON) <textarea name="input" id="input" rows="8" spellcheck="false">{{ raw.input }}</textarea></label>
+      <div class="picker">
+        <select name="path" id="file-pick" hx-get="/uc/{{ uc }}/file" hx-target="#preview" hx-trigger="change">
+          <option value="">Pick a file from data/ …</option>
+          {% for f in files %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
+        </select>
+        <button type="button" class="btn" onclick="addFile()">Add to input</button>
+      </div>
+      <p class="muted small">A key that ends in <code>_file</code> is a path in the use case folder.
+        The runner adds the file text for the agent (for example <code>email_file</code> → <code>email</code>).</p>
+    </div>
+    <div>
+      <label>Expected (JSON) <textarea name="expected" rows="8" spellcheck="false">{{ raw.expected }}</textarea></label>
+      <p class="muted small">The values the checks compare with, e.g. <code>{"category": "service_offer"}</code>.</p>
+    </div>
+  </div>
+
+  <div id="preview">{% include "_previews.html" %}</div>
+
+  <h2>Checks</h2>
+  <p class="muted small"><b>field</b> is a dotted path into the result (<code>reply</code>, <code>options.0.price</code>).
+    The text box is: <b>equals</b> value (empty = use expected), <b>in</b> values (<code>a, b</code> or a JSON list),
+    <b>contains / not_contains</b> value, <b>judge</b> rubric. min is for judge (default 4).</p>
+  <table class="checks" id="checks">
+    <thead><tr><th>type</th><th>field</th><th>value / values / rubric</th><th>min</th><th></th></tr></thead>
+    <tbody>
+    {% for c in checks %}{% include "_check_row.html" %}{% endfor %}
+    </tbody>
+  </table>
+  <template id="check-row">{% set c = {"type": "equals", "field": "", "arg": "", "min": ""} %}{% include "_check_row.html" %}</template>
+  <button type="button" class="btn" onclick="addCheck()">+ Add check</button>
+
+  <div class="form-actions">
+    <button class="btn primary">Save case</button>
+    <a class="btn" href="/uc/{{ uc }}/cases">Cancel</a>
+  </div>
+</form>
+<script>
+function addCheck() {
+  const row = document.getElementById("check-row").content.cloneNode(true);
+  document.querySelector("#checks tbody").appendChild(row);
+}
+function addFile() {
+  // Put the picked file into the input JSON, e.g. data/emails/06.eml -> "email_file".
+  const path = document.getElementById("file-pick").value;
+  if (!path) return;
+  const box = document.getElementById("input");
+  let obj = {};
+  try { obj = JSON.parse(box.value || "{}"); } catch (e) { alert("Input is not valid JSON. Fix it first."); return; }
+  const name = path.startsWith("data/emails/") ? "email" : path.split("/").pop().replace(/\.[^.]*$/, "").replace(/\W+/g, "_");
+  obj[name + "_file"] = path;
+  box.value = JSON.stringify(obj, null, 2);
+}
+</script>
+{% endblock %}
