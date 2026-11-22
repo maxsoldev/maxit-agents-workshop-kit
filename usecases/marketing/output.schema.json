@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Marketing inbox: result for one email",
+  "type": "object",
+  "required": ["category", "flags", "reply", "reasons"],
+  "additionalProperties": false,
+  "properties": {
+    "category": {
+      "type": "string",
+      "enum": ["institute_request", "membership", "partnership", "event_invitation", "press",
+               "service_offer", "unverified_outreach", "newsletter", "spam"],
+      "description": "Exactly one category, see data/categories.md."
+    },
+    "flags": {
+      "type": "array",
+      "items": {"type": "string", "enum": ["phishing", "injection", "unverified", "off_target"]},
+      "description": "Zero or more warning flags, see data/categories.md."
+    },
+    "reply": {
+      "type": "string",
+      "description": "A reply draft for a human to check. Empty string when we do not reply."
+    },
+    "reasons": {
+      "type": "string",
+      "description": "Short explanation of the decision, for the reviewer."
+    }
+  }
+}
