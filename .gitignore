@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+runs/
+node_modules/
+.agents/worktrees/
+.claude/handoffs/
+.claude/settings.local.json
+.playwright-mcp/
+.DS_Store

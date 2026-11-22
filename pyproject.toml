@@ -1,0 +1,30 @@
+[project]
+name = "maxit-agent-kit"
+version = "0.1.0"
+description = "MaxIT agents workshop kit: build an agent with eval-driven development"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn>=0.32",
+  "jinja2>=3.1",
+  "python-multipart>=0.0.12",
+  "httpx>=0.27",
+  "mcp>=1.9",
+  "openai>=1.60",
+  "langfuse>=3.0",
+  "jsonschema>=4.23",
+  "python-dotenv>=1.0",
+]
+
+[project.scripts]
+kit = "kit.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.3"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["kit"]
