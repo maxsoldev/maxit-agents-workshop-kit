@@ -1,0 +1,143 @@
+# Setup
+
+Two parts: **before the day** (at home, about 30 min, mostly downloads) and **on the day** (about 15 min).
+Each step has a **Check**. If the check fails, read **If it goes wrong**, or ask your trainer.
+
+## Before the day
+
+### Step 1. Docker
+
+Install Docker Desktop (macOS, Windows) or Docker Engine + Compose (Linux). Start it.
+
+- **Check:** `docker compose version` prints a version (v2.20 or newer).
+- **If it goes wrong:** on Windows, use WSL 2 and run everything inside WSL. If your laptop cannot run Docker,
+  tell your trainer: you will use the hosted n8n and Langfuse (see "Backups" below).
+
+### Step 2. uv (Python)
+
+Install uv: https://docs.astral.sh/uv/getting-started/installation/ . uv gets Python 3.12 for you.
+
+- **Check:** `uv --version` prints a version.
+- **If it goes wrong:** open a new terminal, so the `PATH` change is active.
+
+### Step 3. Node and Claude Code
+
+Install Node 20 or newer, then Claude Code: `npm install -g @anthropic-ai/claude-code`. Log in once with your
+own Claude account: run `claude` and follow the steps.
+
+- **Check:** `claude --version` prints a version, and `claude -p "say ok"` prints an answer.
+- **If it goes wrong:** without Claude Code you can still use n8n and Python. Only the Claude engine will fail.
+
+### Step 4. An OpenAI API key
+
+Get an API key from https://platform.openai.com/api-keys with a little credit (a few EUR is enough for the day).
+n8n, the Python agent and the `judge` checks use it.
+
+- **Check:** you have a key that starts with `sk-`. Keep it secret: never commit it.
+
+### Step 5. Fork and clone the repo
+
+Fork this repo on GitHub (one fork per team is fine), then clone it:
+
+```bash
+git clone <your fork URL> maxit-agent-kit
+cd maxit-agent-kit
+```
+
+- **Check:** `ls usecases` shows `marketing` and `travel`.
+
+### Step 6. Download the images (saves time on the day)
+
+```bash
+cp .env.example .env
+docker compose --profile n8n --profile langfuse pull
+uv sync
+```
+
+- **Check:** the pull ends without errors. `uv sync` ends with "Installed ... packages".
+- **If it goes wrong:** a slow network is fine, just let it run. On the day we have the backups.
+
+## On the day
+
+Run all commands in the repo folder.
+
+### Step 1. Settings
+
+```bash
+cp .env.example .env      # skip if you did it before the day
+```
+
+Open `.env` and set `OPENAI_API_KEY=sk-...`. Your trainer gives you `TRAINS_URL`.
+
+- **Check:** `grep -c OPENAI_API_KEY=sk- .env` prints `1`.
+
+### Step 2. Start n8n and Langfuse
+
+```bash
+make up
+```
+
+- **Check:** it ends with "Up (...). Next: make setup". http://localhost:5702 shows n8n,
+  http://localhost:5703 shows Langfuse.
+- **If it goes wrong:** `make logs` shows the errors. If Langfuse does not start (it is the heavy part), set
+  `LANGFUSE=off` in `.env` and run `make up` again. You lose the traces, not the evals.
+
+### Step 3. Set up n8n and check Langfuse
+
+```bash
+make setup
+```
+
+This creates the n8n login, an API key, the OpenAI credential, and imports the workflows `Kit: marketing agent`
+and `Kit: travel agent`. It is safe to run again.
+
+- **Check:** the summary at the end says OK for n8n and Langfuse and prints the logins. Log in to n8n
+  (:5702) and Langfuse (:5703) with them.
+- **If it goes wrong:** read the line that says FAIL; it names the next step. A changed OpenAI key: run
+  `make setup` again.
+
+### Step 4. Start the kit
+
+In a **second terminal** (keep it open all day):
+
+```bash
+make serve
+```
+
+- **Check:** http://localhost:5700 shows the kit UI with both use cases. The tools server runs on :5701.
+- **If it goes wrong:** "address already in use": another `make serve` still runs. Stop it (Ctrl+C) or close
+  that terminal.
+
+### Step 5. Smoke check
+
+```bash
+make check
+```
+
+This runs the first case of each use case on each engine.
+
+- **Check:** OK for n8n, claude and python on both use cases. A failing check (the case does not pass) is
+  fine; an error (the engine did not answer) is not.
+- **If it goes wrong:** the line says which engine and why. Claude: run `claude` once and log in. n8n: run
+  `make setup` again. Python: check `OPENAI_API_KEY`.
+
+You are ready. Go to the design block in `docs/day-plan.md`.
+
+## Langfuse: local, hosted or off
+
+Set `LANGFUSE` in `.env`, then run `make up` and `make setup` again.
+
+| Setting | What you get |
+|---|---|
+| `LANGFUSE=local` (default) | Langfuse in Docker on :5703. One trace per case; Claude's model and tool calls nest under it. |
+| `LANGFUSE=hosted` | The trainer's Langfuse. Set `LANGFUSE_HOST`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` of your team's project. |
+| `LANGFUSE=off` | No traces and no trace links. Evals work the same. |
+
+n8n steps are not in Langfuse: open **Executions** in n8n (the results page links to it).
+
+## Backups
+
+- **n8n hosted:** if n8n does not run on your laptop, set `N8N=hosted`, `N8N_URL` and `N8N_API_KEY` (from your
+  trainer) in `.env`, then `make setup`. The kit UI, the runner, Claude and Python still run on your laptop.
+- **No Claude login:** use n8n and Python. **No OpenAI credit:** ask your trainer.
+- **Start over:** `make reset` deletes the n8n and Langfuse data (it asks first). Then `make up` and `make setup`.
