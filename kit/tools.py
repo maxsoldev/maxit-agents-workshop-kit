@@ -21,7 +21,8 @@ from kit.tools_lib import emails, events, trains
 
 HOST = "127.0.0.1"  # Docker Desktop (macOS) reaches this as host.docker.internal; see docs/contracts.md §1
 
-mcp = MCPServer("kit", instructions="Tools for the MaxIT workshop use cases. They read data; they send nothing.")
+mcp = MCPServer("kit", instructions="Tools for the MaxIT workshop use cases. They read data; they send nothing.",
+                log_level="WARNING")
 
 
 def _data(usecase: str):
@@ -185,7 +186,7 @@ def _answers(port: int) -> bool:
 def serve() -> int:
     """Run the tools server in the foreground (`kit tools`). Stop with Ctrl+C."""
     s = config.settings()
-    print(f"kit tools: {s.tools_url} (n8n in Docker: {s.tools_url_docker})")
+    print(f"kit tools: {s.tools_url} (n8n in Docker: {s.tools_url_docker})", flush=True)
     _server("info").run()
     return 0
 
