@@ -1,0 +1,4 @@
+{"id": "f01", "title": "Good case", "today": "2026-11-04", "input": {"mode": "ok", "want": "a", "note_file": "data/note.txt"}, "expected": {"category": "a"}, "checks": [{"type": "equals", "field": "category"}, {"type": "contains", "field": "reply", "value": "THANKS"}, {"type": "not_contains", "field": "reply", "value": "@"}, {"type": "in", "field": "tags.0", "values": ["x", "y"]}, {"type": "judge", "field": "reply", "rubric": "Polite."}]}
+{"id": "f02", "title": "Wrong category", "input": {"mode": "ok", "want": "b"}, "expected": {"category": "a"}, "checks": [{"type": "equals", "field": "category"}]}
+{"id": "f03", "title": "Crash", "input": {"mode": "crash"}, "expected": {}, "checks": []}
+{"id": "f04", "title": "Bad schema", "input": {"mode": "bad"}, "expected": {}, "checks": [{"type": "equals", "field": "category", "value": "a"}]}

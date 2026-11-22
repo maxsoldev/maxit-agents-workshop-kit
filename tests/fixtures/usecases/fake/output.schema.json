@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["category", "reply"],
+  "properties": {
+    "category": {"type": "string", "enum": ["a", "b"]},
+    "reply": {"type": "string"},
+    "tags": {"type": "array", "items": {"type": "string"}}
+  }
+}
