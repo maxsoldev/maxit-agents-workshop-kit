@@ -71,7 +71,8 @@ def compose_profiles(env: dict[str, str]) -> list[str]:
 
 def fill_placeholders(text: str, credential_id: str, tools_url: str) -> str:
     """Put the real values into a workflow.json text."""
-    return text.replace("{{OPENAI_CREDENTIAL_ID}}", credential_id).replace("{{KIT_TOOLS_URL}}", tools_url)
+    return (text.replace("{{OPENAI_CREDENTIAL_ID}}", credential_id).replace("{{KIT_TOOLS_URL}}", tools_url)
+            .replace("{{KIT_MODEL}}", settings().model))
 
 
 def workflow_body(wf: dict) -> dict:
@@ -261,8 +262,8 @@ def setup_credential(n8n: N8n) -> str:
     if not s.openai_api_key:
         fail("no OpenAI credential: OPENAI_API_KEY is empty")
         return ""
-    data = {"apiKey": s.openai_api_key, "url": "https://api.openai.com/v1", "header": False}
-    fingerprint = key_fingerprint(s.openai_api_key)
+    data = {"apiKey": s.openai_api_key, "url": s.openai_base_url_docker, "header": False}
+    fingerprint = key_fingerprint(s.openai_api_key + "|" + data["url"])
     cred_id = s.n8n_openai_credential_id
     if cred_id and n8n.api("GET", f"/credentials/{cred_id}").status_code == 200:
         if read_env(ENV_FILE).get("N8N_OPENAI_KEY_FINGERPRINT") == fingerprint:

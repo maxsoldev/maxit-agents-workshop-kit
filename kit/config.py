@@ -25,7 +25,8 @@ def _env(name: str, default: str = "") -> str:
 @dataclass(frozen=True)
 class Settings:
     openai_api_key: str
-    model: str            # default model for scaffolds and engines that read it
+    openai_base_url: str  # empty = OpenAI; else any OpenAI-compatible gateway (LiteLLM, Azure, company proxy)
+    model: str           # default model for scaffolds and engines that read it
     judge_model: str      # model for `judge` checks
     ui_port: int
     tools_port: int
@@ -54,6 +55,12 @@ class Settings:
         return f"http://host.docker.internal:{self.tools_port}/mcp"
 
     @property
+    def openai_base_url_docker(self) -> str:
+        """Model API URL as n8n in Docker sees it (a gateway on this computer is host.docker.internal there)."""
+        url = self.openai_base_url or "https://api.openai.com/v1"
+        return url.replace("//localhost", "//host.docker.internal").replace("//127.0.0.1", "//host.docker.internal")
+
+    @property
     def langfuse_on(self) -> bool:
         return self.langfuse_mode != "off" and bool(self.langfuse_public_key and self.langfuse_secret_key)
 
@@ -63,6 +70,7 @@ def settings() -> Settings:
     n8n_mode = _env("N8N", "local").lower()
     return Settings(
         openai_api_key=_env("OPENAI_API_KEY"),
+        openai_base_url=_env("OPENAI_BASE_URL").rstrip("/"),
         model=_env("KIT_MODEL", "gpt-5-mini"),
         judge_model=_env("KIT_JUDGE_MODEL", "gpt-5-mini"),
         ui_port=int(_env("KIT_UI_PORT", "5700")),
