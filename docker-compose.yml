@@ -1,0 +1,192 @@
+# Kit stack: n8n (profile n8n) and Langfuse (profile langfuse). The kit itself runs on the host (`make serve`).
+# Use `make up`: it reads N8N and LANGFUSE from .env and picks the profiles.
+# By hand: `docker compose --profile n8n --profile langfuse up -d --wait`.
+# Compose reads .env (next to this file) for the ${...} values. All ports listen on 127.0.0.1 only.
+name: maxit-kit
+
+x-langfuse-env: &langfuse-env
+  NEXTAUTH_URL: ${LANGFUSE_HOST:-http://localhost:5703}
+  DATABASE_URL: postgresql://postgres:${LANGFUSE_DB_PASSWORD:-kit-local-db}@langfuse-db:5432/postgres
+  SALT: ${LANGFUSE_SALT:-kit-local-salt}
+  # 64 hex chars. Local only: change it if you expose Langfuse.
+  ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+  TELEMETRY_ENABLED: "false"
+  CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+  CLICKHOUSE_URL: http://clickhouse:8123
+  CLICKHOUSE_USER: clickhouse
+  CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:-kit-local-clickhouse}
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_PASSWORD:-kit-local-minio}
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+  LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
+  LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_PASSWORD:-kit-local-minio}
+  LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+  LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_AUTH: ${LANGFUSE_REDIS_PASSWORD:-kit-local-redis}
+
+x-langfuse-deps: &langfuse-deps
+  langfuse-db: {condition: service_healthy}
+  minio: {condition: service_healthy}
+  redis: {condition: service_healthy}
+  clickhouse: {condition: service_healthy}
+
+services:
+  # ---------- n8n ----------
+  n8n:
+    profiles: [n8n]
+    image: docker.n8n.io/n8nio/n8n:${N8N_IMAGE_TAG:-2.48.7}
+    restart: unless-stopped
+    ports: ["127.0.0.1:5702:5678"]
+    # n8n reaches the kit tools server on the host: http://host.docker.internal:5701/mcp
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    environment:
+      N8N_HOST: localhost
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: http
+      WEBHOOK_URL: http://localhost:5702/
+      N8N_EDITOR_BASE_URL: http://localhost:5702/
+      N8N_SECURE_COOKIE: "false"
+      GENERIC_TIMEZONE: Europe/Berlin
+      TZ: Europe/Berlin
+      DB_TYPE: sqlite
+      DB_SQLITE_POOL_SIZE: "4"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
+      # Public API (`kit setup` and the runner use it) with its Swagger UI at /api/v1/docs.
+      N8N_PUBLIC_API_DISABLED: "false"
+      N8N_PUBLIC_API_SWAGGERUI_DISABLED: "false"
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+      # The MCP Client Tool node (kit tools) is a core node in n8n 2.x: no extra setting needed.
+    volumes: [n8n-data:/home/node/.n8n]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5678/healthz/readiness || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  # ---------- Langfuse ----------
+  langfuse-web:
+    profiles: [langfuse]
+    image: docker.langfuse.com/langfuse/langfuse:${LANGFUSE_IMAGE_TAG:-4.83.0}
+    restart: unless-stopped
+    depends_on: *langfuse-deps
+    ports: ["127.0.0.1:5703:3000"]
+    environment:
+      <<: *langfuse-env
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-kit-local-nextauth}
+      # First start: create the org, the project with fixed API keys, and a login. No clicks needed.
+      LANGFUSE_INIT_ORG_ID: ${LANGFUSE_INIT_ORG_ID:-kit}
+      LANGFUSE_INIT_ORG_NAME: ${LANGFUSE_INIT_ORG_NAME:-Kit}
+      LANGFUSE_INIT_PROJECT_ID: ${LANGFUSE_INIT_PROJECT_ID:-kit}
+      LANGFUSE_INIT_PROJECT_NAME: ${LANGFUSE_INIT_PROJECT_NAME:-kit}
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-kit-local}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-kit-local}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-kit@example.com}
+      LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:-Kit}
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-kit-local-password}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://$${HOSTNAME}:3000/api/public/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 20s
+
+  langfuse-worker:
+    profiles: [langfuse]
+    image: docker.langfuse.com/langfuse/langfuse-worker:${LANGFUSE_IMAGE_TAG:-4.83.0}
+    restart: unless-stopped
+    # Wait for web: it runs the Postgres migrations the worker needs.
+    depends_on:
+      <<: *langfuse-deps
+      langfuse-web: {condition: service_healthy}
+    environment: *langfuse-env
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://$${HOSTNAME}:3030/api/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 20s
+
+  langfuse-db:
+    profiles: [langfuse]
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${LANGFUSE_DB_PASSWORD:-kit-local-db}
+      POSTGRES_DB: postgres
+      TZ: UTC
+      PGTZ: UTC
+    volumes: [langfuse-db:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  clickhouse:
+    profiles: [langfuse]
+    image: clickhouse/clickhouse-server:26.3.62.3
+    restart: unless-stopped
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:-kit-local-clickhouse}
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - clickhouse-logs:/var/log/clickhouse-server
+      - ./infra/clickhouse/low-memory.xml:/etc/clickhouse-server/config.d/low-memory.xml:ro
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio:
+    profiles: [langfuse]
+    image: cgr.dev/chainguard/minio
+    restart: unless-stopped
+    entrypoint: sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: ${LANGFUSE_MINIO_PASSWORD:-kit-local-minio}
+    volumes: [minio-data:/data]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    profiles: [langfuse]
+    image: redis:7
+    restart: unless-stopped
+    command: --requirepass ${LANGFUSE_REDIS_PASSWORD:-kit-local-redis} --maxmemory-policy noeviction
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${LANGFUSE_REDIS_PASSWORD:-kit-local-redis}", "--no-auth-warning", "ping"]
+      interval: 3s
+      timeout: 10s
+      retries: 10
+
+volumes:
+  n8n-data:
+  langfuse-db:
+  clickhouse-data:
+  clickhouse-logs:
+  minio-data:
+  redis-data:
