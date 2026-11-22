@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "kit": {
+      "type": "http",
+      "url": "http://localhost:5701/mcp"
+    }
+  }
+}

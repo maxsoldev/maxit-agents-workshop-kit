@@ -1,0 +1,6 @@
+{
+  "permissions": {
+    "allow": ["mcp__kit__*", "Skill"],
+    "deny": ["Bash", "Write", "Edit", "WebFetch"]
+  }
+}
