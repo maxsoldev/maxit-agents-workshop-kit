@@ -2,7 +2,7 @@
   "mcpServers": {
     "kit": {
       "type": "http",
-      "url": "http://localhost:5701/mcp"
+      "url": "${KIT_TOOLS_URL:-http://localhost:5701/mcp}"
     }
   }
 }
