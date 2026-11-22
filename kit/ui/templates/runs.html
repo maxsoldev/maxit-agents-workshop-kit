@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Runs · {{ uc }}{% endblock %}
+{% block main %}
+<div class="head">
+  <h1>Runs <span class="muted">· {{ uc }} · {{ runs|length }}</span></h1>
+  <a class="btn primary" href="/uc/{{ uc }}/run">Run eval</a>
+</div>
+{% if not runs %}<p class="muted">No runs yet.</p>{% else %}
+<table class="runs">
+  <thead><tr><th>Score</th><th>Engine</th><th>Name</th><th>Started</th><th>Run id</th></tr></thead>
+  <tbody>
+  {% for r in runs %}{% set s = r.summary or {} %}
+  <tr onclick="location.href='/runs/{{ r.run_id }}'">
+    <td class="score-cell"><b>{{ s.passed }}/{{ s.cases }}</b>
+      <span class="bar"><span style="width: {{ (100 * (s.passed or 0) / (s.cases or 1))|round|int }}%"></span></span></td>
+    <td><span class="chip">{{ r.engine }}</span></td>
+    <td><a href="/runs/{{ r.run_id }}">{{ r.name or '—' }}</a></td>
+    <td>{{ r.started_at|when }}</td>
+    <td class="muted small"><code>{{ r.run_id }}</code></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

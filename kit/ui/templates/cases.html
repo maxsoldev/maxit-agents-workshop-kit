@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Cases · {{ uc }}{% endblock %}
+{% block main %}
+<div class="head">
+  <h1>Cases <span class="muted">· {{ uc }} · {{ rows|length }}</span></h1>
+  <a class="btn primary" href="/uc/{{ uc }}/cases/new">+ Add case</a>
+</div>
+{% if error %}<div class="alert">cases.jsonl cannot be read: {{ error }}</div>{% endif %}
+{% if not rows and not error %}<p class="muted">No cases yet. Add the first one.</p>{% endif %}
+{% if rows %}
+<table class="cases">
+  <thead><tr><th>id</th><th>Title</th><th>Input</th><th>Expected</th><th>Checks</th><th></th></tr></thead>
+  <tbody>
+  {% for r in rows %}{% set c = r.case %}
+  <tr id="case-{{ c.id }}">
+    <td><code>{{ c.id }}</code></td>
+    <td>{{ c.title }}{% if c.today %}<div class="muted small">today {{ c.today }}</div>{% endif %}</td>
+    <td class="input">
+      {% for p in r.files %}
+        {% if p.email %}
+        <details><summary><b>{{ p.email.subject }}</b><div class="muted small">{{ p.email.from }}</div></summary>
+          <pre class="mail-body">{{ p.email.body }}</pre></details>
+        {% else %}<div><code>{{ p.path }}</code>{% if p.missing %} <span class="bad">missing</span>{% endif %}</div>{% endif %}
+      {% endfor %}
+      {% if r.rest %}<code class="small">{{ (r.rest|compact)|truncate(160) }}</code>{% endif %}
+    </td>
+    <td><code class="small">{{ c.expected|compact }}</code></td>
+    <td>{% for ch in c.checks or [] %}<span class="chip t-{{ ch.type }}" title="{{ ch.rubric or '' }}">{{ ch|check_label }}</span>{% endfor %}</td>
+    <td class="actions">
+      <a href="/uc/{{ uc }}/cases/{{ c.id }}/edit">Edit</a>
+      <a href="/uc/{{ uc }}/cases/new?copy={{ c.id }}">Copy</a>
+      <form method="post" action="/uc/{{ uc }}/cases/{{ c.id }}/delete" onsubmit="return confirm('Delete case {{ c.id }}?')">
+        <button class="link danger">Delete</button></form>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

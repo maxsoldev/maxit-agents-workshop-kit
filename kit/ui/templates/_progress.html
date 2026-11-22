@@ -1,0 +1,22 @@
+{# Live state of the runs of this use case. Polls every second while one is still going. #}
+{% set busy = jobs.values()|selectattr("done", "equalto", false)|list %}
+<div {% if busy %}hx-get="/uc/{{ uc }}/run/progress" hx-trigger="every 1s" hx-target="#progress" hx-swap="innerHTML"{% endif %}>
+{% for engine, job in jobs.items() %}
+  {% set n_pass = job.cases|selectattr("status", "equalto", "pass")|list|length %}
+  {% set n_done = job.cases|rejectattr("status", "in", ["waiting", "running"])|list|length %}
+  <section class="job">
+    <h2>{{ engine }}{% if job.name %} · {{ job.name }}{% endif %}
+      <span class="muted">{{ n_done }}/{{ job.cases|length }} done · {{ n_pass }} passed</span>
+      {% if not job.done %}<span class="spinner"></span>{% endif %}
+    </h2>
+    {% if job.error %}<div class="alert">The run failed: {{ job.error }}</div>{% endif %}
+    <ul class="live">
+      {% for c in job.cases %}
+      <li class="st-{{ c.status }}"><span class="mark">{{ {"waiting": "·", "running": "…", "pass": "✓", "fail": "✗"}[c.status] }}</span>
+        <code>{{ c.id }}</code> {{ c.title }} <span class="muted small">{{ c.status }}</span></li>
+      {% endfor %}
+    </ul>
+    {% if job.run_id %}<a class="btn primary" href="/runs/{{ job.run_id }}">Open results →</a>{% endif %}
+  </section>
+{% endfor %}
+</div>
