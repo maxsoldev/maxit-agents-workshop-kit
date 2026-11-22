@@ -84,8 +84,14 @@ def workflow_body(wf: dict) -> dict:
 def same_workflow(a: dict, b: dict) -> bool:
     """True if two workflows have the same nodes (name, type, version, parameters, credentials) and links."""
     def nodes(wf: dict) -> list:
-        keys = ("name", "type", "typeVersion", "parameters", "credentials")
-        return sorted((json.dumps({k: n.get(k) for k in keys}, sort_keys=True) for n in wf.get("nodes", [])))
+        keys = ("name", "type", "typeVersion", "parameters")
+        out = []
+        for n in wf.get("nodes", []):
+            d = {k: n.get(k) for k in keys}
+            # n8n stores its own credential name; only the id matters.
+            d["credentials"] = {t: (c or {}).get("id") for t, c in (n.get("credentials") or {}).items()}
+            out.append(json.dumps(d, sort_keys=True))
+        return sorted(out)
     return nodes(a) == nodes(b) and json.dumps(a.get("connections", {}), sort_keys=True) == json.dumps(
         b.get("connections", {}), sort_keys=True)
 
@@ -300,6 +306,18 @@ def free_webhook_paths(n8n: N8n, body: dict, wid: str) -> None:
             warn(f"deactivated '{w['name']}': it used the same webhook path ({', '.join(sorted(paths))})")
 
 
+def restart_n8n(n8n: N8n) -> bool:
+    """n8n can keep an old webhook in memory after a deactivate (activation then fails with 409).
+    A restart clears it. Local n8n only."""
+    warn("n8n still holds an old webhook: restarting n8n once (about 20 s)")
+    subprocess.run(["docker", "compose", "restart", "n8n"], cwd=ROOT, capture_output=True)
+    for _ in range(60):
+        if n8n.ready():
+            return True
+        time.sleep(1)
+    return False
+
+
 def import_workflows(n8n: N8n, cred_id: str) -> bool:
     """Create or update each usecases/*/n8n/workflow.json by name, then activate it.
     Before an update, the old n8n copy goes to runs/n8n-backup/ (you may have edited it in n8n)."""
@@ -348,6 +366,8 @@ def import_workflows(n8n: N8n, cred_id: str) -> bool:
                 continue
         free_webhook_paths(n8n, body, wid)
         r = n8n.api("POST", f"/workflows/{wid}/activate")
+        if r.status_code == 409 and settings().n8n_mode == "local" and restart_n8n(n8n):
+            r = n8n.api("POST", f"/workflows/{wid}/activate")
         if r.status_code >= 300:
             fail(f"{body['name']}: {state}, but activation failed ({r.status_code}): {r.text[:200]}")
             good = False
