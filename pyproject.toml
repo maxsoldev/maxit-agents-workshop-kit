@@ -28,3 +28,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["kit"]
+
+[tool.pytest.ini_options]
+markers = ["live: calls a real outside service (run with -m live)"]
+addopts = "-m 'not live'"
