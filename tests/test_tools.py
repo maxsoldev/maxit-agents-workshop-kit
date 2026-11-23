@@ -79,10 +79,10 @@ def test_kit_tool_by_hand(capsys):
 
 
 def test_rules_get():
-    r = tools.rules_get("travel", "python", "travel_rules")
+    r = tools.rules_get("travel", "python", "kinds")
     assert r["text"].strip() and r["engine"] == "python"
-    assert tools.rules_get("marketing", "claude", "routing.md")["name"] == "routing"
-    assert "routing" in tools.rules_get("marketing", "n8n", "nope")["hint"]
+    assert tools.rules_get("marketing", "claude", "categories.md")["name"] == "categories"
+    assert "categories" in tools.rules_get("marketing", "n8n", "nope")["hint"]
     assert "error" in tools.rules_get("sales", "n8n", "x")
     assert "unknown engine" in tools.rules_get("travel", "codex", "team")["error"]
     for bad in [
@@ -93,10 +93,8 @@ def test_rules_get():
         ("travel", "n8n", "team,../x"),
     ]:
         assert tools.rules_get(*bad)["error"] == "paths are not allowed"
-    both = tools.rules_get("travel", "n8n", "team, priorities.md")
-    assert both["name"] == "team,priorities" and both["text"].index("=== team.md") < both["text"].index(
-        "=== priorities"
-    )
+    both = tools.rules_get("travel", "n8n", "team, kinds.md")
+    assert both["name"] == "team,kinds" and both["text"].index("=== team.md") < both["text"].index("=== kinds")
     assert "nope" in tools.rules_get("travel", "n8n", "team,nope")["error"]
 
 

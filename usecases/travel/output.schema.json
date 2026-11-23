@@ -1,29 +1,30 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Travel office: tasks from one email or message",
+  "title": "Travel office: what one email or message is about",
   "type": "object",
-  "required": ["tasks", "reasons"],
+  "required": [
+    "kind",
+    "person",
+    "event",
+    "date"
+  ],
   "additionalProperties": false,
   "properties": {
-    "tasks": {
-      "type": "array",
-      "description": "The tasks in this email or message. The most important task first.",
-      "items": {
-        "type": "object",
-        "required": ["kind", "person", "event", "date", "status"],
-        "additionalProperties": false,
-        "properties": {
-          "kind": {"type": "string", "description": "A task kind from the rules file priorities.md."},
-          "person": {"type": "string", "description": "Full name of the team member."},
-          "event": {"type": "string", "description": "Event name and place, or what the task is about."},
-          "date": {"type": "string", "description": "Start date as YYYY-MM-DD, or empty if unknown."},
-          "status": {"type": "string", "description": "A status word from the rules file priorities.md."}
-        }
-      }
-    },
-    "reasons": {
+    "kind": {
       "type": "string",
-      "description": "Short explanation of the decision, for the reviewer."
+      "description": "One kind from the rules file kinds.md."
+    },
+    "person": {
+      "type": "string",
+      "description": "Full name of the team member (the rules file team.md)."
+    },
+    "event": {
+      "type": "string",
+      "description": "The event and the place, or in a few words what it is about."
+    },
+    "date": {
+      "type": "string",
+      "description": "The first day as YYYY-MM-DD, or empty if no day is known."
     }
   }
 }

@@ -17,8 +17,8 @@ Your team picks the service, writes the cases first, then makes the score go up.
 
 | Use case | The job today | Folder |
 |---|---|---|
-| **Marketing inbox** | The bloxberg info inbox: sort emails, check unknown senders, draft replies, keep the contact sheet | `usecases/marketing/` |
-| **Events and travel** | Office management: one overview of trips and leave from emails and chat, options, reminders | `usecases/travel/` |
+| **Marketing inbox** | The bloxberg info inbox: sort emails, check unknown senders, draft replies, keep the contact sheet. The starter: one email → category + flags | `usecases/marketing/` |
+| **Events and travel** | Office management: one overview of trips and leave from emails and chat, options, reminders. The starter: one email or message → kind, person, event, date | `usecases/travel/` |
 
 ## The three engines
 

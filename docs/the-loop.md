@@ -21,7 +21,7 @@ then measure every change.**
   in the prompt of each engine you use (`claude/CLAUDE.md`, the n8n prompt, `python/prompt.md`).
 - **Read the trace, not only the score.** The results page lists the tool calls for all engines. More detail:
   Langfuse (link on the results page), for n8n also **n8n execution ↗**, for Python the **Engine log**.
-- **Look at one case closely:** `make run-case UC=marketing ENGINE=python CASE=m14` prints the input, output,
+- **Look at one case closely:** `make run-case UC=marketing ENGINE=python CASE=m15` prints the input, output,
   tool calls, log and checks.
 - **Try a tool by hand** before you blame the agent: `uv run kit tool` lists the tools;
   `uv run kit tool trains_search "from_place=München Hbf" "to_place=Berlin Hbf" date=2026-12-08 arrive_by=10:00`
@@ -98,7 +98,7 @@ Open http://localhost:5700 → your use case → **Cases** → **Add case**.
    from its date.
 3. **Expected:** what a good colleague would answer, field by field.
 4. **Checks:** one check for each important point. "Must never" points become `not_contains` or a `judge`.
-   The field is a path into the result: `tasks.0.kind` = the kind of the first task. "Some task is a trip to
-   Riga" = an `any` check on `tasks`.
+   The field is a path into the result: `category`, or `tasks.0.kind` (the kind of the first task) when your
+   result has a list. "Some task is a trip to Riga" = an `any` check on `tasks`.
 
 Then save. The case goes into `cases.jsonl`. The person who does the job today knows the expected answer best.

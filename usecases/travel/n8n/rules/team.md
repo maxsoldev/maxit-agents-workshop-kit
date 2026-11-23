@@ -1,6 +1,6 @@
 # Team directory
 
-Office management keeps this list up to date. Drafts to travellers always use the email address from this list (also on Mattermost). The Mattermost name is for sending: a Mattermost draft goes to the Mattermost name of that person.
+Office management keeps this list up to date. Write the person as the full name from this list ("Priya" in a message is Priya Nair).
 
 - Jonas Meier: Team member. Email: jonas.meier@example.org. Mattermost: jonas.meier.
 - Priya Nair: Team member. Email: priya.nair@example.org. Mattermost: priya.nair.

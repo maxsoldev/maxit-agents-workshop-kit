@@ -33,18 +33,19 @@ person's approval.
 
 ## The owner's rules: `<engine>/rules/` (one copy per engine)
 
-Each engine has its own copy: `n8n/rules/`, `claude/rules/`, `python/rules/`. They start the same. The agent
-gets all files of its own copy on every case: n8n by its node *Read the rules* (tool `rules_get`), Claude by a line `@rules/<file>` per file in
-`CLAUDE.md`, Python by `agent.py` (it reads the folder).
-Edit them in the kit UI: **Rules** (pick your engine). Write them as lists, one item per line, not as tables.
+Each engine has its own copy: `n8n/rules/`, `claude/rules/`, `python/rules/`. They start the same.
+The agent gets all files of its own copy on every case: n8n by its node *Read the rules*, Claude by a line
+`@rules/<file>` per file in `CLAUDE.md`, Python by `agent.py` (it reads the folder). Edit them in the kit UI:
+**Rules** (pick your engine). Write them as lists, one item per line, not as tables.
 
-| File | What it is |
-|---|---|
-| `categories.md` | The categories, flags and priorities the owner uses. |
-| `routing.md` | Who handles what; when the head of department must approve. |
-| `reply_guidelines.md` | Tone, language, facts, unverified senders, security. |
-| `contact_rules.md` | When to create or update a contact. |
-| `process.md` | The owner's description of the process and the success criteria. |
+- `categories.md`: the categories, the flags and the priorities the owner uses. The starter agent uses only this file.
+
+More of the owner's rules, for when you extend the agent, are in `extend/rules/` (see `extend/README.md`):
+
+- `routing.md`: who handles what; when the head of department must approve.
+- `reply_guidelines.md`: tone, language, facts, unverified senders, security.
+- `contact_rules.md`: when to create or update a contact.
+- `process.md`: the owner's description of the process and the success criteria.
 
 Test situations in the data (details: `docs/data-pack.md`): follow-ups (Wollner 01→07, Hoffmann 08→14, Schulz 09→20), a support case with a
 deadline (08/14), an unverified offer (15), a prompt injection (21), off-target crypto marketing (22), a vendor
@@ -54,21 +55,21 @@ we declined before (06), contact sheet gaps.
 
 | Tool | What it gives |
 |---|---|
-| `rules_get("marketing", engine, name="*")` | the owner's rules of that engine: all files, or one (`<engine>/rules/<name>.md`). n8n uses it; Claude and Python have the rules already |
 | `contacts_lookup(query)` | matching rows of the contact sheet |
 | `inbox_history(sender, before)` | earlier emails from that sender, sent before `before` (the case's today) |
+| `rules_get("marketing", engine, name="*")` | the owner's rules of that engine (n8n uses it; Claude and Python have them already) |
 
 No tool sends anything. To add a tool, add a function in `kit/tools.py`.
 
 ## The scaffold (where you start)
 
-Read **one email** → return `{"category", "flags", "reply", "reasons"}` (`output.schema.json`). 10 starter
-cases in `cases.jsonl`. The scaffold fails some of them for real reasons, and `m14` on purpose: it checks
-`route_to`, a field the scaffold does not have yet (the tutorial adds it).
+**One email in → category + flags out:** `{"category": "spam", "flags": ["phishing"]}` (`output.schema.json`).
+10 starter cases in `cases.jsonl`, all with `equals` checks. The starter agent fails some of them for real
+reasons (an unclear flag rule), and `m08` on purpose: it checks `priority`, a field the agent does not have yet
+(the tutorial adds it).
 
-The n8n scaffold `Kit: marketing workflow`: Read the rules → **Triage** (AI) → **Junk?** (code; junk ends with
-no reply) → look up the sender and earlier emails (tools) → **Decide and draft** (AI, the main prompt) → Result
-out. Next steps you can add: a contact change step, a check before the result.
+The n8n scaffold `Kit: marketing workflow`: Case in → Read the rules → **Triage** (AI, the prompt) → Read result
+→ Result out. Next steps you can add: look up the sender, draft a reply, route the email.
 
 ## Ideas for your service
 

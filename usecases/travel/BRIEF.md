@@ -32,18 +32,20 @@ booked or sent without Martina.
 
 ## The owner's rules: `<engine>/rules/` (one copy per engine)
 
-Each engine has its own copy: `n8n/rules/`, `claude/rules/`, `python/rules/`. They start the same. The agent
-gets all files of its own copy on every case: n8n by its node *Read the rules* (tool `rules_get`), Claude by a line `@rules/<file>` per file in
-`CLAUDE.md`, Python by `agent.py` (it reads the folder).
-Edit them in the kit UI: **Rules** (pick your engine). Write them as lists, one item per line, not as tables.
+Each engine has its own copy: `n8n/rules/`, `claude/rules/`, `python/rules/`. They start the same.
+The agent gets all files of its own copy on every case: n8n by its node *Read the rules*, Claude by a line
+`@rules/<file>` per file in `CLAUDE.md`, Python by `agent.py` (it reads the folder). Edit them in the kit UI:
+**Rules** (pick your engine). Write them as lists, one item per line, not as tables.
 
-| File | What it is |
-|---|---|
-| `travel_rules.md` | Order of steps, home base (Munich), train / flight / hotel limits |
-| `priorities.md` | What comes first, one task per trip, task kinds and status words |
-| `team.md` | Team directory (names, emails, Mattermost names) |
-| `message_templates.md` | Templates for questions, reminders and cost estimates |
-| `process.md` | The owner's description of the process and the open questions |
+- `kinds.md`: the kinds (trip, leave, estimate, reminder) and how to write person, event and date.
+- `team.md`: the team directory (names, emails, Mattermost names).
+
+More of the owner's rules, for when you extend the agent, are in `extend/rules/` (see `extend/README.md`):
+
+- `priorities.md`: what comes first, one task per trip, status words.
+- `travel_rules.md`: order of steps, home base (Munich), train / flight / hotel limits.
+- `message_templates.md`: templates for questions, reminders and cost estimates.
+- `process.md`: the owner's description of the process and the open questions.
 
 Test situations in the data (details: `docs/data-pack.md`): Heidelberg in an email, a DRA and a Mattermost message (one task); Elena's DRA for
 Berlin without a note (link it to her hotel wish); the Mainz day trip without a travel request (do not book,
@@ -54,22 +56,23 @@ paper training request mentioned only on Mattermost.
 
 | Tool | What it gives |
 |---|---|
-| `rules_get("travel", engine, name="*")` | the owner's rules of that engine: all files, or one (`<engine>/rules/<name>.md`). n8n uses it; Claude and Python have the rules already |
 | `events_list(date_from, date_to)` | events from the event overview |
 | `trains_search(from_place, to_place, date, arrive_by / depart_after, modes)` | up to 5 real train connections on that day (times, trains, changes; **no prices**). Trains only, unless `modes="all"` |
+| `rules_get("travel", engine, name="*")` | the owner's rules of that engine (n8n uses it; Claude and Python have them already) |
 
 No tool books or sends anything. To add a tool (e.g. hotels), add a function in `kit/tools.py`.
 
 ## The scaffold (where you start)
 
-Read **one email or one Mattermost message** → return
-`{"tasks": [{"kind", "person", "event", "date", "status"}], "reasons"}` (`output.schema.json`). 8 starter cases
-in `cases.jsonl`. The scaffold fails some of them for real reasons, and `t03` on purpose: it checks `draft`, a
-field the scaffold does not have yet. Add it (schema and prompt).
+**One email or Mattermost message in → kind, person, event, date out:**
+`{"kind": "trip", "person": "Jonas Meier", "event": "E-Science-Tage, Heidelberg", "date": "2027-03-02"}`
+(`output.schema.json`). 10 starter cases in `cases.jsonl`, all with `equals` or `contains` checks. The starter
+agent passes most of them: your first job in the design block is harder cases (a cancelled trip, three messages
+about one trip, a trip without a travel request).
 
-The n8n scaffold `Kit: travel workflow`: Read the rules → **Read message** (AI: what, who, which days) → look up
-events on those days (tool) → **Find tasks** (AI, the main prompt) → Result out. It does not search trains
-yet: add a step.
+The n8n scaffold `Kit: travel workflow`: Case in → Read the rules → **Read message** (AI, the prompt) → Read
+result → Result out. Next steps you can add: look up the events (tool `events_list`), search trains, a status
+per trip.
 
 ## Ideas for your service
 

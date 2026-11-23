@@ -24,7 +24,7 @@ its `@rules/` line; a rule change is an agent change in Compare). Shared by all 
 ## 1. Run
 
 - All cases: `make eval UC=<uc> ENGINE=<engine> NAME=<what-you-changed>`. Holdout cases are skipped.
-  Some cases: `CASES=m12,m14`. It ends with `Run file: runs/<run_id>.json`.
+  Some cases: `CASES=m15,m21`. It ends with `Run file: runs/<run_id>.json`.
 - One case with all detail (input, output, tool calls, engine log, checks; no run file):
   `make run-case UC=<uc> ENGINE=<engine> CASE=<id>`.
 - `make serve` must run (the tools server). An eval line `Cannot start the run: …` says what to fix first

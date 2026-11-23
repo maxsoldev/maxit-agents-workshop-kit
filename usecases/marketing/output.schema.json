@@ -1,26 +1,23 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Marketing inbox: result for one email",
+  "title": "Marketing inbox: category and flags of one email",
   "type": "object",
-  "required": ["category", "flags", "reply", "reasons"],
+  "required": [
+    "category",
+    "flags"
+  ],
   "additionalProperties": false,
   "properties": {
     "category": {
       "type": "string",
-      "description": "Exactly one category from the list in the rules file categories.md (the owner keeps the list there)."
+      "description": "Exactly one category from the list in the rules file categories.md."
     },
     "flags": {
       "type": "array",
-      "items": {"type": "string"},
+      "items": {
+        "type": "string"
+      },
       "description": "Zero or more flags from the flag list in the rules file categories.md."
-    },
-    "reply": {
-      "type": "string",
-      "description": "A reply draft for a human to check. Empty string when we do not reply."
-    },
-    "reasons": {
-      "type": "string",
-      "description": "Short explanation of the decision, for the reviewer."
     }
   }
 }

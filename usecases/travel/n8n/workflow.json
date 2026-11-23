@@ -81,135 +81,12 @@
       "notesInFlow": true
     },
     {
-      "id": "1c390e6c-af80-4dde-b7fd-d22e7a980a7e",
-      "name": "Message fields",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        840,
-        0
-      ],
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "// The model answers JSON text, in the Response Format of its model node. Read it into `output`.\n// Also takes {\"output\": {...}} or a ```json block, so a good answer never stops the workflow.\nconst text = $json.text.trim().replace(/^```(?:json)?\\s*|\\s*```$/g, '');\nconst answer = JSON.parse(text);\nconst wrapped = answer.output && typeof answer.output === 'object' && Object.keys(answer).length === 1;\nreturn { json: { output: wrapped ? answer.output : answer } };"
-      },
-      "notes": "Reads the AI answer",
-      "notesInFlow": true
-    },
-    {
       "id": "a1c63fc3-8bab-4c2e-9fe3-07723fb42b73",
       "name": "Read model",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.3,
       "position": [
         560,
-        300
-      ],
-      "parameters": {
-        "model": {
-          "__rl": true,
-          "mode": "id",
-          "value": "{{KIT_MODEL}}"
-        },
-        "responsesApiEnabled": true,
-        "options": {
-          "timeout": 100000,
-          "maxRetries": 1,
-          "textFormat": {
-            "textOptions": {
-              "type": "json_schema",
-              "name": "message_fields",
-              "schema": "{\n  \"type\": \"object\",\n  \"additionalProperties\": false,\n  \"required\": [\n    \"about\",\n    \"person\",\n    \"date_from\",\n    \"date_to\"\n  ],\n  \"properties\": {\n    \"about\": {\n      \"type\": \"string\"\n    },\n    \"person\": {\n      \"type\": \"string\"\n    },\n    \"date_from\": {\n      \"type\": \"string\"\n    },\n    \"date_to\": {\n      \"type\": \"string\"\n    }\n  }\n}"
-            }
-          }
-        }
-      },
-      "credentials": {
-        "openAiApi": {
-          "id": "{{OPENAI_CREDENTIAL_ID}}",
-          "name": "Kit OpenAI"
-        }
-      }
-    },
-    {
-      "id": "c8199b04-a38d-4bbb-851a-15f26aa7a37f",
-      "name": "Look up events on those days",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1100,
-        0
-      ],
-      "parameters": {
-        "method": "POST",
-        "url": "{{KIT_TOOLS_URL}}/call/events_list",
-        "sendBody": true,
-        "specifyBody": "keypair",
-        "options": {
-          "timeout": 60000
-        },
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "date_from",
-              "value": "={{ $json.output.date_from }}"
-            },
-            {
-              "name": "date_to",
-              "value": "={{ $json.output.date_to }}"
-            }
-          ]
-        }
-      },
-      "notes": "Reads data/events.csv",
-      "notesInFlow": true
-    },
-    {
-      "id": "f852f209-d402-41bf-9a74-f9dd3cbc8fd0",
-      "name": "Find tasks",
-      "type": "@n8n/n8n-nodes-langchain.chainLlm",
-      "typeVersion": 1.9,
-      "position": [
-        1400,
-        0
-      ],
-      "parameters": {
-        "promptType": "define",
-        "text": "={{PROMPT:find_tasks.input}}",
-        "messages": {
-          "messageValues": [
-            {
-              "message": "={{PROMPT:find_tasks}}"
-            }
-          ]
-        }
-      },
-      "notes": "AI: the main prompt",
-      "notesInFlow": true
-    },
-    {
-      "id": "6978513d-b6a2-4cda-9db2-5a8874b0f131",
-      "name": "Read result",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1680,
-        0
-      ],
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "// The model answers JSON text, in the Response Format of its model node. Read it into `output`.\n// Also takes {\"output\": {...}} or a ```json block, so a good answer never stops the workflow.\nconst text = $json.text.trim().replace(/^```(?:json)?\\s*|\\s*```$/g, '');\nconst answer = JSON.parse(text);\nconst wrapped = answer.output && typeof answer.output === 'object' && Object.keys(answer).length === 1;\nreturn { json: { output: wrapped ? answer.output : answer } };"
-      },
-      "notes": "Reads the AI answer",
-      "notesInFlow": true
-    },
-    {
-      "id": "2ab9d82b-4900-49a3-b111-5387ac555ad9",
-      "name": "Tasks model",
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1.3,
-      "position": [
-        1400,
         300
       ],
       "parameters": {
@@ -239,12 +116,28 @@
       }
     },
     {
+      "id": "6978513d-b6a2-4cda-9db2-5a8874b0f131",
+      "name": "Read result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The model answers JSON text, in the Response Format of its model node. Read it into `output`.\n// Also takes {\"output\": {...}} or a ```json block, so a good answer never stops the workflow.\nconst text = $json.text.trim().replace(/^```(?:json)?\\s*|\\s*```$/g, '');\nconst answer = JSON.parse(text);\nconst wrapped = answer.output && typeof answer.output === 'object' && Object.keys(answer).length === 1;\nreturn { json: { output: wrapped ? answer.output : answer } };"
+      },
+      "notes": "Reads the AI answer",
+      "notesInFlow": true
+    },
+    {
       "id": "cfca911c-3459-480d-b98b-e6719c2f5172",
       "name": "Result out",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        1960,
+        1100,
         0
       ],
       "parameters": {
@@ -284,39 +177,7 @@
         "color": 4,
         "width": 540,
         "height": 840,
-        "content": "## 2 Read message (AI)\nOne model call: what it is about, who, which days.\nPrompt: **Read message** > Chat Messages > Message.\nThe fields: **Read model** > Options > Response Format.\n**Message fields** reads the answer."
-      }
-    },
-    {
-      "id": "note-travel-events",
-      "name": "Note: events",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        1060,
-        -420
-      ],
-      "parameters": {
-        "color": 7,
-        "width": 300,
-        "height": 840,
-        "content": "## 3 Look things up (no AI)\nWhich events are on those days?\nThe tool nodes ask the kit's **tools server** on your laptop (`/call/<tool>`). It reads the files in `data/`.\nMore context (trains): copy the node, change the tool in the URL and the fields."
-      }
-    },
-    {
-      "id": "note-travel-tasks",
-      "name": "Note: tasks",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        1360,
-        -420
-      ],
-      "parameters": {
-        "color": 4,
-        "width": 540,
-        "height": 840,
-        "content": "## 4 Find tasks (AI)\n**The main prompt is here**: **Find tasks** > Chat Messages > Message (the steps). Change one thing, Publish, run the eval again.\n**Tasks model** > Options > Response Format forces the result shape of the case (`output.schema.json`).\n**Read result** reads the answer."
+        "content": "## 2 Read message (AI)\n**The prompt is here**: **Read message** > Chat Messages > Message. One model call: kind, person, event, date.\n**Read model** > Options > Response Format forces the result shape of the case (`output.schema.json`): a schema change needs no edit here.\n**Read result** reads the answer. Change one thing, Publish, run the eval again."
       }
     },
     {
@@ -325,7 +186,7 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        1920,
+        1060,
         -420
       ],
       "parameters": {
@@ -363,62 +224,7 @@
       "main": [
         [
           {
-            "node": "Message fields",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Look up events on those days": {
-      "main": [
-        [
-          {
-            "node": "Find tasks",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Find tasks": {
-      "main": [
-        [
-          {
             "node": "Read result",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Read model": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Read message",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Tasks model": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Find tasks",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Message fields": {
-      "main": [
-        [
-          {
-            "node": "Look up events on those days",
             "type": "main",
             "index": 0
           }
@@ -431,6 +237,17 @@
           {
             "node": "Result out",
             "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Read message",
+            "type": "ai_languageModel",
             "index": 0
           }
         ]

@@ -10,8 +10,8 @@ The n8n agent of a use case lives in `usecases/<uc>/n8n/`:
 - `workflow.json`: the workflow `Kit: <uc> workflow` (engine `n8n`, webhook path `<uc>`). A chain of nodes:
   code decides the path, the model fills in the steps.
 - `prompts/<name>.md`: the prompts. A prompt field in the JSON holds only `={{PROMPT:<name>}}`.
-  `<name>` = the node name in snake case: node `Decide and draft` → `decide_and_draft.md` (its instructions,
-  the system message) and `decide_and_draft.input.md` (what the node gets: the case and the earlier node
+  `<name>` = the node name in snake case: node `Read message` → `read_message.md` (its instructions,
+  the system message) and `read_message.input.md` (what the node gets: the case and the earlier node
   outputs, as n8n expressions `{{ $('Node name').item.json... }}`).
 
 n8n itself keeps its own copy in its database. The kit syncs the two:
@@ -39,11 +39,9 @@ The person may also edit in the n8n editor (http://localhost:5702 or `N8N_URL`) 
 
 ## Change the graph (`workflow.json`)
 
-The marketing scaffold: `Case in` → `Read the rules` → `Triage` (AI, model `Triage model`) → `Triage fields`
-(code: JSON text → `output`) → `Junk?` (IF; yes → `Result: no reply`) → `Look up the sender in the contact
-sheet`, `Find earlier emails from the sender` (tools) → `Decide and draft` (AI, `Draft model`) → `Read result`
-→ `Result out`. Travel: `Case in` → `Read the rules` → `Read message` (AI) → `Message fields` → `Look up events
-on those days` (tool) → `Find tasks` (AI) → `Read result` → `Result out`. Notes (`Note: …`) are sticky notes.
+The starters have one AI step. Marketing: `Case in` → `Read the rules` (tool `rules_get`, all of
+`n8n/rules/`) → `Triage` (AI, model `Triage model`) → `Read result` (code: JSON text → `output`) →
+`Result out`. Travel: the same with `Read message` (AI, model `Read model`). Notes (`Note: …`) are sticky notes.
 
 Rules for an edit by hand:
 
@@ -53,10 +51,10 @@ Rules for an edit by hand:
 - A new node needs a unique `id` (a new UUID), a `position` `[x, y]` (main steps go left to right at y = 0,
   260–300 apart in x; a model sub-node sits at y = 300 under its AI node; move the later nodes right), and
   `type` and `typeVersion` copied from a node of the same kind.
-- A new AI step: copy `Decide and draft` + its model node + a parse code node (`Read result`), and connect the
+- A new AI step: copy `Triage` (or `Read message`) + its model node + a parse code node (`Read result`), and connect the
   model with `ai_languageModel`. Its prompts go in two new files with placeholders.
 - A tool step is an HTTP Request node: `POST {{KIT_TOOLS_URL}}/call/<tool>`, body "Using Fields Below", one
-  field per tool argument (copy `Look up the sender in the contact sheet`). `uv run kit tool` lists the tools.
+  field per tool argument (copy `Read the rules`). `uv run kit tool` lists the tools.
 - The last AI step gets the result shape from the case: Response Format → JSON Schema, by expression from
   `$('Case in').item.json.body.output_schema`. n8n sends it as strict JSON Schema, so `output.schema.json`
   must list every field in `required` and have `additionalProperties: false` (the eval checks it first).

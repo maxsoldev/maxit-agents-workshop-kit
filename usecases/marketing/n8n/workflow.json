@@ -81,215 +81,12 @@
       "notesInFlow": true
     },
     {
-      "id": "e44b02b5-7d93-454b-a774-3d76a8379447",
-      "name": "Triage fields",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        840,
-        0
-      ],
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "// The model answers JSON text, in the Response Format of its model node. Read it into `output`.\n// Also takes {\"output\": {...}} or a ```json block, so a good answer never stops the workflow.\nconst text = $json.text.trim().replace(/^```(?:json)?\\s*|\\s*```$/g, '');\nconst answer = JSON.parse(text);\nconst wrapped = answer.output && typeof answer.output === 'object' && Object.keys(answer).length === 1;\nreturn { json: { output: wrapped ? answer.output : answer } };"
-      },
-      "notes": "Reads the AI answer",
-      "notesInFlow": true
-    },
-    {
       "id": "8c59aa8d-824f-4be1-bcb5-4572b50ad9c7",
       "name": "Triage model",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.3,
       "position": [
         560,
-        300
-      ],
-      "parameters": {
-        "model": {
-          "__rl": true,
-          "mode": "id",
-          "value": "{{KIT_MODEL}}"
-        },
-        "responsesApiEnabled": true,
-        "options": {
-          "timeout": 100000,
-          "maxRetries": 1,
-          "textFormat": {
-            "textOptions": {
-              "type": "json_schema",
-              "name": "triage",
-              "schema": "{\n  \"type\": \"object\",\n  \"additionalProperties\": false,\n  \"required\": [\n    \"category\",\n    \"flags\",\n    \"no_reply\",\n    \"sender_email\",\n    \"reason\"\n  ],\n  \"properties\": {\n    \"category\": {\n      \"type\": \"string\"\n    },\n    \"flags\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"no_reply\": {\n      \"type\": \"boolean\"\n    },\n    \"sender_email\": {\n      \"type\": \"string\"\n    },\n    \"reason\": {\n      \"type\": \"string\"\n    }\n  }\n}"
-            }
-          }
-        }
-      },
-      "credentials": {
-        "openAiApi": {
-          "id": "{{OPENAI_CREDENTIAL_ID}}",
-          "name": "Kit OpenAI"
-        }
-      }
-    },
-    {
-      "id": "24d811f6-1f79-44a1-8b18-23a9e1511667",
-      "name": "Junk?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        1100,
-        0
-      ],
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "fd4a1415-0606-4da6-a4a9-7334c21326bd",
-              "leftValue": "={{ $json.output.no_reply === true }}",
-              "rightValue": "",
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "notes": "Junk? Then no reply",
-      "notesInFlow": true
-    },
-    {
-      "id": "e5455725-ffba-4834-b08f-c7ba441627ae",
-      "name": "Result: no reply",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2480,
-        -260
-      ],
-      "parameters": {
-        "jsCode": "// No reply and no more model calls: build the result in code, in the shape of the case schema.\nconst triage = $('Triage fields').first().json.output;\nconst schema = $('Case in').first().json.body.output_schema;\nconst result = { category: triage.category, flags: triage.flags, reply: '', reasons: 'No reply. ' + triage.reason };\n// Only the fields of the schema; a required field we do not know (e.g. route_to) gets an empty value.\nconst output = {};\nfor (const [key, prop] of Object.entries(schema.properties)) {\n  if (key in result) output[key] = result[key];\n  else if ((schema.required || []).includes(key)) output[key] = prop.type === 'array' ? [] : prop.type === 'boolean' ? false : '';\n}\nreturn [{ json: { output } }];"
-      },
-      "notes": "No AI call",
-      "notesInFlow": true
-    },
-    {
-      "id": "efaa1683-2596-4c0e-b90e-7bd883da73a5",
-      "name": "Look up the sender in the contact sheet",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1360,
-        0
-      ],
-      "parameters": {
-        "method": "POST",
-        "url": "{{KIT_TOOLS_URL}}/call/contacts_lookup",
-        "sendBody": true,
-        "specifyBody": "keypair",
-        "options": {
-          "timeout": 60000
-        },
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "query",
-              "value": "={{ $('Triage fields').item.json.output.sender_email }}"
-            }
-          ]
-        }
-      },
-      "notes": "Reads data/contacts.csv",
-      "notesInFlow": true
-    },
-    {
-      "id": "e77f7ab2-b5ba-4fb6-8825-5dab4b615932",
-      "name": "Find earlier emails from the sender",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1620,
-        0
-      ],
-      "parameters": {
-        "method": "POST",
-        "url": "{{KIT_TOOLS_URL}}/call/inbox_history",
-        "sendBody": true,
-        "specifyBody": "keypair",
-        "options": {
-          "timeout": 60000
-        },
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "sender",
-              "value": "={{ $('Triage fields').item.json.output.sender_email }}"
-            },
-            {
-              "name": "before",
-              "value": "={{ $('Case in').item.json.body.today }}"
-            }
-          ]
-        }
-      },
-      "notes": "Reads data/emails/",
-      "notesInFlow": true
-    },
-    {
-      "id": "eda13a18-a023-4401-b89d-29f36ff0f0a3",
-      "name": "Decide and draft",
-      "type": "@n8n/n8n-nodes-langchain.chainLlm",
-      "typeVersion": 1.9,
-      "position": [
-        1920,
-        0
-      ],
-      "parameters": {
-        "promptType": "define",
-        "text": "={{PROMPT:decide_and_draft.input}}",
-        "messages": {
-          "messageValues": [
-            {
-              "message": "={{PROMPT:decide_and_draft}}"
-            }
-          ]
-        }
-      },
-      "notes": "AI: the main prompt",
-      "notesInFlow": true
-    },
-    {
-      "id": "745ca2e9-64cf-44e8-8b16-a037fd9b068b",
-      "name": "Read result",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2200,
-        0
-      ],
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "// The model answers JSON text, in the Response Format of its model node. Read it into `output`.\n// Also takes {\"output\": {...}} or a ```json block, so a good answer never stops the workflow.\nconst text = $json.text.trim().replace(/^```(?:json)?\\s*|\\s*```$/g, '');\nconst answer = JSON.parse(text);\nconst wrapped = answer.output && typeof answer.output === 'object' && Object.keys(answer).length === 1;\nreturn { json: { output: wrapped ? answer.output : answer } };"
-      },
-      "notes": "Reads the AI answer",
-      "notesInFlow": true
-    },
-    {
-      "id": "4090872b-9e72-4c95-8e4d-208913bdfa37",
-      "name": "Draft model",
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1.3,
-      "position": [
-        1920,
         300
       ],
       "parameters": {
@@ -319,12 +116,28 @@
       }
     },
     {
+      "id": "745ca2e9-64cf-44e8-8b16-a037fd9b068b",
+      "name": "Read result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The model answers JSON text, in the Response Format of its model node. Read it into `output`.\n// Also takes {\"output\": {...}} or a ```json block, so a good answer never stops the workflow.\nconst text = $json.text.trim().replace(/^```(?:json)?\\s*|\\s*```$/g, '');\nconst answer = JSON.parse(text);\nconst wrapped = answer.output && typeof answer.output === 'object' && Object.keys(answer).length === 1;\nreturn { json: { output: wrapped ? answer.output : answer } };"
+      },
+      "notes": "Reads the AI answer",
+      "notesInFlow": true
+    },
+    {
       "id": "34736874-6510-4819-b392-3278ae776ba1",
       "name": "Result out",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        2480,
+        1100,
         0
       ],
       "parameters": {
@@ -364,55 +177,7 @@
         "color": 4,
         "width": 540,
         "height": 840,
-        "content": "## 2 Triage (AI)\nOne model call sorts the email: category, flags, sender address.\nPrompt: **Triage** > Chat Messages > Message.\nThe fields: **Triage model** > Options > Response Format.\n**Triage fields** reads the answer."
-      }
-    },
-    {
-      "id": "note-marketing-gate",
-      "name": "Note: gate",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        1060,
-        -420
-      ],
-      "parameters": {
-        "color": 6,
-        "width": 240,
-        "height": 840,
-        "content": "## 3 Junk? (a rule, no AI)\nTriage says `no_reply` (the owner's routing rules): no reply, no more AI calls.\nChange the rule in **Junk?**, or the `no_reply` line in `n8n/rules/routing.md` (kit UI → **Rules**)."
-      }
-    },
-    {
-      "id": "note-marketing-context",
-      "name": "Note: context",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        1320,
-        -420
-      ],
-      "parameters": {
-        "color": 7,
-        "width": 540,
-        "height": 840,
-        "content": "## 4 Look things up (no AI)\nWho is the sender? Did they write before?\nThe tool nodes ask the kit's **tools server** on your laptop (`/call/<tool>`). It reads the files in `data/`.\nMore context: copy a node, change the tool in the URL and the fields."
-      }
-    },
-    {
-      "id": "note-marketing-draft",
-      "name": "Note: draft",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        1880,
-        -420
-      ],
-      "parameters": {
-        "color": 4,
-        "width": 540,
-        "height": 840,
-        "content": "## 5 Decide and draft (AI)\n**The main prompt is here**: **Decide and draft** > Chat Messages > Message (the steps). Change one thing, Publish, run the eval again.\n**Draft model** > Options > Response Format forces the result shape of the case (`output.schema.json`): a schema change needs no edit here.\n**Read result** reads the answer."
+        "content": "## 2 Triage (AI)\n**The prompt is here**: **Triage** > Chat Messages > Message. One model call sorts the email: category and flags.\n**Triage model** > Options > Response Format forces the result shape of the case (`output.schema.json`): a schema change needs no edit here.\n**Read result** reads the answer. Change one thing, Publish, run the eval again."
       }
     },
     {
@@ -421,7 +186,7 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        2440,
+        1060,
         -420
       ],
       "parameters": {
@@ -459,102 +224,7 @@
       "main": [
         [
           {
-            "node": "Triage fields",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Junk?": {
-      "main": [
-        [
-          {
-            "node": "Result: no reply",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Look up the sender in the contact sheet",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Result: no reply": {
-      "main": [
-        [
-          {
-            "node": "Result out",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Look up the sender in the contact sheet": {
-      "main": [
-        [
-          {
-            "node": "Find earlier emails from the sender",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Find earlier emails from the sender": {
-      "main": [
-        [
-          {
-            "node": "Decide and draft",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Decide and draft": {
-      "main": [
-        [
-          {
             "node": "Read result",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Triage model": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Triage",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Draft model": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Decide and draft",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Triage fields": {
-      "main": [
-        [
-          {
-            "node": "Junk?",
             "type": "main",
             "index": 0
           }
@@ -567,6 +237,17 @@
           {
             "node": "Result out",
             "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Triage model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Triage",
+            "type": "ai_languageModel",
             "index": 0
           }
         ]
