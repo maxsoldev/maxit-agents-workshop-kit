@@ -85,6 +85,7 @@ This gap is on purpose (`usecases/marketing/BRIEF.md`).
   often the judge on the reply. That is a real mistake in the reply, not in `route_to`.
 - A case can also get **▼ worse**: for example, the judge gives the reply 3 this time. That is the next thing
   to look at, not a reason to stop.
+- With Langfuse on: the same compare in Langfuse. Click **Open this experiment in Langfuse** on the results page.
 
 **What it teaches**
 

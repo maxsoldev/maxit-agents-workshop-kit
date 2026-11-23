@@ -116,6 +116,7 @@ Run file `runs/<run_id>.json`, `run_id` = `<YYYYmmdd-HHMMSS>-<uc>-<engine>`:
 
 ```json
 {"run_id": "...", "name": "...", "usecase": "marketing", "engine": "n8n", "started_at": "...", "ended_at": "...",
+ "experiment_url": "http://localhost:5703/project/<id>/experiments/results?baseline=<id>",
  "summary": {"cases": 5, "passed": 4, "by_check": {"equals": [4, 5], "judge": [3, 3]},
              "by_field": {"schema": [5, 5], "equals category": [4, 5], "judge reply": [3, 3]}, "skipped": {}},
  "cases": [{"id": "m06", "title": "...", "passed": false, "seconds": 3.2, "error": null,
@@ -150,6 +151,21 @@ Claude also gets `OTEL_LOG_TOOL_DETAILS=1`, `OTEL_LOG_TOOL_CONTENT=1`, `OTEL_LOG
 a span event, which Langfuse does not show). So the runner reads the tool calls from Claude's stream-json and
 writes one TOOL span per call, `tool:<name>`, with input and output, under the case trace. The run file has
 them too (`meta.tool_calls`, output cut to 4000 characters); the results page lists them.
+
+**Dataset and experiment** (`run_eval`: UI Run and `make eval`; not `make check` runs, named `check`, and not
+`run-case`). Before the cases run, the runner syncs **all** cases of `cases.jsonl` (holdout too) to the Langfuse
+dataset `<uc>`: one item per case, item id `<uc>-<case_id>`, input = case `input`, expected output = case
+`expected`, metadata = `title`, `today`, `checks`, `holdout`. Only changed items are written. Items of removed
+cases are set to `ARCHIVED` (not deleted); a case that comes back is `ACTIVE` again. `cases.jsonl` stays the
+source of truth.
+The eval run is one **dataset run** (experiment) on that dataset: id = `Langfuse.create_trace_id(seed=run_id)`,
+name = `<run name> (<run_id>)`, or only `<run_id>` when the run has no name. Run metadata: `engine`, `model`
+(`KIT_MODEL`), `judge_model`, `git` (short commit). Each case trace is the run item of its case (the experiment
+attributes that the SDK's `run_experiment` sets, on the case root span). Scores stay on the traces, so the
+Langfuse compare view shows them per item. The run file gets `experiment_url`
+(`{LANGFUSE_HOST}/project/<id>/experiments/results?baseline=<experiment id>`): the results page links it ("Open
+this experiment in Langfuse"), `make eval` prints it. Langfuse down or slow: the sync waits at most 20 s, then
+the run goes on without an experiment (`experiment_url: null`, a WARN line on stderr).
 
 ## 7. Tools (MCP server `kit/tools.py`, server name `kit`)
 

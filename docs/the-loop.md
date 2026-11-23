@@ -19,6 +19,14 @@ then measure every change.**
 6. **Every new failure becomes a case.** When you see a mistake (in a trace, in a demo, in real use), write a
    case for it before you fix it. Then the fix stays fixed.
 
+## In Langfuse
+
+Langfuse has the same loop with other words. Your **cases** are a **dataset** (Datasets → `marketing`, one item
+per case). Each eval **run** is an **experiment** (a dataset run) on that dataset. Each **check** is a **score**
+(1 or 0) on the case trace, plus `passed`. To compare two runs: Experiments → tick both → **Compare** (or the
+link **Open this experiment in Langfuse** on the results page). It shows the scores per case, side by side.
+`cases.jsonl` stays the source: each eval writes the changed cases to the dataset.
+
 ## Rules that save time
 
 - **One change at a time.** With two changes you do not know which one helped. A new output field is one
