@@ -152,13 +152,35 @@ Run file `runs/<run_id>.json`, `run_id` = `<YYYYmmdd-HHMMSS>-<uc>-<engine>`:
 {"run_id": "...", "name": "...", "usecase": "marketing", "engine": "n8n", "started_at": "...", "ended_at": "...",
  "experiment_url": "http://localhost:5703/project/<id>/experiments/results?baseline=<id>",
  "summary": {"cases": 5, "passed": 4, "by_check": {"equals": [4, 5], "judge": [3, 3]},
-             "by_field": {"schema": [5, 5], "equals category": [4, 5], "judge reply": [3, 3]}, "skipped": {}},
+             "by_field": {"schema": [5, 5], "equals category": [4, 5], "judge reply": [3, 3]}, "skipped": {},
+             "totals": {"seconds": 16.0, "tokens_in": 30500, "tokens_out": 1900, "cost_usd": 0.004, "cost_cases": 5,
+                        "judge_cost_usd": 0.0021, "avg_seconds": 3.2, "avg_tokens_in": 6100, "avg_tokens_out": 380,
+                        "avg_cost_usd": 0.0008}},
  "cases": [{"id": "m06", "title": "...", "passed": false, "seconds": 3.2, "error": null,
+            "tokens_in": 6100, "tokens_out": 380, "cost_usd": 0.0008,
+            "judge": {"seconds": 1.4, "tokens_in": 1200, "tokens_out": 40, "cost_usd": 0.0014},
             "input": {...}, "expected": {...}, "output": {...},
             "checks": [{"type": "equals", "field": "category", "passed": false, "reason": "got unverified_outreach, expected service_offer",
                         "def": {"type": "equals", "field": "category"}}],
             "trace_url": "http://localhost:5703/...", "n8n_execution_url": "http://localhost:5702/workflow/<id>/executions/<n>"}]}
 ```
+
+**Time, tokens and cost.** `seconds` = the agent's time (the engine call, wall clock), without the checks.
+`tokens_in`, `tokens_out`, `cost_usd` = the agent's model calls (`meta.model_calls`: `[{"model", "tokens_in",
+"tokens_out", "cost_usd"}]`); null = unknown. `judge` = the judge checks of the case (their time and calls;
+each judge check result also has its `model_call`), or null when no judge ran. Where the calls come from:
+claude: `modelUsage` of the `result` event, one call per model, with Claude Code's own `costUSD` (tokens_in
+includes the cache reads and writes); python: the `model <name> {"input_tokens": N, "output_tokens": M}`
+stderr lines of `agent.py` (one per Responses API call, its `usage`); n8n: the model sub-node runs of the
+execution (needs `N8N_API_KEY`; with the Responses API n8n stores only its own token estimate); judge: the
+`usage` of its answer. The cost of an OpenAI-style model comes from the price table `KIT_PRICES`
+(`kit/config.py`: `model=input/output` USD per 1M tokens; defaults gpt-6-luna 0.10/0.50, gpt-6.1-terra
+1.00/5.00, OpenAI Standard tier, Nov 2026; a dated snapshot or an `openai/` prefix has the price of the
+name). A model without a price: `cost_usd` null (a part of the cost is not the cost). Cached input is
+counted at the full input price. `summary.totals`: sums and averages per case over the cases with a known
+value (`cost_cases` = how many have a cost), and `judge_cost_usd`. The results page shows Time and Cost per
+case, the totals in the header, and Δ time / Δ cost (per case, on average) against the compare run; `make
+eval` and `make compare` print them. Older run files have no totals: the page shows "–".
 
 Each case check result keeps `def`: the check from `cases.jsonl` as it was at run time (`value`, `values`,
 `rubric`, `min`, `where`, `contains`, …; the schema check has none). The results page shows the check targets
@@ -221,6 +243,24 @@ Langfuse compare view shows them per item. The run file gets `experiment_url`
 (`{LANGFUSE_HOST}/project/<id>/experiments/results?baseline=<experiment id>`): the results page links it ("Open
 this experiment in Langfuse"), `make eval` prints it. Langfuse down or slow: the sync waits at most 20 s, then
 the run goes on without an experiment (`experiment_url: null`, a WARN line on stderr).
+
+**Latency and cost in the experiment.** Langfuse (v4, events) takes an item's latency from the case root span
+(start to end) and its cost from the sum of `total_cost` of all observations that carry the experiment
+attributes, so only the spans that the runner writes in the case context count (Claude Code's own OTel spans
+come from another process: they nest in the trace, but they have no experiment id and no usage). So:
+- The case root span ends when the agent ends (`end_on_exit=False`, `CaseTrace.end`): latency = `seconds`.
+  The checks, the scores and the judge generations come after it.
+- One GENERATION per model call with `usage_details` `{input, output}` and, if the kit knows it,
+  `cost_details` `{total}` (Langfuse takes a sent cost before its own price table): python `model <i>:
+  <model>`, claude `model <i>: <model>` (one per model, Claude's cost), the judge `judge <i>: <model>`;
+  n8n: the model sub-node generations get `cost_details` from `KIT_PRICES`. The experiment's cost of an item
+  is therefore agent + judge; the run file keeps them apart.
+- `make setup` copies `KIT_PRICES` to Langfuse as project models (`/api/public/models`, unit TOKENS, per
+  token; pattern `(?i)^(openai/)?(<name>)(-YYYY-MM-DD)?$`). A model with other prices is deleted and made
+  again; Langfuse's own models are not changed. Langfuse already knows gpt-6-luna and gpt-6.1-terra; the
+  copy matters for other names (a gateway's `fast`).
+- The compare view hides the Cost and Latency columns at first: Columns → tick "Cost ($)" and
+  "Latency (ms)" (the browser keeps the choice).
 
 ## 7. Tools (MCP server `kit/tools.py`, server name `kit`)
 

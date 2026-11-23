@@ -47,7 +47,9 @@ answer.
 
 In Langfuse your **cases** are a **dataset**, each eval run is an **experiment**, each check is a **score**.
 To compare runs: Experiments → tick both → **Compare** (or **Open this experiment in Langfuse** on the results
-page).
+page). For time and cost per case: **Columns** → tick **Cost ($)** and **Latency (ms)**. The kit results page
+shows them too (Time, Cost, the totals, and Δ time / Δ cost against the compare run). Cheaper and faster
+counts only if the score stays the same.
 
 ## Which check when
 
