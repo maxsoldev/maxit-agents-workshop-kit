@@ -73,6 +73,13 @@ def test_forms_render(client):
     assert "File not found" in client.get("/uc/demo/file?path=../../etc/passwd").text
 
 
+def test_previews_show_every_file(client):
+    inp = json.dumps({"email_file": "data/emails/06.eml", "email_2_file": "data/emails/06.eml"})
+    text = client.post("/uc/demo/previews", data={"input": inp}).text
+    assert text.count("Managed validator") == 2 and "email_2_file" in text
+    assert "email_2_file" in client.get("/uc/demo/cases/new").text  # the hint about numbered keys
+
+
 def test_add_edit_delete_round_trip(client):
     r = client.post("/uc/demo/cases/save", data=form(), follow_redirects=False)
     assert r.status_code == 303

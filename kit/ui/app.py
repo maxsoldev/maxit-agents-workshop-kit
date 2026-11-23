@@ -253,6 +253,18 @@ def file_preview(request: Request, uc: str, path: str = ""):
     return templates.TemplateResponse(request, "_previews.html", {"previews": previews})
 
 
+@app.post("/uc/{uc}/previews", response_class=HTMLResponse)
+async def input_previews(request: Request, uc: str):
+    """htmx partial: the previews of all `*_file` keys in the input JSON of the form."""
+    f = await request.form()
+    try:
+        data = json.loads(str(f.get("input", "")) or "{}")
+    except json.JSONDecodeError:
+        data = {}
+    previews = file_previews(uc, data if isinstance(data, dict) else {})
+    return templates.TemplateResponse(request, "_previews.html", {"previews": previews})
+
+
 # ---------- run ----------
 
 JOBS: dict[tuple[str, str], dict] = {}   # (uc, engine) -> live state of the last run

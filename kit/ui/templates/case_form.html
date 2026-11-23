@@ -17,14 +17,16 @@
     <div>
       <label>Input (JSON) <textarea name="input" id="input" rows="8" spellcheck="false">{{ raw.input }}</textarea></label>
       <div class="picker">
-        <select name="path" id="file-pick" hx-get="/uc/{{ uc }}/file" hx-target="#preview" hx-trigger="change">
+        <select name="path" id="file-pick" hx-get="/uc/{{ uc }}/file" hx-target="#pick-preview" hx-trigger="change">
           <option value="">Pick a file from data/ …</option>
           {% for f in files %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
         </select>
         <button type="button" class="btn" onclick="addFile()">Add to input</button>
       </div>
       <p class="muted small">A key that ends in <code>_file</code> is a path in the use case folder.
-        The runner adds the file text for the agent (for example <code>email_file</code> → <code>email</code>).</p>
+        The runner adds the file text for the agent (for example <code>email_file</code> → <code>email</code>).
+        A second email becomes <code>email_2_file</code> (→ <code>email_2</code>), and so on.</p>
+      <div id="pick-preview"></div>
     </div>
     <div>
       <label>Expected (JSON) <textarea name="expected" rows="8" spellcheck="false">{{ raw.expected }}</textarea></label>
@@ -32,6 +34,7 @@
     </div>
   </div>
 
+  <h2>Files in the input</h2>
   <div id="preview">{% include "_previews.html" %}</div>
 
   <h2>Checks</h2>
@@ -64,9 +67,15 @@ function addFile() {
   const box = document.getElementById("input");
   let obj = {};
   try { obj = JSON.parse(box.value || "{}"); } catch (e) { alert("Input is not valid JSON. Fix it first."); return; }
+  // A second file of the same kind gets a number: email_file, email_2_file, email_3_file, ...
   const name = path.startsWith("data/emails/") ? "email" : path.split("/").pop().replace(/\.[^.]*$/, "").replace(/\W+/g, "_");
-  obj[name + "_file"] = path;
+  if (Object.values(obj).includes(path)) return;  // already in the input
+  let key = name + "_file";
+  for (let n = 2; key in obj; n++) key = name + "_" + n + "_file";
+  obj[key] = path;
   box.value = JSON.stringify(obj, null, 2);
+  document.getElementById("pick-preview").innerHTML = "";
+  htmx.ajax("POST", "/uc/{{ uc }}/previews", {target: "#preview", values: {input: box.value}});
 }
 </script>
 {% endblock %}
