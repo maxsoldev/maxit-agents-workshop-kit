@@ -56,8 +56,11 @@ The schema check (§4) always runs first. A case passes when the schema check an
 
 ## 4. Engine contract
 
-Engine input (JSON): `{"case_id": "m06", "today": "2026-11-04", "input": {<case input with file texts added>}}`.
-Engine output: one JSON object that must validate against `output.schema.json`.
+Engine input (JSON): `{"case_id": "m06", "today": "2026-11-04", "input": {<case input with file texts added>},
+"output_schema": {<the parsed output.schema.json>}}`.
+Engine output: one JSON object that must validate against `output_schema`. The scaffolds read the shape from
+`output_schema` (Claude `CLAUDE.md`, `python/agent.py`, and the n8n **Result shape** node by the expression
+`$('Case in').item.json.body.output_schema`), so a schema change needs no copy in the engines.
 
 | Engine | How the runner calls it | Timeout |
 |---|---|---|

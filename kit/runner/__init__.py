@@ -57,6 +57,7 @@ def run_case(uc: str, engine: str, case: dict, schema: dict, run_id: str, run_na
     try:
         inp = engine_input(uc, case)
         res["input"] = inp["input"]
+        inp["output_schema"] = schema  # every engine sees the result shape (contracts §4)
         with tracing.case_trace(uc, engine, run_id, run_name, case["id"], inp) as trace:
             res["trace_url"] = trace.url
             output, error, meta = engines.call_with_deadline(uc, engine, inp, trace.env(engine))

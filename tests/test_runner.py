@@ -33,6 +33,7 @@ class FakeN8n(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
             return
+        FakeN8n.last = body
         inp = body["input"]
         if inp.get("mode") == "sleep":
             time.sleep(3)
@@ -161,6 +162,7 @@ def test_claude_run_with_fake_cli():
 def test_n8n_run(n8n):
     run = runner.run_eval("fake", "n8n", case_ids=["f01", "f02"])
     assert run["cases"][0]["output"]["tags"] == ["z"]
+    assert FakeN8n.last["output_schema"]["type"] == "object"  # every engine gets the result shape
     assert run["cases"][0]["checks"][4]["type"] == "in" and not run["cases"][0]["checks"][4]["passed"]
 
 

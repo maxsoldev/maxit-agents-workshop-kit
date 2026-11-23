@@ -35,4 +35,5 @@ Answer with **only the result JSON**, no other text:
 {"category": "institute_request", "flags": [], "reply": "Dear ...", "reasons": "..."}
 ```
 
-The shape is in `../output.schema.json`.
+The result **must match `output_schema`** in the case JSON (a JSON Schema; the runner copies it from
+`output.schema.json`). It wins over the example above: use all its required fields and no others.

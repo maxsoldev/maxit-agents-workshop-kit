@@ -38,7 +38,9 @@ then measure every change.**
 | `judge` | quality you cannot check with a word: tone, "asks for details, no call" | rubric in one or two sentences |
 
 The **schema** check always runs first: the result must match `output.schema.json`. A check on a field that is
-not in the schema fails with "missing": add the field to the schema and to the agent.
+not in the schema fails with "missing": add the field to the schema. The runner sends the schema to every engine
+(`output_schema` in the engine input): the Claude agent, `agent.py` and the n8n **Result shape** node read it from
+there. Say in the prompt what the new field means, if its name and description are not enough.
 
 Prefer simple checks: they are fast, free and never wrong. Use `judge` for quality only, and write the rubric
 like an instruction to a colleague: what must be in it, what must not.
