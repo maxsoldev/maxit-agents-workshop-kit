@@ -39,3 +39,4 @@
 ## Leave
 
 Write every approved leave as a task of kind `leave` with the dates. Use it to plan when to ask questions.
+For a leave, check the event overview for events during the leave, and note them.
