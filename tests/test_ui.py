@@ -59,6 +59,13 @@ def test_root_redirects(client):
     assert r.headers["location"] == "/uc/demo/cases"
 
 
+def test_no_key_banner(client, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+    assert "judge checks are skipped" in client.get("/uc/demo/cases").text
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    assert "judge checks are skipped" not in client.get("/uc/demo/cases").text
+
+
 def test_cases_page_shows_email(client):
     r = client.get("/uc/demo/cases")
     assert r.status_code == 200
@@ -115,9 +122,11 @@ def test_add_edit_delete_round_trip(client):
 def test_validation_errors_show(client):
     r = client.post("/uc/demo/cases/save", data=form(title="", input="{bad json"))
     assert r.status_code == 422
-    assert "Not saved" in r.text and "input: not valid JSON" in r.text
-    r = client.post("/uc/demo/cases/save", data=form(title=""))
-    assert "title: required" in r.text
+    assert "Not saved" in r.text and "Input is not valid JSON" in r.text and "double" in r.text
+    r = client.post("/uc/demo/cases/save", data=form(title="", today="2026-11-17"))
+    assert "Title is empty" in r.text and 'value="2026-11-17"' in r.text  # the form keeps what you typed
+    r = client.post("/uc/demo/cases/save", data=form(input="{}"))
+    assert "Input is empty" in r.text
     r = client.post("/uc/demo/cases/save", data=form(id="m06"))
     assert "is used by another case" in r.text
     assert len(cases_file()) == 1
@@ -169,6 +178,50 @@ def test_compare_marks_changes(client):
     a = {"cases": [{"id": "x", "passed": True}, {"id": "y", "passed": False}, {"id": "z", "passed": True}]}
     b = {"cases": [{"id": "x", "passed": False}, {"id": "y", "passed": False}]}
     assert ui.compare_cases(a, b) == {"x": "better", "y": "same", "z": "new"}
+    a["cases"][0]["case_hash"], b["cases"][0]["case_hash"] = "h2", "h1"
+    assert ui.changed_cases(a, b) == {"x"}
+
+
+def test_runs_list_says_new_and_changed_cases(client):
+    config.RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    for run_id, hashes in (("20261124-100000-demo-n8n", {"m06": "a"}),
+                           ("20261124-101000-demo-n8n", {"m06": "b", "m07": "c", "m08": "d"})):
+        run = {"run_id": run_id, "name": run_id[-8:], "usecase": "demo", "engine": "n8n", "started_at": run_id,
+               "summary": {"cases": len(hashes), "passed": 0, "by_check": {}},
+               "cases": [{"id": i, "case_hash": h, "passed": False, "checks": [], "input": {}, "expected": {},
+                          "output": {}} for i, h in hashes.items()]}
+        (config.RUNS_DIR / f"{run_id}.json").write_text(json.dumps(run))
+    page = client.get("/uc/demo/runs").text
+    assert "3 cases (2 new, 1 changed)" in page
+    assert "case changed" in client.get("/runs/20261124-101000-demo-n8n").text
+
+
+def test_picker_lists_single_messages_and_hides_rules(client):
+    from kit.ui import app as ui
+    data = config.USECASES_DIR / "demo" / "data"
+    (data / "rules.md").write_text("# Rules\n")
+    (data / "mattermost_messages.txt").write_text(
+        "Header line\n\n--- Direktnachricht mit Priya Nair ---\nPriya Nair  10.11.2026, 13:22\nHi Martina,\nRiga?\n\n"
+        "Priya Nair  18.11.2026, 10:30\nUpdate: Riga fällt aus.\n", encoding="utf-8")
+    picks = ui.input_picks("demo")
+    assert [p["kind"] for p in picks] == ["file", "message", "message"]
+    assert picks[0]["date"] == "2026-11-04"  # from the Date header of the email
+    assert picks[2] == {"label": "mattermost: Priya Nair, 2026-11-18: Update: Riga fällt aus.", "kind": "message",
+                        "channel": "mattermost", "text": "Priya Nair  18.11.2026, 10:30\nUpdate: Riga fällt aus.",
+                        "date": "2026-11-18"}
+    page = client.get("/uc/demo/cases/new").text
+    assert "rules.md" not in page and "Or paste a message" in page and 'placeholder="m07"' in page
+
+
+def test_checks_in_words():
+    from kit.ui.app import check_words, field_words
+    assert field_words("tasks.0.kind") == "tasks #1 → kind"
+    exp = {"tasks": [{"kind": "leave"}], "reply": ""}
+    assert check_words({"type": "equals", "field": "tasks.0.kind"}, exp) == 'is "leave" (from expected)'
+    assert check_words({"type": "equals", "field": "reply"}, exp) == 'is "" (from expected)'
+    assert check_words({"type": "count", "field": "tasks", "min": 1, "max": 2}, {}) == "has 1 to 2 items"
+    assert check_words({"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "Riga"}},
+                       {}) == 'has an item where kind is "trip" and event contains "Riga"'
 
 
 def test_docs_page(client):

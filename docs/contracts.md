@@ -11,7 +11,8 @@ Every part of the kit builds against these. Change them only together with all p
 | n8n (compose profile `n8n`) | Docker | 5702 |
 | Langfuse web (compose profile `langfuse`) | Docker | 5703 |
 
-Settings come only from `kit/config.py` (`settings()`), which reads `.env`. Modes: `N8N=local|hosted`,
+Settings come only from `kit/config.py` (`settings()`), which reads `.env` again on each call (so a new key
+works without a restart of `make serve`; a variable set in the shell wins over `.env`). Modes: `N8N=local|hosted`,
 `LANGFUSE=local|hosted|off`. Compose project name: `maxit-kit`.
 
 ## 2. Use case folder
@@ -39,20 +40,24 @@ usecases/<uc>/
 ```
 
 - `id` unique in the file; `title` short; `today` ISO date (the agent's "today"), optional.
+- `holdout`: optional, `true` = a case kept aside. `run_eval` skips it unless `holdout=True` (`kit eval
+  --holdout`, `make eval HOLDOUT=1`, the tick on the Run page) or its id is in `case_ids`.
 - `input`: free JSON. Every key that ends in `_file` is a path relative to the use case folder; the runner adds
   the file text under the same key without `_file` (for example `email_file` → `email`). Engines never read files.
   An `.eml` file is decoded: `email` = readable text ("From: …", "To: …", "Date: …", "Subject: …", a blank line,
   then the plain body; an HTML-only body becomes text), and `email_raw` = the raw file. More files of one kind:
   `email_2_file` → `email_2`, and so on.
 - `expected`: free JSON, used by checks.
-- `checks`: list. `field` is a dotted path into the result (`reply`, `flags`, `options.0.price`).
+- `checks`: list. `field` is a dotted path into the result (`reply`, `flags`, `options.0.price`; `0` = the first
+  item). `*` = every item: `options.*.trains` runs the check on `trains` of each option, and all must pass (an
+  empty list passes); for `equals` without `value`, item i compares with `expected` at `options.i.trains`.
 
 | type | passes when | extra keys |
 |---|---|---|
 | `equals` | `result[field] == expected[field]` (or `value` if given) | `value` (optional) |
 | `in` | `result[field]` is one of `values` | `values` |
 | `contains` | `value` is in `result[field]` (substring for text, member for a list); case-insensitive for text | `value` |
-| `not_contains` | the opposite of `contains` | `value` |
+| `not_contains` | the opposite of `contains`; also passes when the field is missing or empty | `value` |
 | `count` | `result[field]` is a list, and its length is `equals` / at least `min` / at most `max` | one or more of `equals`, `min`, `max` (whole numbers) |
 | `any` | `result[field]` is a list of objects, and one item matches all of `where` (equal as text, case-insensitive) and all of `contains` (substring, case-insensitive); keys can be dotted paths in the item | `where` and/or `contains`, e.g. `{"where": {"kind": "trip"}, "contains": {"event": "Riga"}}` |
 | `judge` | an OpenAI model (`KIT_JUDGE_MODEL`) scores `result[field]` 1–5 against `rubric`, given the case input; pass ≥ `min` | `rubric`, `min` (default 4) |
@@ -88,7 +93,7 @@ variables (§6). Claude uses the participant's own login.
 
 ```python
 from kit.runner import run_eval, list_runs, load_run, compare
-run = run_eval(usecase, engine, case_ids=None, name=None, on_progress=None)  # blocking; returns the run dict
+run = run_eval(usecase, engine, case_ids=None, name=None, on_progress=None, holdout=False)  # blocking
 list_runs(usecase=None) -> list[dict]   # newest first; summary fields and the sorted `case_ids`
 load_run(run_id) -> dict
 compare(run_id_a, run_id_b) -> dict     # per case: better / worse / same
@@ -98,19 +103,29 @@ compare(run_id_a, run_id_b) -> dict     # per case: better / worse / same
 Compare defaults to the previous run of the same engine, lists that engine first, and marks runs with other
 case ids ("other cases").
 
-`on_progress(event: dict)` is called with `{"case_id", "status": "running"|"done", "passed"?}`. Cases run up to
+`on_progress(event: dict)` is called with `{"case_id", "status": "running"|"done", "passed"?, "error"?}`. Cases run up to
 4 in parallel (claude 2).
 
 Run file `runs/<run_id>.json`, `run_id` = `<YYYYmmdd-HHMMSS>-<uc>-<engine>`:
 
 ```json
 {"run_id": "...", "name": "...", "usecase": "marketing", "engine": "n8n", "started_at": "...", "ended_at": "...",
- "summary": {"cases": 5, "passed": 4, "by_check": {"equals": [4, 5], "judge": [3, 3]}, "skipped": {}},
+ "summary": {"cases": 5, "passed": 4, "by_check": {"equals": [4, 5], "judge": [3, 3]},
+             "by_field": {"schema": [5, 5], "equals category": [4, 5], "judge reply": [3, 3]}, "skipped": {}},
  "cases": [{"id": "m06", "title": "...", "passed": false, "seconds": 3.2, "error": null,
             "input": {...}, "expected": {...}, "output": {...},
             "checks": [{"type": "equals", "field": "category", "passed": false, "reason": "got unverified_outreach, expected service_offer"}],
             "trace_url": "http://localhost:5703/...", "n8n_execution_url": "http://localhost:5702/workflow/<id>/executions/<n>"}]}
 ```
+
+Each case result also has `today` (the agent's date) and, for claude and python, `meta.stderr` (the last lines
+of the engine's stderr; the results page shows it as "Engine log"). `kit run-case <uc> <engine> <case_id>` runs
+one case without a run file and prints the engine input, output, tool calls, stderr and checks.
+
+`case_hash` (each case result): a short hash of the case's `today`, `input`, `expected` and `checks`. Compare
+marks a case "case changed" when the hash differs between the two runs (and "new case" when it was not in the
+other run); the Runs list shows "13 cases (2 new, 1 changed)" against the run before. `list_runs` rows have
+`case_hashes` (`{id: hash}`).
 
 `n8n_execution_url` (n8n only, needs `N8N_API_KEY`): the runner sends an `x-kit-call` header with each POST and
 finds the execution with that header; if it cannot, the link goes to the workflow's Executions list.
@@ -139,5 +154,5 @@ adding a function. `kit/tools.py` exposes `serve()` (blocking) and `start_backgr
 | `contacts_lookup(query)` | matching contacts from `usecases/marketing/data/contacts.csv` |
 | `inbox_history(sender)` | earlier emails of that sender (from, date, subject, first 500 chars) |
 | `events_list(date_from, date_to)` | events from `usecases/travel/data/events.csv` |
-| `trains_search(from_place, to_place, date, arrive_by=None)` | up to 5 connections (MOTIS plan API: `TRAINS_URL`, fallback `TRAINS_FALLBACK_URL`) |
+| `trains_search(from_place, to_place, date, arrive_by=None, depart_after=None, modes="rail")` | up to 5 connections on that day, no prices (MOTIS plan API: `TRAINS_URL`, fallback `TRAINS_FALLBACK_URL`). `arrive_by`: the last ones that arrive before the time, latest first; `depart_after`: from that time on (default 06:00). `modes`: `rail` (trains and S-Bahn, no buses) or `all` |
 | `rules_get(usecase, name)` | the text of `usecases/<uc>/data/<name>.md` |

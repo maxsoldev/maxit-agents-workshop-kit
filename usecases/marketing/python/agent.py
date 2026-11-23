@@ -63,21 +63,27 @@ async def run(case: dict, client: Client | None) -> dict:
     messages = [{"role": "system", "content": PROMPT},
                 {"role": "user", "content": f"Today is {case.get('today')}.\n\n"
                                             + json.dumps(case["input"], ensure_ascii=False)}]
+    # Tool turns first, WITHOUT response_format: with it, many models never call a tool.
+    # When the model stops calling tools, one last call WITH response_format gives the result JSON.
     for _ in range(MAX_STEPS):
-        answer = llm.chat.completions.create(
-            model=MODEL, messages=messages, tools=tools or None,
-            response_format={"type": "json_schema",
-                             "json_schema": {"name": "result", "schema": schema, "strict": False}},
-        ).choices[0].message
-        if not answer.tool_calls:  # no more tool calls: this is the result
-            return json.loads(answer.content)
+        answer = llm.chat.completions.create(model=MODEL, messages=messages, tools=tools or None).choices[0].message
+        if not answer.tool_calls:
+            messages.append({"role": "assistant", "content": answer.content or ""})
+            break
         messages.append(answer.model_dump(exclude_none=True))
         for call in answer.tool_calls:
             args = json.loads(call.function.arguments or "{}")
-            log(f"tool {call.function.name} {args}")
             text = await call_tool(client, call.function.name, args)
+            log(f"tool {call.function.name} {json.dumps(args, ensure_ascii=False)} -> {text[:200]!r}")
             messages.append({"role": "tool", "tool_call_id": call.id, "content": text})
-    raise RuntimeError(f"no result after {MAX_STEPS} steps")
+    else:
+        log(f"still calling tools after {MAX_STEPS} steps: asking for the result now")
+    messages.append({"role": "user", "content": "Now return only the result JSON."})
+    final = llm.chat.completions.create(
+        model=MODEL, messages=messages,
+        response_format={"type": "json_schema", "json_schema": {"name": "result", "schema": schema, "strict": False}},
+    ).choices[0].message
+    return json.loads(final.content)
 
 
 async def main() -> None:

@@ -46,7 +46,7 @@ request; leave over Christmas and in April; a paper training request mentioned o
 |---|---|
 | `rules_get("travel", name)` | the text of `data/<name>.md` |
 | `events_list(date_from, date_to)` | events from the event overview |
-| `trains_search(from_place, to_place, date, arrive_by)` | up to 5 real train connections |
+| `trains_search(from_place, to_place, date, arrive_by / depart_after, modes)` | up to 5 real train connections on that day (times, trains, changes; **no prices**). `arrive_by="10:00"`: the last ones before 10:00. Trains only, unless `modes="all"` |
 
 No tool books or sends anything. To add a tool (e.g. hotels), add a function in `kit/tools.py`.
 
@@ -66,8 +66,9 @@ Pick one, or make your own. Each one is a different output, so change `output.sc
    (merged), with travel number yes/no, status, open questions; cancellations applied. Checks: `equals` on the
    status of each trip, "no duplicates".
 2. **Train and hotel options per trip.** For a trip with a travel number: 2–3 train options from
-   `trains_search` that follow the rules (2nd class, arrive before the meeting), and a hotel budget. Checks:
-   `contains` / `in` on times and prices, a `judge` for "follows the rules".
+   `trains_search` that follow the rules (2nd class, arrive before the meeting), and a hotel budget. The tool
+   gives times and trains, **no prices**: Martina checks the price when she books. Checks: `contains` / `in` on
+   times and trains, `not_contains` on `options.*.trains` (no buses), a `judge` for "follows the rules".
 3. **Reminders before leave.** Who is away when; which questions must go out before the leave starts; a
    draft for each one (in the traveller's language, to the address from `team.md`). Checks: `equals` on
    `send_before`, a `judge` on the draft.

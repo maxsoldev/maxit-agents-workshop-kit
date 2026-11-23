@@ -1,6 +1,6 @@
 <tr>
   <td><select name="check_type">{% for t in check_types %}<option {{ 'selected' if t == c.type }}>{{ t }}</option>{% endfor %}</select></td>
-  <td><input name="check_field" value="{{ c.field }}" placeholder="category"></td>
+  <td><input name="check_field" value="{{ c.field }}" placeholder="{{ hints.field if hints else 'category' }}"></td>
   <td class="grow"><input name="check_arg" value="{{ c.arg }}"></td>
   <td><input name="check_min" value="{{ c.min }}" size="2" class="num"></td>
   <td><button type="button" class="link danger" onclick="this.closest('tr').remove()">Remove</button></td>

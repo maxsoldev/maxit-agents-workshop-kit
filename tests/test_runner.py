@@ -138,7 +138,7 @@ def test_count_and_any_checks():
     bad = run({"type": "count", "field": "tasks", "max": 1})
     assert not bad["passed"] and bad["reason"] == "2 items, expected max 1"
     assert not run({"type": "count", "field": "reply", "min": 1})["passed"]
-    assert run({"type": "any", "field": "tasks", "where": {"kind": "leave"}})["reason"].startswith("item 1")
+    assert run({"type": "any", "field": "tasks", "where": {"kind": "leave"}})["reason"].startswith("item 2 of 2")
     assert run({"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "heidelberg"}})["passed"]
     assert run({"type": "any", "field": "tasks", "where": {"who.name": "elena"}})["passed"]
     miss = run({"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "Riga"}})
@@ -148,6 +148,21 @@ def test_count_and_any_checks():
     errors = cases.validate_case({"id": "a", "checks": [{"type": "count", "field": "t"},
                                                         {"type": "any", "field": "t", "where": "trip"}]})
     assert len(errors) == 2
+
+
+def test_star_means_every_item_and_not_contains_on_missing():
+    out = {"options": [{"trains": ["ICE 1"]}, {"trains": ["FlixBus N1"]}], "empty": [], "draft": ""}
+    run = lambda c, exp={}: checks.run_check(c, out, exp, {})  # noqa: E731
+    bad = run({"type": "not_contains", "field": "options.*.trains", "value": "FlixBus N1"})
+    assert not bad["passed"] and bad["reason"].startswith("item 2 of 2")
+    assert run({"type": "count", "field": "options.*.trains", "equals": 1})["reason"] == "all 2 items pass"
+    assert run({"type": "contains", "field": "empty.*", "value": "x"})["passed"]  # no items: nothing fails
+    exp = {"options": [{"trains": ["ICE 1"]}, {"trains": ["FlixBus N1"]}]}
+    assert run({"type": "equals", "field": "options.*.trains"}, exp)["passed"]  # expected item by item
+    assert run({"type": "not_contains", "field": "options.5.trains", "value": "Bus"})["passed"]  # missing
+    assert run({"type": "not_contains", "field": "nothing.*.trains", "value": "Bus"})["passed"]
+    assert run({"type": "not_contains", "field": "draft", "value": "Bus"})["passed"]  # empty
+    assert not run({"type": "contains", "field": "nothing.*", "value": "x"})["passed"]
 
 
 def test_judge_without_key_is_skipped(monkeypatch, capsys):
@@ -273,6 +288,24 @@ def test_crash_in_one_case_does_not_stop_others(monkeypatch):
     monkeypatch.setattr(engines, "call", flaky)
     run = runner.run_eval("fake", "claude", case_ids=["f01", "f02"])
     assert run["cases"][0]["passed"] and "boom" in run["cases"][1]["error"]
+
+
+def test_holdout_cases_and_per_field_summary(monkeypatch):
+    real = runner.load_cases
+
+    def with_holdout(uc):
+        cs = real(uc)
+        cs[1] = {**cs[1], "holdout": True}
+        return cs
+
+    monkeypatch.setattr(runner, "load_cases", with_holdout)
+    ids = lambda run: [c["id"] for c in run["cases"]]  # noqa: E731
+    run = runner.run_eval("fake", "claude")
+    assert "f02" not in ids(run)
+    assert "f02" in ids(runner.run_eval("fake", "claude", holdout=True))
+    assert ids(runner.run_eval("fake", "claude", case_ids=["f02"])) == ["f02"]  # named: it runs
+    assert run["summary"]["by_field"]["equals category"][1] >= 1 and run["cases"][0]["today"] == "2026-11-04"
+    assert cases.validate_case({"id": "a", "holdout": "yes"}) == ["`holdout` must be true or false"]
 
 
 def test_cli(capsys):

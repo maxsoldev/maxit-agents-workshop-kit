@@ -230,10 +230,11 @@ def call_claude(uc: str, engine_input: dict, extra_env: dict):
         return None, f"Claude did not finish in {TIMEOUTS['claude']} s: make the task smaller or check the tools", {}
     data, tool_calls = read_stream(out)
     if data is None:
-        return None, f"claude exit {code}, no JSON answer: {_tail(err or out)} (is Claude logged in? run `claude`)", {}
+        return None, f"claude exit {code}, no JSON answer: {_tail(err or out)} (is Claude logged in? run `claude`)", {
+            "stderr": _tail(err, 20)}
     meta = {"cost_usd": data.get("total_cost_usd"), "turns": data.get("num_turns"),
             "duration_ms": data.get("duration_ms"), "models": list(data.get("modelUsage", {})),
-            "tool_calls": tool_calls}
+            "tool_calls": tool_calls, "stderr": _tail(err, 20)}
     text = data.get("result") or ""
     if data.get("is_error") or code != 0:
         return None, f"Claude failed ({data.get('subtype', f'exit {code}')}): {text[:300] or _tail(err)}", meta
@@ -252,7 +253,7 @@ def call_python(uc: str, engine_input: dict, extra_env: dict):
     cmd = ["uv", "run", "--project", str(config.ROOT), "python", "agent.py"]
     code, out, err = _run(cmd, folder, json.dumps(engine_input, ensure_ascii=False), engine_env(extra_env),
                           TIMEOUTS["python"])
-    meta = {"stderr": _tail(err, 20)}
+    meta = {"stderr": _tail(err, 40)}  # the last log lines of agent.py (e.g. its tool calls)
     if code is None:
         return None, f"agent.py did not finish in {TIMEOUTS['python']} s", meta
     if code != 0:

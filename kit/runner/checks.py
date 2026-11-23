@@ -25,6 +25,8 @@ def get_field(obj, path: str):
 
 
 def short(value, limit: int = 60) -> str:
+    if value == "":
+        return '"" (empty)'  # else an empty value is invisible in "got X, expected Y"
     text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
@@ -76,7 +78,11 @@ def run_check(check: dict, output, expected: dict, case_input: dict) -> dict:
     kind, field = check.get("type", "?"), check.get("field", "")
     if output is None:
         return result(kind, field, False, "no output")
+    if "*" in field.split("."):
+        return _every_item(check, output, expected, case_input)
     got = get_field(output, field)
+    if got is MISSING and kind == "not_contains":  # nothing there, so the value is not there either
+        return result(kind, field, True, f"`{field}` is missing or empty, so it does not have {short(check.get('value'))}")
     if got is MISSING:
         return result(kind, field, False, f"`{field}` is missing in the result")
 
@@ -110,7 +116,7 @@ def run_check(check: dict, output, expected: dict, case_input: dict) -> dict:
         hits = [i for i, item in enumerate(got) if _item_matches(item, where, contains)]
         want = short({**where, **{k: f"~{v}" for k, v in contains.items()}})
         if hits:
-            return result(kind, field, True, f"item {hits[0]} matches {want}")
+            return result(kind, field, True, f"item {hits[0] + 1} of {len(got)} matches {want}")  # 1 = the first
         return result(kind, field, False, f"no item of {len(got)} matches {want}")
     if kind == "judge":
         minimum = check.get("min", 4)
@@ -120,6 +126,29 @@ def run_check(check: dict, output, expected: dict, case_input: dict) -> dict:
             return {**result(kind, field, None, f"judge skipped: {e}"), "skipped": True}
         return result(kind, field, score >= minimum, f"score {score}/5 (min {minimum}): {reason}")
     return result(kind, field, False, f"unknown check type {kind!r}")
+
+
+def _every_item(check: dict, output, expected: dict, case_input: dict) -> dict:
+    """`options.*.trains`: run the check on `trains` of every item of `options`; all items must pass.
+    An empty list passes. The expected value of item i is at `options.i.trains` in `expected`."""
+    kind, field = check.get("type", "?"), check["field"]
+    parts = field.split(".")
+    star = parts.index("*")
+    base, rest = ".".join(parts[:star]), ".".join(parts[star + 1:])
+    items = get_field(output, base)
+    if items is MISSING and kind == "not_contains":
+        return result(kind, field, True, f"`{base}` is missing, so it does not have {short(check.get('value'))}")
+    if not isinstance(items, list):
+        return result(kind, field, False, f"`{base}` is missing in the result" if items is MISSING
+                      else f"`{base}` is not a list: {short(items)}")
+    for i, item in enumerate(items):
+        exp = get_field(expected, f"{base}.{i}" if base else str(i))
+        sub = run_check({**check, "field": rest}, item, exp if not rest or isinstance(exp, dict) else {}, case_input)
+        if sub["passed"] is None:
+            return {**result(kind, field, None, sub["reason"]), "skipped": True}
+        if not sub["passed"]:
+            return result(kind, field, False, f"item {i + 1} of {len(items)}: {sub['reason']}")
+    return result(kind, field, True, f"all {len(items)} items pass")
 
 
 def run_checks(case: dict, output, schema: dict, case_input: dict) -> list[dict]:

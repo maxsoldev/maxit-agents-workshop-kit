@@ -59,7 +59,7 @@ def _passes(run_id, case_id):
     return zlib.crc32(f"{run_id}{case_id}".encode()) % 2 == 0
 
 
-def run_eval(usecase, engine, case_ids=None, name=None, on_progress=None):
+def run_eval(usecase, engine, case_ids=None, name=None, on_progress=None, holdout=False):
     run_id = f"{datetime.now():%Y%m%d-%H%M%S}-{usecase}-{engine}"
     started = datetime.now().isoformat(timespec="seconds")
     results = []
@@ -105,7 +105,8 @@ def list_runs(usecase=None):
     runs = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(config.RUNS_DIR.glob("*.json"), reverse=True)] \
         if config.RUNS_DIR.exists() else []
     return [{**{k: r.get(k) for k in ("run_id", "name", "usecase", "engine", "started_at", "ended_at", "summary")},
-             "case_ids": sorted(c["id"] for c in r.get("cases", []))}
+             "case_ids": sorted(c["id"] for c in r.get("cases", [])),
+             "case_hashes": {c["id"]: c.get("case_hash") for c in r.get("cases", [])}}
             for r in runs if usecase in (None, r.get("usecase"))]
 
 

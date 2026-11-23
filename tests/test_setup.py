@@ -99,3 +99,33 @@ def test_model_key_check_names_the_error(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "bad")
     works, text = setup.model_key_works()
     assert not works and "401" in text and "Incorrect API key" in text
+
+
+def test_settings_read_env_file_each_time(tmp_path, monkeypatch):
+    from kit import config
+    monkeypatch.delenv("KIT_JUDGE_MODEL", raising=False)
+    monkeypatch.setattr(config, "ROOT", tmp_path)
+    (tmp_path / ".env").write_text("KIT_JUDGE_MODEL=first\n")
+    assert config.settings().judge_model == "first"
+    (tmp_path / ".env").write_text("KIT_JUDGE_MODEL=second\n")  # changed while the kit runs
+    assert config.settings().judge_model == "second"
+    monkeypatch.setenv("KIT_JUDGE_MODEL", "shell")  # the shell env wins
+    assert config.settings().judge_model == "shell"
+
+
+def test_export_puts_the_placeholders_back():
+    from kit.config import ROOT, settings
+    text = (ROOT / "usecases/travel/n8n/workflow.json").read_text()
+    url = "http://host.docker.internal:5701/mcp"
+    filled = json.loads(fill_placeholders(text, "cred123", url))
+    assert "cred123" in json.dumps(filled) and "{{KIT_" not in json.dumps(filled)
+    back = setup.placeholders_back(filled, "cred123", url, settings().model)
+    assert back == json.loads(text)
+
+
+def test_kit_engines_limits_profiles_and_engines():
+    from kit.config import parse_engines
+    assert parse_engines("") == ("n8n", "claude", "python")
+    assert parse_engines("python, Claude") == ("claude", "python")
+    assert compose_profiles({"KIT_ENGINES": "claude,python"}) == ["langfuse"]
+    assert compose_profiles({"KIT_ENGINES": "n8n"}) == ["n8n", "langfuse"]

@@ -6,13 +6,15 @@ then measure every change.**
 ## The steps
 
 1. **Write the cases.** Each case is one input, the expected answer, and the checks (`cases.jsonl`).
-   Start with 5: 2 easy ones, 2 tricky ones, 1 that must never go wrong (a safety case).
+   Start with 5: 2 easy ones, 2 tricky ones, 1 that must never go wrong (a safety case). If you changed
+   `output.schema.json`, the starter cases check old fields: change them to the new fields, or delete them.
 2. **Run the eval** on the scaffold. It fails. Good: now you see the gap.
 3. **Read the failures.** Open each failed case: the output, the reason of each check, the trace.
    Ask: is the agent wrong, or is the case wrong?
 4. **Change one thing.** The prompt, one rule, one tool, the model, the schema. Only one.
 5. **Run the eval again.** Compare with the last run (Results → Compare). Better: keep it and commit.
-   Worse: undo it. Same: think again.
+   Worse: undo it. Same: think again. n8n: your change lives in n8n, not in git. Run `make n8n-export`
+   (it writes `usecases/<uc>/n8n/workflow.json` with the placeholders back), then commit that file.
 6. **Every new failure becomes a case.** When you see a mistake (in a trace, in a demo, in real use), write a
    case for it before you fix it. Then the fix stays fixed.
 
@@ -25,10 +27,26 @@ then measure every change.**
 - **Read the trace, not only the score.** The trace shows which tools the agent called, what it read and
   where it went wrong. Claude: Langfuse (the `tool:<name>` spans have the input and output; the results page
   lists the same tool calls). n8n: Executions (the results page links to each one). Python: the `tool ...`
-  lines it logs on stderr (run `agent.py` by hand to see them; the error of a failed run shows the last lines).
+  lines it logs on stderr (the results page shows them under **Engine log**).
+  To look at one case closely: `make run-case UC=marketing ENGINE=python CASE=m14` (or `uv run kit run-case
+  marketing python m14`) prints the engine input, the output, the tool calls, the log and the checks.
+- **Try a tool by hand** before you blame the agent: `uv run kit tool` lists the tools;
+  `uv run kit tool trains_search "from_place=München Hbf" "to_place=Berlin Hbf" date=2026-12-08 arrive_by=10:00`
+  prints what the agent gets.
 - **Do not fit the cases.** A rule like "if the sender is Lara Venn, say unverified" makes the case pass and
   the agent worse. Write rules that hold for the next email too.
-- **Run it twice** before you trust a small change. Models are not fully deterministic.
+- **Run it twice** before you trust a small change. Models are not fully deterministic. This is true for the
+  `judge` too (the kit asks for temperature 0, but many models do not allow it): a judge check can pass on one
+  run and fail on the next with no change. Trust a judge result only when it is the same twice.
+- **How to read a trace (Langfuse, for everyone):** open the case trace from the results page. Read the
+  `tool:<name>` lines from top to bottom: each one is one thing the agent looked up (`tool:rules_get` with
+  `"name": "priorities"` = "it read your priorities"), with what it got back. Skip the technical lines
+  (`claude_code.llm_request` = one model call, `ToolSearch`, `blocked_on_user`): they are not your rules.
+- **Keep 3 to 5 cases aside.** After many loops, your cases get easy: the agent is tuned to them. Mark a few
+  new cases as **holdout** (tick in the case form, or `"holdout": true`). The eval skips them; run them at the
+  end (`make eval ... HOLDOUT=1`, or the tick on the Run page) to see if the agent works on cases it never saw.
+- **Read the score per field** (results page, "Per field", e.g. `equals action 8/15`): it shows which part of
+  the result is weak.
 - **Fix the case** when the case is wrong. Ask the owner what is right; do not change it to make it pass.
 
 ## Which check when
@@ -38,7 +56,8 @@ then measure every change.**
 | `equals` | one right value | `category` is `newsletter` |
 | `in` | a few right values | `category` is `partnership` or `press` |
 | `contains` | a word in a text, an item in a list | `flags` has `injection`; the reply names "28" |
-| `not_contains` | things that must never appear | no `@` in the reply (no leaked addresses) |
+| `not_contains` | things that must never appear (a missing or empty field passes) | no `@` in the reply (no leaked addresses) |
+| any check with `*` | every item of a list must pass | `not_contains` `options.*.trains` "FlixBus": no option is a bus |
 | `count` | how many items a list has | `tasks` has exactly 1 item (no duplicates): `{"equals": 1}` |
 | `any` | "there is an item where ...", in any order | a task with `kind` `trip` whose `event` contains "Riga" |
 | `judge` | quality you cannot check with a word: tone, "asks for details, no call" | rubric in one or two sentences |
@@ -61,9 +80,13 @@ A judge that cannot run (no key, API error) is **skipped**: the case passes or f
 Open http://localhost:5700 → your use case → **Cases** → **Add case**.
 
 1. **Title:** what the situation is, in a few words ("Unknown fund wants a call").
-2. **Input:** pick the email file (`data/emails/...`) or paste a message.
+2. **Input:** pick an email (`data/emails/...`) or one chat message (`mattermost: ...`) and click **Add to
+   input**, or paste a message into **Or paste a message**. The form writes the JSON for you and sets
+   **Today** from the date of the email or message.
 3. **Expected:** what a good colleague would answer, field by field (category, route, date, ...).
 4. **Checks:** for each important point, one check. "Must never" points become `not_contains` or a `judge`.
+   The field is a path into the result: `tasks.0.kind` = the kind of the first task (`tasks.1` = the second).
+   "Some task is a trip to Riga" = an `any` check on `tasks`. The case list shows every check in words.
 
 Then save. The case goes into `cases.jsonl`, so git shows the change. A developer never has to write the
 expected answer: the person who does the job today knows it best.

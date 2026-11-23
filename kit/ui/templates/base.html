@@ -28,6 +28,11 @@
   </nav>
 </header>
 <main>
+{% if not settings.openai_api_key %}
+<div class="banner">No model key (<code>OPENAI_API_KEY</code> is empty in <code>.env</code>): <b>judge checks are skipped</b>,
+  and n8n and Python cannot run. Put the key in <code>.env</code>; the kit sees it at once (for n8n also run
+  <code>make setup</code>).</div>
+{% endif %}
 {% block main %}{% endblock %}
 </main>
 </body>

@@ -3,6 +3,11 @@
 Two parts: **before the day** (at home, about 30 min, mostly downloads) and **on the day** (about 15 min).
 Each step has a **Check**. If the check fails, read **If it goes wrong**, or ask your trainer.
 
+> **If you only use the UI** (business people, no terminal): you need no setup of your own. A developer in
+> your team does the steps below on one laptop and runs `make serve`. Then open http://localhost:5700 in the
+> browser on that laptop: write cases (**Cases → Add case**), run evals (**Run**) and read the results
+> (**Runs**). What you say about the service goes into `BRIEF.md`; the developer types it.
+
 ## Before the day
 
 ### Step 1. Docker
@@ -68,6 +73,8 @@ cp .env.example .env      # skip if you did it before the day
 ```
 
 Open `.env` and set `OPENAI_API_KEY=sk-...`. Your trainer gives you `TRAINS_URL`.
+If your team does not use all engines, set them, e.g. `KIT_ENGINES=claude,python`: then `make up`, `make setup`
+and `make check` skip n8n, and the Run page shows only these engines.
 
 - **Check:** `grep -c OPENAI_API_KEY=sk- .env` prints `1`.
 
@@ -90,7 +97,9 @@ make setup
 
 This tests your model key with one cheap call (`GET /models` on OpenAI or on `OPENAI_BASE_URL`), creates the
 n8n login, an API key, the OpenAI credential, and imports the workflows `Kit: marketing agent` and
-`Kit: travel agent`. It is safe to run again. No key yet? Setup still imports the workflows (inactive, without
+`Kit: travel agent`. It is safe to run again: if you changed a workflow in the n8n editor, setup keeps your
+version and says so. Save your edits to git with `make n8n-export` (all use cases, or `UC=travel`); load the
+file over them with `make setup FORCE=1` (the old n8n copy goes to `runs/n8n-backup/`). No key yet? Setup still imports the workflows (inactive, without
 the credential), so you can look at them; it activates them when you run it again with the key.
 
 - **Check:** the summary at the end says OK for n8n and Langfuse and prints the logins. Log in to n8n
@@ -116,7 +125,7 @@ make serve
 make check
 ```
 
-This runs the first case of each use case on each engine.
+This runs the first case of each use case on each engine (only the ones in `KIT_ENGINES`).
 
 - **Check:** OK for n8n, claude and python on both use cases. A failing check (the case does not pass) is
   fine; an error (the engine did not answer) is not.

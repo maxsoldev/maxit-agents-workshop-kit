@@ -6,8 +6,10 @@ from __future__ import annotations
 
 import email
 import email.policy
+import email.utils
 import importlib
 import json
+import re
 import threading
 from urllib.parse import quote
 from pathlib import Path
@@ -57,6 +59,120 @@ def data_files(uc: str) -> list[str]:
     return sorted(str(p.relative_to(base)) for p in (base / "data").rglob("*") if p.is_file() and not p.name.startswith("."))
 
 
+# A chat message starts with a head line like "Priya Nair  18.11.2026, 10:30" (name, 2+ spaces, date, time).
+MESSAGE_HEAD = re.compile(r"^(?P<who>\S.*?)\s{2,}(?P<d>\d{1,2})\.(?P<m>\d{1,2})\.(?P<y>\d{4}),? (?P<t>\d{1,2}:\d{2})\s*$")
+
+
+def chat_messages(path: Path) -> list[dict]:
+    """The single messages of a chat file (e.g. mattermost_messages.txt): {"who", "date", "text"}.
+    `text` is the head line plus the message, as in the starter cases."""
+    out, cur = [], None
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        m = MESSAGE_HEAD.match(line)
+        if m:
+            cur = {"who": m["who"], "date": f"{m['y']}-{int(m['m']):02d}-{int(m['d']):02d}", "text": line}
+            out.append(cur)
+        elif line.startswith("---"):
+            cur = None
+        elif cur is not None:
+            cur["text"] += "\n" + line
+    for c in out:
+        c["text"] = c["text"].strip()
+    return out
+
+
+def email_date(path: Path) -> str:
+    """The Date header of an .eml file as YYYY-MM-DD, or ""."""
+    try:
+        msg = email.message_from_bytes(path.read_bytes(), policy=email.policy.default)
+        return email.utils.parsedate_to_datetime(str(msg["date"])).date().isoformat()
+    except (TypeError, ValueError, OSError):
+        return ""
+
+
+def input_picks(uc: str) -> list[dict]:
+    """What the input picker lists: data files (no rule .md files), and each single message of a chat file.
+    Each item: {"label", "kind": "file"|"message", "path" or "channel"+"text", "date"}."""
+    base, picks = uc_dir(uc), []
+    for rel in data_files(uc):
+        path = base / rel
+        if path.suffix == ".md":
+            continue  # the owner's rules: the agent reads them with rules_get, they are not an input
+        messages = chat_messages(path) if path.suffix == ".txt" else []
+        if messages:
+            channel = path.stem.split("_")[0]  # mattermost_messages.txt -> mattermost
+            for m in messages:
+                first = " ".join(m["text"].splitlines()[1:])[:70]
+                picks.append({"label": f"{channel}: {m['who']}, {m['date']}: {first}", "kind": "message",
+                              "channel": channel, "text": m["text"], "date": m["date"]})
+            continue
+        picks.append({"label": rel, "kind": "file", "path": rel,
+                      "date": email_date(path) if path.suffix == ".eml" else ""})
+    return picks
+
+
+def field_words(path: str) -> str:
+    """`tasks.0.kind` -> `tasks #1 → kind`; `options.*.trains` -> `every item of options → trains`."""
+    out: list[str] = []
+    for part in path.split("."):
+        if part.isdigit():
+            out[-1:] = [f"{out[-1] if out else ''} #{int(part) + 1}"]
+        elif part == "*":
+            out[-1:] = [f"every item of {out[-1]}" if out else "every item"]
+        else:
+            out.append(part)
+    return " → ".join(out)
+
+
+def check_words(c: dict, expected: dict) -> str:
+    """One check in words, e.g. `is "leave"`, `has 1 to 3 items`, `does not contain "@"`."""
+    def v(x):
+        return json.dumps(x, ensure_ascii=False)
+
+    t = c.get("type")
+    if t == "equals":
+        if "value" in c:
+            return f"is {v(c['value'])}"
+        want = expected
+        for part in (c.get("field") or "").split("."):
+            want = want.get(part) if isinstance(want, dict) else (
+                want[int(part)] if isinstance(want, list) and part.isdigit() and int(part) < len(want) else None)
+        return f"is {v(want)} (from expected)" if want is not None else "is … (no expected value: add one)"
+    if t == "in":
+        return "is one of " + ", ".join(v(x) for x in c.get("values") or [])
+    if t == "contains":
+        return f"contains {v(c.get('value'))}"
+    if t == "not_contains":
+        return f"does not contain {v(c.get('value'))}"
+    if t == "count":
+        if "equals" in c:
+            return f"has exactly {c['equals']} item(s)"
+        if "min" in c and "max" in c:
+            return f"has {c['min']} to {c['max']} items"
+        return f"has at least {c['min']} item(s)" if "min" in c else f"has at most {c.get('max')} item(s)"
+    if t == "any":
+        parts = [f"{k} is {v(x)}" for k, x in (c.get("where") or {}).items()]
+        parts += [f"{k} contains {v(x)}" for k, x in (c.get("contains") or {}).items()]
+        return "has an item where " + " and ".join(parts)
+    if t == "judge":
+        return f"judge (score {c.get('min', 4)} or more): {c.get('rubric', '')}"
+    return t or "?"
+
+
+def case_hints(uc: str, cases: list[dict]) -> dict:
+    """Placeholders for the form from this use case's cases: the next id (t06) and a typical field."""
+    nums = [re.fullmatch(r"([a-zA-Z]+)(\d+)", c.get("id", "")) for c in cases]
+    nums = [m for m in nums if m]
+    if nums:
+        prefix, width = nums[-1][1], len(nums[-1][2])
+        top = max(int(m[2]) for m in nums if m[1] == prefix)
+        next_id = f"{prefix}{top + 1:0{width}d}"
+    else:
+        next_id = f"{uc[:1]}01"
+    fields = [ch.get("field") for c in cases for ch in c.get("checks", []) if ch.get("field")]
+    return {"id": next_id, "field": fields[0] if fields else "category"}
+
+
 def safe_file(uc: str, rel: str) -> Path | None:
     """The file `rel` in the use case folder, or None if it is outside data/ or missing."""
     base = uc_dir(uc)
@@ -104,6 +220,8 @@ def check_label(c: dict) -> str:
 
 
 templates.env.filters["check_label"] = check_label
+templates.env.filters["field_words"] = field_words
+templates.env.globals["check_words"] = check_words
 
 
 def page(request: Request, name: str, uc: str | None = None, status: int = 200, **ctx) -> HTMLResponse:
@@ -165,8 +283,12 @@ def case_form(request, uc, case, original_id, errors=None, raw=None, status=200)
     checks = [{"type": c.get("type", "equals"), "field": c.get("field", ""), "arg": check_arg(c),
                "min": c.get("min", "")} for c in case.get("checks", [])] \
         or [{"type": "equals", "field": "", "arg": "", "min": ""}]  # one empty row to start with
+    cases = load_cases_safe(uc)[0]
+    picks = input_picks(uc)
+    has_messages = any(p["kind"] == "message" for p in picks) or any("message" in (c.get("input") or {}) for c in cases)
     return page(request, "case_form.html", uc, status=status, case=case, original_id=original_id, raw=raw,
-                checks=checks, errors=errors or [], files=data_files(uc), check_types=CHECK_TYPES,
+                checks=checks, errors=errors or [], picks=picks, has_messages=has_messages, check_types=CHECK_TYPES,
+                hints=case_hints(uc, cases),
                 previews=file_previews(uc, case.get("input") if isinstance(case.get("input"), dict) else {}))
 
 
@@ -230,12 +352,20 @@ async def case_save(request: Request, uc: str):
     case: dict = {"id": str(f.get("id", "")).strip(), "title": str(f.get("title", "")).strip()}
     if str(f.get("today", "")).strip():
         case["today"] = str(f.get("today")).strip()
+    if f.get("holdout"):
+        case["holdout"] = True
     for key in ("input", "expected"):
         try:
             case[key] = json.loads(raw[key] or "{}")
         except json.JSONDecodeError as e:
-            errors.append(f"{key}: not valid JSON ({e.msg}, line {e.lineno})")
+            errors.append(f"{key.capitalize()} is not valid JSON (line {e.lineno}, column {e.colno}). Put double "
+                          f'quotes " around names and texts, e.g. {{"category": "spam"}}, and a comma between two '
+                          f"items. (Detail: {e.msg})")
             case[key] = {}
+    if not case["title"]:
+        errors.append("Title is empty: give the case a short name, e.g. \"Unknown fund wants a call\"")
+    if raw["input"].strip() in ("", "{}"):
+        errors.append("Input is empty: pick an email or a message and click Add to input, or paste a message")
     case["checks"] = [parse_check(str(t), str(fl), str(a), str(m)) for t, fl, a, m in
                       zip(f.getlist("check_type"), f.getlist("check_field"), f.getlist("check_arg"), f.getlist("check_min"))
                       if str(t) and (str(fl).strip() or str(a).strip())]
@@ -294,13 +424,17 @@ JOBS: dict[tuple[str, str], dict] = {}   # (uc, engine) -> live state of the las
 JOBS_LOCK = threading.Lock()
 
 
-def start_job(uc: str, engine: str, case_ids: list[str] | None, name: str | None, cases: list[dict]) -> str | None:
+def start_job(uc: str, engine: str, case_ids: list[str] | None, name: str | None, cases: list[dict],
+              holdout: bool = False) -> str | None:
     """Start a run in a background thread. Returns an error text if one runs already."""
     with JOBS_LOCK:
         old = JOBS.get((uc, engine))
         if old and not old["done"]:
             return f"A {engine} run for {uc} is still running. Wait until it ends."
-        picked = [c for c in cases if not case_ids or c.get("id") in case_ids]
+        if case_ids:
+            picked = [c for c in cases if c.get("id") in case_ids]
+        else:  # the runner skips holdout cases unless asked
+            picked = [c for c in cases if holdout or not c.get("holdout")]
         job = {"engine": engine, "name": name or "", "done": False, "error": None, "run_id": None,
                "cases": [{"id": c.get("id"), "title": c.get("title", ""), "status": "waiting"} for c in picked]}
         JOBS[(uc, engine)] = job
@@ -309,10 +443,13 @@ def start_job(uc: str, engine: str, case_ids: list[str] | None, name: str | None
         for c in job["cases"]:
             if c["id"] == ev.get("case_id"):
                 c["status"] = "running" if ev.get("status") == "running" else ("pass" if ev.get("passed") else "fail")
+                if ev.get("error"):  # the engine did not answer: say why right here, not only on the results page
+                    c["status"], c["error"] = "error", ev["error"]
 
     def work():
         try:
-            run = runner().run_eval(uc, engine, case_ids=case_ids, name=name, on_progress=on_progress)
+            run = runner().run_eval(uc, engine, case_ids=case_ids, name=name, on_progress=on_progress,
+                                    holdout=holdout)
             job["run_id"] = run.get("run_id")
         except Exception as e:
             job["error"] = f"{type(e).__name__}: {e}"
@@ -323,11 +460,23 @@ def start_job(uc: str, engine: str, case_ids: list[str] | None, name: str | None
     return None
 
 
+def default_engine(uc: str) -> str:
+    """The engine of the last run of this use case (not `make check`), else claude; only KIT_ENGINES."""
+    used = config.settings().engines
+    try:
+        runs = runner().list_runs(uc)
+    except Exception:
+        runs = []
+    last = next((r.get("engine") for r in runs if r.get("name") != CHECK_RUN and r.get("engine") in used), None)
+    return last or ("claude" if "claude" in used else used[0])
+
+
 @app.get("/uc/{uc}/run", response_class=HTMLResponse)
-def run_page(request: Request, uc: str, engine: str = "n8n", error: str = ""):
+def run_page(request: Request, uc: str, engine: str = "", error: str = ""):
     cases, load_error = load_cases_safe(uc)
     jobs = {e: JOBS[(uc, e)] for e in config.ENGINES if (uc, e) in JOBS}
-    return page(request, "run.html", uc, cases=cases, error=error or load_error, jobs=jobs, engine=engine)
+    return page(request, "run.html", uc, cases=cases, error=error or load_error, jobs=jobs,
+                engine=engine or default_engine(uc), run_engines=config.settings().engines)
 
 
 @app.post("/uc/{uc}/run")
@@ -339,7 +488,8 @@ async def run_start(request: Request, uc: str):
     cases, error = load_cases_safe(uc)
     ids = [str(i) for i in f.getlist("case")] or None
     if not error:
-        error = start_job(uc, engine, ids, str(f.get("name", "")).strip() or None, cases)
+        error = start_job(uc, engine, ids, str(f.get("name", "")).strip() or None, cases,
+                          holdout=bool(f.get("holdout")))
     url = f"/uc/{uc}/run?engine={engine}" + (f"&error={quote(error)}" if error else "")
     return RedirectResponse(url, status_code=303)
 
@@ -364,6 +514,10 @@ def runs_page(request: Request, uc: str, checks: int = 0):
     hidden = sum(1 for r in runs if r.get("name") == CHECK_RUN)
     if not checks:
         runs = [r for r in runs if r.get("name") != CHECK_RUN]
+    for r, prev in zip(runs, runs[1:]):  # against the run before it: "13 cases (2 new, 1 changed)"
+        now, before = r.get("case_hashes") or {}, prev.get("case_hashes") or {}
+        r["new_cases"] = sum(1 for i in now if i not in before)
+        r["changed_cases"] = sum(1 for i, h in now.items() if h and before.get(i) and before[i] != h)
     return page(request, "runs.html", uc, runs=runs, hidden=hidden, show_checks=bool(checks))
 
 
@@ -381,6 +535,13 @@ def compare_cases(run: dict, other: dict | None) -> dict:
         else:
             out[c.get("id")] = "better" if c.get("passed") else "worse"
     return out
+
+
+def changed_cases(run: dict, other: dict | None) -> set:
+    """Ids of cases that are not the same case in both runs (input, expected or checks changed)."""
+    before = {c.get("id"): c.get("case_hash") for c in (other or {}).get("cases", [])}
+    return {c.get("id") for c in run.get("cases", [])
+            if c.get("case_hash") and before.get(c.get("id")) and before[c.get("id")] != c["case_hash"]}
 
 
 @app.get("/runs/{run_id}", response_class=HTMLResponse)
@@ -402,12 +563,14 @@ def results_page(request: Request, run_id: str, vs: str = ""):
     other = runner().load_run(vs) if vs and vs != "none" else None
     changes = compare_cases(run, other)
     counts = {k: sum(1 for v in changes.values() if v == k) for k in ("better", "worse", "same", "new")}
+    changed = changed_cases(run, other)
+    counts["changed"] = len(changed)
     for c in run.get("cases", []):
         c["_first_fail"] = c.get("error") or next(
             (ch.get("reason") for ch in c.get("checks", []) if ch.get("passed") is False), None)
         c["_files"] = file_previews(uc, c.get("input")) if uc in usecases() else []
     return page(request, "results.html", uc if uc in usecases() else None, run=run, others=others, vs=vs,
-                other=other, changes=changes, counts=counts)
+                other=other, changes=changes, counts=counts, changed=changed)
 
 
 # ---------- docs ----------

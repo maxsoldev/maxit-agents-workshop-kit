@@ -8,18 +8,31 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 
 ROOT = Path(__file__).resolve().parent.parent
 USECASES_DIR = ROOT / "usecases"
 RUNS_DIR = ROOT / "runs"
 ENGINES = ("n8n", "claude", "python")
 
-load_dotenv(ROOT / ".env", override=False)
+
+def _read_env_file() -> dict[str, str]:
+    path = ROOT / ".env"
+    return {k: v or "" for k, v in dotenv_values(path).items()} if path.exists() else {}
+
+
+# At start, copy .env into os.environ (for tools that read the env). Remember what came from the file:
+# settings() reads .env again each time, so a new key works without a restart.
+_FROM_FILE = {k: v for k, v in _read_env_file().items() if k not in os.environ}
+os.environ.update(_FROM_FILE)
+_file_now: dict[str, str] = {}
 
 
 def _env(name: str, default: str = "") -> str:
-    return os.environ.get(name, default).strip()
+    """The shell env (or a value set in this process) wins; else the .env file as it is now."""
+    if name in os.environ and os.environ[name] != _FROM_FILE.get(name):
+        return os.environ[name].strip()
+    return _file_now.get(name, default).strip()
 
 
 @dataclass(frozen=True)
@@ -43,6 +56,7 @@ class Settings:
     langfuse_user_email: str  # local: the login Langfuse creates at first start
     trains_url: str       # our MOTIS; empty = use the fallback only
     trains_fallback_url: str
+    engines: tuple[str, ...]  # KIT_ENGINES: the engines this team uses (default all); setup and check skip the rest
 
     @property
     def tools_url(self) -> str:
@@ -66,6 +80,9 @@ class Settings:
 
 
 def settings() -> Settings:
+    """Read the settings now (the .env file again each call, so edits work without a restart)."""
+    global _file_now
+    _file_now = _read_env_file()
     lf_mode = _env("LANGFUSE", "local").lower()
     n8n_mode = _env("N8N", "local").lower()
     return Settings(
@@ -88,7 +105,14 @@ def settings() -> Settings:
         langfuse_user_email=_env("LANGFUSE_INIT_USER_EMAIL", "kit@example.com"),
         trains_url=_env("TRAINS_URL").rstrip("/"),
         trains_fallback_url=_env("TRAINS_FALLBACK_URL", "https://api.transitous.org").rstrip("/"),
+        engines=parse_engines(_env("KIT_ENGINES")),
     )
+
+
+def parse_engines(text: str) -> tuple[str, ...]:
+    """`n8n,claude` -> ("n8n", "claude"), in the order of ENGINES. Empty or no known name = all engines."""
+    names = {p.strip().lower() for p in text.split(",")}
+    return tuple(e for e in ENGINES if e in names) or ENGINES
 
 
 def usecases() -> list[str]:
