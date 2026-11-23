@@ -87,6 +87,7 @@ def test_cases_page_shows_email(client):
     assert r.status_code == 200
     assert "Managed validator nodes" in r.text and "Guten Tag" in r.text
     assert "Langfuse" not in r.text  # hidden when off
+    assert r.text.count('href="/uc/demo/cases/m06/edit"') == 3  # id, title and the Edit link
 
 
 def test_forms_render(client):
@@ -171,6 +172,7 @@ def test_run_results_runs(client):
     run_id = ui_fake_runner.list_runs("demo")[0]["run_id"]
     page = client.get(f"/runs/{run_id}")
     assert page.status_code == 200 and "Service offer" in page.text
+    assert 'href="/uc/demo/cases/m06/edit"' in page.text  # the case title opens its edit page
     assert client.get("/runs/nope").status_code == 404
 
 

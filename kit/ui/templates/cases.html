@@ -13,8 +13,8 @@
   <tbody>
   {% for r in rows %}{% set c = r.case %}
   <tr id="case-{{ c.id }}">
-    <td><code>{{ c.id }}</code></td>
-    <td>{{ c.title }}{% if c.holdout %} <span class="chip" title="runs only with --holdout or the tick on the Run page">holdout</span>{% endif %}{% if c.today %}<div class="muted small">today {{ c.today }}</div>{% endif %}</td>
+    <td><a href="/uc/{{ uc }}/cases/{{ c.id }}/edit"><code>{{ c.id }}</code></a></td>
+    <td><a href="/uc/{{ uc }}/cases/{{ c.id }}/edit" title="Edit this case">{{ c.title or '(no title)' }}</a>{% if c.holdout %} <span class="chip" title="runs only with --holdout or the tick on the Run page">holdout</span>{% endif %}{% if c.today %}<div class="muted small">today {{ c.today }}</div>{% endif %}</td>
     <td class="input">
       {% for p in r.files %}
         {% if p.email %}

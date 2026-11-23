@@ -40,7 +40,7 @@
   <details class="res {{ 'pass' if c.passed else 'fail' }} {{ 'chg-' ~ ch if ch }}" id="c-{{ c.id }}">
     <summary>
       <span class="mark">{{ '✓' if c.passed else '✗' }}</span>
-      <span><code>{{ c.id }}</code> {{ c.title }}</span>
+      <span>{% if uc %}<a href="/uc/{{ uc }}/cases/{{ c.id }}/edit" title="Edit this case"><code>{{ c.id }}</code> {{ c.title }}</a>{% else %}<code>{{ c.id }}</code> {{ c.title }}{% endif %}</span>
       <span class="muted">{{ '%.1f'|format(c.seconds or 0) }} s</span>
       <span class="reason">{{ c._first_fail or '' }}</span>
       <span>{% if ch %}<span class="badge {{ ch }}">{{ {'better': '▲ better', 'worse': '▼ worse', 'same': 'same', 'new': 'new case'}[ch] }}</span>{% endif %}
