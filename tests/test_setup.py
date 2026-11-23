@@ -63,6 +63,15 @@ def test_compose_profiles():
     assert compose_profiles({"N8N": "hosted", "LANGFUSE": "hosted"}) == []
 
 
+def test_service_notes():
+    from kit.setup import service_notes
+    assert service_notes({}) == []
+    assert service_notes({"KIT_ENGINES": "claude", "LANGFUSE": "hosted"}) == [
+        "n8n: not used (KIT_ENGINES=claude), not started", "Langfuse: LANGFUSE=hosted in .env, not started here"]
+    assert service_notes({"N8N": "hosted", "LANGFUSE": "off"}) == [
+        "n8n: N8N=hosted in .env, not started here", "Langfuse: LANGFUSE=off in .env, no traces"]
+
+
 def test_fill_placeholders_keeps_n8n_expressions():
     text = json.dumps({"cred": "{{OPENAI_CREDENTIAL_ID}}", "url": "{{KIT_TOOLS_URL}}", "expr": "={{ $json.body }}"})
     out = json.loads(fill_placeholders(text, "c42", "http://host.docker.internal:5701/mcp"))

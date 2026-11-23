@@ -70,6 +70,22 @@ def compose_profiles(env: dict[str, str]) -> list[str]:
     return out
 
 
+def service_notes(env: dict[str, str]) -> list[str]:
+    """One line for each service that `make up` does not start, and why."""
+    notes = []
+    n8n_mode = env.get("N8N", "local").strip().lower()
+    if "n8n" not in parse_engines(env.get("KIT_ENGINES", "")):
+        notes.append(f"n8n: not used (KIT_ENGINES={env.get('KIT_ENGINES', '').strip()}), not started")
+    elif n8n_mode != "local":
+        notes.append(f"n8n: N8N={n8n_mode} in .env, not started here")
+    lf_mode = env.get("LANGFUSE", "local").strip().lower()
+    if lf_mode == "off":
+        notes.append("Langfuse: LANGFUSE=off in .env, no traces")
+    elif lf_mode != "local":
+        notes.append(f"Langfuse: LANGFUSE={lf_mode} in .env, not started here")
+    return notes
+
+
 def fill_placeholders(text: str, credential_id: str, tools_url: str) -> str:
     """Put the real values into a workflow.json text."""
     return (text.replace("{{OPENAI_CREDENTIAL_ID}}", credential_id).replace("{{KIT_TOOLS_URL}}", tools_url)
@@ -676,5 +692,8 @@ if __name__ == "__main__":
     # `python -m kit.setup profiles`: the --profile flags for docker compose (used by the Makefile).
     if sys.argv[1:] == ["profiles"]:
         print(" ".join(f"--profile {p}" for p in compose_profiles(read_env(ENV_FILE))))
+    elif sys.argv[1:] == ["services"]:  # what `make up` does not start, and why
+        for line in service_notes(read_env(ENV_FILE)):
+            print(line)
     else:
         sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else "setup"))

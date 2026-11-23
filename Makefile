@@ -26,9 +26,10 @@ help:
 	@echo "No .env yet. Run: cp .env.example .env  (then set OPENAI_API_KEY)"; exit 1
 
 up: .env
-	@profiles="$$(uv run --quiet python -m kit.setup profiles)"; \
+	@uv run --quiet python -m kit.setup services; \
+	profiles="$$(uv run --quiet python -m kit.setup profiles)"; \
 	if [ -z "$$profiles" ]; then \
-		echo "N8N and LANGFUSE are not local in .env: nothing to start in Docker."; \
+		echo "Nothing to start in Docker."; \
 	else \
 		echo "$(COMPOSE) $$profiles up -d --wait"; \
 		$(COMPOSE) $$profiles up -d --wait --wait-timeout 300 || { \
