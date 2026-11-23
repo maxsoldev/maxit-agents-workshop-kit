@@ -148,17 +148,17 @@ def compare(a, b):
     return {}
 
 
-UNPUBLISHED: str | None = None  # what n8n_unpublished returns; a test sets it
+UNPUBLISHED: str | None = None  # what n8n_warning returns; a test sets it
 
 
-def n8n_unpublished(uc, engine="n8n"):
+def n8n_warning(uc, engine="n8n"):
     return UNPUBLISHED if engine == "n8n" else None
 
 
 def install():
     mod = types.ModuleType("kit.runner")
     names = ("load_cases", "save_cases", "validate_case", "run_eval", "load_run", "list_runs", "compare")
-    for name in (*names, "n8n_unpublished"):
+    for name in (*names, "n8n_warning"):
         setattr(mod, name, globals()[name])
     sys.modules["kit.runner"] = mod
     return mod

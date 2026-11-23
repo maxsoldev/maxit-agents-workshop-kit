@@ -668,6 +668,11 @@ def check() -> int:
     unused = [e for e in ("n8n", "claude", "python") if e not in s.engines]
     if unused:
         print(f"{SKIP}{', '.join(unused)}: not in KIT_ENGINES")
+    n8n_warning = getattr(sys.modules["kit.runner"], "n8n_warning", lambda uc, engine: None)
+    for uc in usecases():  # e.g. after git pull: the kit has a newer workflow than n8n
+        for engine in (e for e in s.engines if e in ("n8n", "n8n-agent")):
+            if warning := n8n_warning(uc, engine):
+                print(f"WARN     {uc}/{engine}: {warning}")
     # One row per use case × engine, in print order: (uc, engine, first case id, a line known before any run).
     rows = []
     for uc in usecases():

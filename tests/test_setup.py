@@ -38,7 +38,10 @@ def test_check_with_a_fake_runner(tmp_path, monkeypatch, capsys):
         }
         return {"cases": [case]}
 
-    monkeypatch.setitem(sys.modules, "kit.runner", types.SimpleNamespace(run_eval=run_eval))
+    def n8n_warning(uc, engine):
+        return "n8n has an older 'Kit: demo workflow' than the kit: run `make setup`." if engine == "n8n" else None
+
+    monkeypatch.setitem(sys.modules, "kit.runner", types.SimpleNamespace(run_eval=run_eval, n8n_warning=n8n_warning))
     monkeypatch.setattr(setup, "USECASES_DIR", tmp_path)
     monkeypatch.setattr(setup, "usecases", lambda: ["demo"])
     monkeypatch.setattr(setup, "_port_open", lambda port: True)
@@ -49,11 +52,12 @@ def test_check_with_a_fake_runner(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert sorted(calls) == [("demo", "n8n", ["d1"]), ("demo", "python", ["d1"])]
     lines = out.splitlines()
-    assert lines[1] == "Running 2 checks in parallel (one case each; this can take a few minutes) ..."
-    assert lines[2].startswith("ERROR    demo/n8n (d1): HTTP 404. Next: ")  # fixed order: n8n, claude, python
-    assert lines[3].startswith("SKIP     demo/claude (d1)")
+    assert lines[1] == "WARN     demo/n8n: n8n has an older 'Kit: demo workflow' than the kit: run `make setup`."
+    assert lines[2] == "Running 2 checks in parallel (one case each; this can take a few minutes) ..."
+    assert lines[3].startswith("ERROR    demo/n8n (d1): HTTP 404. Next: ")  # fixed order: n8n, claude, python
+    assert lines[4].startswith("SKIP     demo/claude (d1)")
     # a wrong answer is not an error; a skipped judge does not count
-    assert lines[4] == "ANSWERS  demo/python (d1): 1/2 checks pass. equals who: got Ann, expected Bob"
+    assert lines[5] == "ANSWERS  demo/python (d1): 1/2 checks pass. equals who: got Ann, expected Bob"
     assert lines[-1] == "1 engine(s) do not answer (ERROR lines). Fix them, then run make check again."
 
 

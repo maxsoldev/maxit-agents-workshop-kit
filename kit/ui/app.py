@@ -647,7 +647,7 @@ def run_page(request: Request, uc: str, engine: str = "", error: str = ""):
     cases, load_error = load_cases_safe(uc)
     jobs = {e: JOBS[(uc, e)] for e in config.ALL_ENGINES if (uc, e) in JOBS}
     run_engines = config.settings().run_engines
-    warnings = [runner().n8n_unpublished(uc, e) for e in ("n8n", "n8n-agent") if e in run_engines]
+    warnings = [runner().n8n_warning(uc, e) for e in ("n8n", "n8n-agent") if e in run_engines]
     return page(
         request,
         "run.html",

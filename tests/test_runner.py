@@ -384,6 +384,36 @@ def test_n8n_failure_names_the_node(monkeypatch):
     assert by["Triage model"]["usage"] == {"input": 546, "output": 92, "total": 638}  # Responses API: n8n's estimate
 
 
+def test_n8n_older_than_kit(tmp_path, monkeypatch):
+    """After git pull the kit file is newer than n8n: say so, and say when FORCE=1 is needed."""
+    from kit import setup
+
+    monkeypatch.setattr(config, "ROOT", tmp_path)
+    monkeypatch.setattr(config, "USECASES_DIR", tmp_path / "usecases")
+    monkeypatch.setattr(setup, "IMPORTED_FILE", tmp_path / "runs" / "n8n-imported.json")
+    path = tmp_path / "usecases" / "demo" / "n8n" / "workflow.json"
+    path.parent.mkdir(parents=True)
+
+    def wf(prompt):
+        node = {"name": "Triage", "type": "chainLlm", "typeVersion": 1, "parameters": {"text": prompt}}
+        return {"name": "Kit: demo workflow", "nodes": [node], "connections": {}}
+
+    path.write_text(json.dumps(wf("v1")))
+    assert engines.n8n_older_than_kit("demo", "n8n", wf("v0")) is None  # no setup on this laptop yet: no guess
+    setup.remember_import("Kit: demo workflow", wf("v1"))  # make setup loaded v1
+    assert engines.n8n_older_than_kit("demo", "n8n", wf("v1")) is None
+    assert engines.n8n_older_than_kit("demo", "n8n", wf("mine")) is None  # edits in n8n, the file did not change
+    path.write_text(json.dumps(wf("v2")))  # git pull
+    assert engines.n8n_older_than_kit("demo", "n8n", wf("v1")) == (
+        "n8n has an older 'Kit: demo workflow' than the kit (usecases/demo/n8n/workflow.json): run `make setup`."
+    )
+    both = engines.n8n_older_than_kit("demo", "n8n", wf("mine"))
+    assert "with edits made in n8n" in both and "`make setup FORCE=1` loads the kit file" in both
+    assert engines.n8n_older_than_kit("demo", "n8n", wf("v2")) is None  # n8n has the new file (setup, or by hand)
+    setup.remember_import("Kit: demo workflow", wf("v2"))  # make n8n-export / make setup
+    assert engines.n8n_older_than_kit("demo", "n8n", wf("v2")) is None
+
+
 def test_n8n_tool_calls_from_http_nodes():
     """The workflows call the tools by plain HTTP; the answer repeats the input."""
 

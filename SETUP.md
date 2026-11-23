@@ -116,6 +116,8 @@ n8n login, an API key, the OpenAI credential, and imports the workflows `Kit: ma
 your version and says so (and says when the kit has a newer file: then `make setup FORCE=1` loads it). Save your edits to git with `make n8n-export` (all use cases, or `UC=travel`); load the
 file over them with `make setup FORCE=1` (the old n8n copy goes to `runs/n8n-backup/`). No key yet? Setup still imports the workflows (inactive, without
 the credential), so you can look at them; it activates them when you run it again with the key.
+After `git pull`, `make check`, `make eval` and the Run page warn when n8n has an older workflow than the kit:
+run `make setup` (or `make setup FORCE=1` if you also changed it in n8n).
 
 - **Check:** the summary at the end says OK for n8n and Langfuse and prints the logins. Log in to n8n
   (:5702) and Langfuse (:5703) with them.

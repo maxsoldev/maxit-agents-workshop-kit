@@ -1,6 +1,6 @@
 """Eval runner: run the cases of a use case on one engine, check the results, save a run file.
 
-from kit.runner import run_eval, list_runs, load_run, compare, n8n_unpublished
+from kit.runner import run_eval, list_runs, load_run, compare, n8n_warning
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from datetime import datetime
 from kit import config
 from kit.runner import checks, engines, tracing
 from kit.runner.cases import CaseError, engine_input, load_cases, save_cases, usecase_dir, validate_case
-from kit.runner.engines import n8n_unpublished
+from kit.runner.engines import n8n_warning
 from kit.runner.store import list_runs, load_run, new_run_id, save_run
 
 __all__ = [
@@ -30,7 +30,7 @@ __all__ = [
     "save_cases",
     "validate_case",
     "CaseError",
-    "n8n_unpublished",
+    "n8n_warning",
 ]
 
 
@@ -183,8 +183,8 @@ def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=No
         "summary": summarize([]),
         "cases": [],
     }
-    if engine in ("n8n", "n8n-agent") and (warning := n8n_unpublished(usecase, engine)):
-        run["warning"] = warning  # the run used the published workflow, not the latest edits
+    if engine in ("n8n", "n8n-agent") and (warning := n8n_warning(usecase, engine)):
+        run["warning"] = warning  # the run used an older workflow, or the published one, not the latest edits
     save_run(run)  # reserves the run id; ended_at = None means "still running"
     experiment = _start_experiment(usecase, all_cases, run)
     run["experiment_url"] = experiment["url"] if experiment else None

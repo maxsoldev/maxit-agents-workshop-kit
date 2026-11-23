@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 import threading
 
-from kit.runner import CaseError, n8n_unpublished, run_eval
+from kit.runner import CaseError, n8n_warning, run_eval
 
 
 def _label(check: dict) -> str:
@@ -28,7 +28,7 @@ def main(
                 print(f"  [{done[0]}] {event['case_id']} {mark}", file=sys.stderr, flush=True)
 
     print(f"Running {usecase} on {engine} ...", file=sys.stderr, flush=True)
-    if engine == "n8n" and (warning := n8n_unpublished(usecase)):
+    if engine in ("n8n", "n8n-agent") and (warning := n8n_warning(usecase, engine)):
         print(f"WARN  {warning}", file=sys.stderr, flush=True)
     try:
         run = run_eval(usecase, engine, case_ids or None, name or None, on_progress, holdout=holdout)
