@@ -341,6 +341,22 @@ def test_use_case_names_are_capitalised(client):
     assert "Runs <span class=\"muted\">· Foo ·" in client.get("/uc/foo/runs").text
 
 
+def test_active_use_case_and_empty_runs_page(client):
+    """The active use case tab is marked on every page; an empty Runs page points to the runs of other use cases."""
+    (config.USECASES_DIR / "zeta").mkdir()
+    (config.USECASES_DIR / "zeta" / "cases.jsonl").write_text("", encoding="utf-8")
+    assert '<a href="/uc/zeta/cases" class="on">Zeta</a>' in client.get("/uc/zeta/runs").text
+    assert '<a href="/uc/zeta/cases" class="on">Zeta</a>' in client.get("/docs").text  # last used, also on the Guide
+    css = client.get("/static/style.css").text
+    assert ".top .ucs a.on" in css
+    assert "No Zeta runs yet." in client.get("/uc/zeta/runs").text
+    config.RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    run = {"run_id": "20261124-100000-demo-n8n", "usecase": "demo", "engine": "n8n", "name": "x", "cases": []}
+    (config.RUNS_DIR / f"{run['run_id']}.json").write_text(json.dumps(run))
+    page = client.get("/uc/zeta/runs").text
+    assert '<a href="/uc/demo/runs">Demo has 1 run →</a>' in page
+
+
 def test_docs_names_order_and_file_path(client, tmp_path, monkeypatch):
     root = tmp_path / "repo"
     (root / "docs").mkdir(parents=True)

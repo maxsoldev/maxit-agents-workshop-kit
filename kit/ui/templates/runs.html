@@ -9,7 +9,8 @@
 <p class="muted small">{% if show_checks %}With the {{ hidden }} <code>make check</code> runs. <a href="/uc/{{ uc }}/runs">Hide checks</a>
   {% else %}{{ hidden }} <code>make check</code> run(s) hidden. <a href="/uc/{{ uc }}/runs?checks=1">Show checks</a>{% endif %}</p>
 {% endif %}
-{% if not runs %}<p class="muted">No runs yet.</p>{% else %}
+{% if not runs %}<p class="muted">No {{ uc|uc_name }} runs yet.{% for u, n in elsewhere.items() %}
+  <a href="/uc/{{ u }}/runs">{{ u|uc_name }} has {{ n }} run{{ 's' if n != 1 }} →</a>{% endfor %}</p>{% else %}
 <table class="runs">
   <thead><tr><th>Score</th><th>Engine</th><th>Name</th><th>Started</th><th>Run id</th></tr></thead>
   <tbody>

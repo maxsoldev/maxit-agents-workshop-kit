@@ -31,6 +31,9 @@ h3 { font-size: 1rem; margin: 0.6rem 0 0.2rem; }
 .top nav { display: flex; gap: 0.25rem; }
 .top .guide, .top .ucs { padding-right: 1rem; border-right: 1px solid #57606a; }
 .top .ext { margin-left: auto; }
+/* the active use case: a white tab, so you always see which use case Cases / Run / Runs belong to */
+.top .ucs a { border: 1px solid #57606a; font-weight: 600; }
+.top .ucs a.on { background: #fff; color: #24292f; border-color: #fff; }
 
 /* buttons, forms */
 .btn { display: inline-block; padding: 0.45rem 0.9rem; border: 1px solid var(--line); border-radius: 6px;

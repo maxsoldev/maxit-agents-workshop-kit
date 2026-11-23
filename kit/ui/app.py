@@ -626,7 +626,14 @@ def runs_page(request: Request, uc: str, checks: int = 0):
         now, before = r.get("case_hashes") or {}, prev.get("case_hashes") or {}
         r["new_cases"] = sum(1 for i in now if i not in before)
         r["changed_cases"] = sum(1 for i, h in now.items() if h and before.get(i) and before[i] != h)
-    return page(request, "runs.html", uc, runs=runs, hidden=hidden, show_checks=bool(checks))
+    elsewhere: dict[str, int] = {}  # no runs here: say which other use cases have runs ("Marketing has 1 run")
+    if not runs:
+        for r in runner().list_runs(None):
+            if r.get("usecase") != uc and r.get("usecase") in usecases() and r.get("name") != CHECK_RUN:
+                elsewhere[r["usecase"]] = elsewhere.get(r["usecase"], 0) + 1
+    return page(
+        request, "runs.html", uc, runs=runs, hidden=hidden, show_checks=bool(checks), elsewhere=dict(sorted(elsewhere.items()))
+    )
 
 
 def compare_cases(run: dict, other: dict | None) -> dict:
