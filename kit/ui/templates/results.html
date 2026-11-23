@@ -56,6 +56,9 @@
         {% if c.trace_url and langfuse_link %}<a href="{{ c.trace_url }}" target="_blank">Langfuse trace ↗</a>{% endif %}
         {% if c.n8n_execution_url %}<a href="{{ c.n8n_execution_url }}" target="_blank">n8n execution ↗</a>{% endif %}
       </div>
+      {% if (c.meta or {}).stderr %}
+      <details class="tool-calls"><summary>Engine log (stderr, last lines)</summary><pre>{{ c.meta.stderr }}</pre></details>
+      {% endif %}
       {% if (c.meta or {}).tool_calls %}
       <details class="tool-calls"><summary>Tool calls ({{ c.meta.tool_calls|length }})</summary>
         {% for t in c.meta.tool_calls %}

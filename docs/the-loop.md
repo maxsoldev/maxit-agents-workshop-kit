@@ -26,7 +26,9 @@ then measure every change.**
 - **Read the trace, not only the score.** The trace shows which tools the agent called, what it read and
   where it went wrong. Claude: Langfuse (the `tool:<name>` spans have the input and output; the results page
   lists the same tool calls). n8n: Executions (the results page links to each one). Python: the `tool ...`
-  lines it logs on stderr (run `agent.py` by hand to see them; the error of a failed run shows the last lines).
+  lines it logs on stderr (the results page shows them under **Engine log**).
+  To look at one case closely: `make run-case UC=marketing ENGINE=python CASE=m14` (or `uv run kit run-case
+  marketing python m14`) prints the engine input, the output, the tool calls, the log and the checks.
 - **Do not fit the cases.** A rule like "if the sender is Lara Venn, say unverified" makes the case pass and
   the agent worse. Write rules that hold for the next email too.
 - **Run it twice** before you trust a small change. Models are not fully deterministic.

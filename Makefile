@@ -7,7 +7,7 @@ ENGINE ?= n8n
 CASES ?=
 NAME ?=
 
-.PHONY: help up down setup n8n-export check serve eval logs reset test
+.PHONY: help up down setup n8n-export check serve eval run-case logs reset test
 
 help:
 	@echo "make up       start n8n and/or Langfuse in Docker (as set in .env), wait until healthy"
@@ -17,6 +17,7 @@ help:
 	@echo "make serve    kit UI on :5700 and tools server on :5701 (keep it running)"
 	@echo "make check    one case per use case and engine: OK or what to fix"
 	@echo "make eval UC=marketing ENGINE=n8n [CASES=m01,m02] [NAME=try-1]"
+	@echo "make run-case UC=marketing ENGINE=python CASE=m14   one case: input, output, log, checks"
 	@echo "make logs     follow the Docker logs"
 	@echo "make down     stop the containers (data stays)"
 	@echo "make reset    stop the containers and DELETE their data (asks first)"
@@ -54,6 +55,9 @@ serve: .env
 
 eval: .env
 	uv run kit eval $(UC) $(ENGINE) $(if $(CASES),--cases $(CASES)) $(if $(NAME),--name $(NAME))
+
+run-case: .env
+	uv run kit run-case $(UC) $(ENGINE) $(CASE)
 
 logs:
 	$(COMPOSE) --profile n8n --profile langfuse logs -f --tail 100

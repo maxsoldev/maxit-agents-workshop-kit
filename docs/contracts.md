@@ -113,6 +113,10 @@ Run file `runs/<run_id>.json`, `run_id` = `<YYYYmmdd-HHMMSS>-<uc>-<engine>`:
             "trace_url": "http://localhost:5703/...", "n8n_execution_url": "http://localhost:5702/workflow/<id>/executions/<n>"}]}
 ```
 
+Each case result also has `today` (the agent's date) and, for claude and python, `meta.stderr` (the last lines
+of the engine's stderr; the results page shows it as "Engine log"). `kit run-case <uc> <engine> <case_id>` runs
+one case without a run file and prints the engine input, output, tool calls, stderr and checks.
+
 `case_hash` (each case result): a short hash of the case's `today`, `input`, `expected` and `checks`. Compare
 marks a case "case changed" when the hash differs between the two runs (and "new case" when it was not in the
 other run); the Runs list shows "13 cases (2 new, 1 changed)" against the run before. `list_runs` rows have

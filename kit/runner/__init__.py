@@ -60,7 +60,7 @@ def case_hash(case: dict) -> str:
 def run_case(uc: str, engine: str, case: dict, schema: dict, run_id: str, run_name: str) -> dict:
     """Run one case and check it. Never raises: a crash is a failed case with `error`."""
     t0 = time.time()  # wall clock: on macOS, monotonic time stops while the computer sleeps
-    res = {"id": case["id"], "title": case.get("title", ""), "case_hash": case_hash(case),
+    res = {"id": case["id"], "title": case.get("title", ""), "today": case.get("today"), "case_hash": case_hash(case),
            "passed": False, "seconds": 0.0, "error": None,
            "input": case.get("input", {}), "expected": case.get("expected", {}), "output": None, "checks": [],
            "trace_url": None, "n8n_execution_url": None, "meta": {}}
