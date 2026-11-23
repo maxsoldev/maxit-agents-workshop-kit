@@ -344,6 +344,27 @@ def index(request: Request):
     return RedirectResponse(f"/uc/{uc}/cases" if uc else "/docs", status_code=302)
 
 
+def same_page(back: str, to: str) -> str:
+    """The page of the same kind for use case `to`: Runs -> Runs, a results page -> Runs, Guide stays."""
+    m = re.match(r"^/uc/[^/]+/(cases|runs|run)\b", back)
+    if m:
+        return f"/uc/{to}/{m[1]}"
+    if back.startswith("/runs/"):
+        return f"/uc/{to}/runs"
+    if back.startswith("/docs"):
+        return back
+    return f"/uc/{to}/cases"
+
+
+@app.get("/switch")
+def switch(to: str, back: str = "/"):
+    """The use case selector in the header: remember the choice (cookie), stay on the same kind of page."""
+    uc_dir(to)
+    response = RedirectResponse(same_page(back, to), status_code=303)
+    response.set_cookie(LAST_UC_COOKIE, to, max_age=60 * 60 * 24 * 365, samesite="lax")
+    return response
+
+
 @app.get("/uc/{uc}/cases", response_class=HTMLResponse)
 def cases_page(request: Request, uc: str):
     cases, error = load_cases_safe(uc)

@@ -311,44 +311,67 @@ def test_docs_page(client):
     assert 'href="/docs?name=SETUP.md"' in client.get("/docs?name=README.md").text  # a link to another doc
 
 
-def test_guide_is_the_first_header_item(client):
-    """The top header: brand, then Guide (the /docs page), then the use cases. No "Docs" label."""
+def header(html: str) -> str:
+    return html.split("<header", 1)[1].split("</header>", 1)[0]
+
+
+def add_usecase(name: str) -> None:
+    (config.USECASES_DIR / name).mkdir()
+    (config.USECASES_DIR / name / "cases.jsonl").write_text("", encoding="utf-8")
+
+
+def test_header_order_guide_pages_selector(client):
+    """Header: Guide | Cases | Run | Runs | ... | use case selector. The label is Guide, not Docs."""
     for url in ("/uc/demo/cases", "/docs"):
-        header = client.get(url).text.split("<header", 1)[1].split("</header>", 1)[0]
-        assert header.index('href="/docs"') < header.index('href="/uc/demo/cases"')
-        assert ">Guide</a>" in header and ">Docs<" not in header
+        h = header(client.get(url).text)
+        spots = [h.index(s) for s in ('href="/docs"', 'href="/uc/demo/cases"', 'href="/uc/demo/runs"', "<select")]
+        assert spots == sorted(spots)
+        assert ">Guide</a>" in h and ">Docs<" not in h
     assert "<title>Guide ·" in client.get("/docs").text
 
 
 def test_guide_keeps_cases_run_runs(client):
-    """On the Guide, Cases / Run / Runs and the use case tabs stay: last used use case, else ?uc=, else first."""
-    (config.USECASES_DIR / "zeta").mkdir()
-    (config.USECASES_DIR / "zeta" / "cases.jsonl").write_text("", encoding="utf-8")
-    page = client.get("/docs").text
-    assert 'href="/uc/demo/run"' in page and 'href="/uc/demo/runs"' in page and 'href="/uc/zeta/cases"' in page
+    """On the Guide, Cases / Run / Runs and the selector stay: the page's use case, ?uc=, the cookie, else the first."""
+    add_usecase("zeta")
+    h = header(client.get("/docs").text)
+    assert 'href="/uc/demo/run"' in h and 'href="/uc/demo/runs"' in h and '<option value="zeta" >Zeta' in h
     assert 'href="/uc/zeta/run"' in client.get("/docs?uc=zeta").text
-    client.get("/uc/zeta/cases")  # sets the cookie
-    assert 'href="/uc/zeta/runs"' in client.get("/docs").text
+    client.get("/uc/zeta/cases")  # an old URL sets the selector (cookie)
+    assert '<option value="zeta" selected>Zeta</option>' in client.get("/docs").text
+
+
+def test_use_case_selector_sticks_and_keeps_the_page(client):
+    """Changing the selector keeps the kind of page (Runs -> Runs) and is remembered on every page."""
+    add_usecase("zeta")
+    r = client.get("/switch", params={"to": "zeta", "back": "/uc/demo/runs"}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/uc/zeta/runs"
+    assert '<option value="zeta" selected>' in client.get("/docs").text
+    assert 'href="/uc/zeta/cases"' in header(client.get("/docs").text)
+    for back, to in (
+        ("/uc/demo/run", "/uc/zeta/run"),
+        ("/uc/demo/cases/m06/edit", "/uc/zeta/cases"),
+        ("/runs/20261124-100000-demo-n8n", "/uc/zeta/runs"),
+        ("/docs?name=SETUP.md", "/docs?name=SETUP.md"),
+        ("https://evil.example", "/uc/zeta/cases"),
+    ):
+        assert (
+            client.get("/switch", params={"to": "zeta", "back": back}, follow_redirects=False).headers["location"] == to
+        )
+    assert client.get("/switch", params={"to": "nope"}).status_code == 404
 
 
 def test_use_case_names_are_capitalised(client):
     """The UI shows "Demo", "Foo"; URLs and ids stay lower case."""
-    (config.USECASES_DIR / "foo").mkdir()
-    (config.USECASES_DIR / "foo" / "cases.jsonl").write_text("", encoding="utf-8")
+    add_usecase("foo")
     page = client.get("/uc/demo/cases").text
-    assert '<a href="/uc/foo/cases" class="">Foo</a>' in page and ">Demo</a>" in page
+    assert '<option value="foo" >Foo</option>' in page and '<option value="demo" selected>Demo</option>' in page
     assert 'Cases <span class="muted">· Demo ·' in page and ">demo<" not in page
     assert 'Runs <span class="muted">· Foo ·' in client.get("/uc/foo/runs").text
 
 
-def test_active_use_case_and_empty_runs_page(client):
-    """The active use case tab is marked on every page; an empty Runs page points to the runs of other use cases."""
-    (config.USECASES_DIR / "zeta").mkdir()
-    (config.USECASES_DIR / "zeta" / "cases.jsonl").write_text("", encoding="utf-8")
-    assert '<a href="/uc/zeta/cases" class="on">Zeta</a>' in client.get("/uc/zeta/runs").text
-    assert '<a href="/uc/zeta/cases" class="on">Zeta</a>' in client.get("/docs").text  # last used, also on the Guide
-    css = client.get("/static/style.css").text
-    assert ".top .ucs a.on" in css
+def test_empty_runs_page_points_to_other_use_cases(client):
+    """An empty Runs page says which other use cases have runs."""
+    add_usecase("zeta")
     assert "No Zeta runs yet." in client.get("/uc/zeta/runs").text
     config.RUNS_DIR.mkdir(parents=True, exist_ok=True)
     run = {"run_id": "20261124-100000-demo-n8n", "usecase": "demo", "engine": "n8n", "name": "x", "cases": []}

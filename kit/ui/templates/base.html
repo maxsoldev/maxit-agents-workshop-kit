@@ -9,23 +9,29 @@
 </head>
 <body>
 <header class="top sticky">
-  <a class="brand" href="/">MaxIT agent kit</a>
-  <nav class="guide"><a href="/docs" class="{{ 'on' if request.url.path.startswith('/docs') }}">Guide</a></nav>
-  <nav class="ucs">
-    {% for u in usecases %}<a href="/uc/{{ u }}/cases" class="{{ 'on' if u == nav_uc }}">{{ u|uc_name }}</a>{% endfor %}
-  </nav>
-  {% if nav_uc %}
+  {% set here = request.url.path %}{# not `path`: the Guide page uses that name #}
   <nav class="pages">
-    {% set here = request.url.path %}{# not `path`: the Guide page uses that name #}
+    <a href="/docs" class="{{ 'on' if here.startswith('/docs') }}">Guide</a>
+    {% if nav_uc %}
     <a href="/uc/{{ nav_uc }}/cases" class="{{ 'on' if '/cases' in here }}">Cases</a>
     <a href="/uc/{{ nav_uc }}/run" class="{{ 'on' if here.endswith('/run') }}">Run</a>
     <a href="/uc/{{ nav_uc }}/runs" class="{{ 'on' if '/runs' in here }}">Runs</a>
+    {% endif %}
   </nav>
-  {% endif %}
   <nav class="ext">
     <a href="{{ settings.n8n_url }}" target="_blank">n8n ↗</a>
     {% if langfuse_link %}<a href="{{ settings.langfuse_host }}" target="_blank">Langfuse ↗</a>{% endif %}
   </nav>
+  {% if usecases %}
+  <form class="uc-pick" method="get" action="/switch">
+    <input type="hidden" name="back" value="{{ here }}{{ '?' ~ request.url.query if here.startswith('/docs') and request.url.query }}">
+    <label>Use case
+      <select name="to" onchange="this.form.submit()">
+        {% for u in usecases %}<option value="{{ u }}" {{ 'selected' if u == nav_uc }}>{{ u|uc_name }}</option>{% endfor %}
+      </select></label>
+    <noscript><button class="btn">Go</button></noscript>
+  </form>
+  {% endif %}
 </header>
 <main>
 {% if not settings.openai_api_key %}
