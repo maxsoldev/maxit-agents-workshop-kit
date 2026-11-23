@@ -155,16 +155,11 @@ def n8n_execution_url(uc: str, call_id: str) -> str | None:
     s = settings()
     if not s.n8n_api_key:
         return None
-    api = httpx.Client(base_url=f"{s.n8n_url}/api/v1", headers={"X-N8N-API-KEY": s.n8n_api_key}, timeout=10)
-    wid = None
-    for w in api.get("/workflows", params={"active": "true", "limit": 100}).json().get("data", []):
-        if any(
-            n.get("type") == "n8n-nodes-base.webhook" and n.get("parameters", {}).get("path") == uc
-            for n in w.get("nodes", [])
-        ):
-            wid = w["id"]
-    if not wid:
+    api = _n8n_api()
+    w = _n8n_workflow(api, uc)
+    if not w:
         return None
+    wid = w["id"]
     for _attempt in range(3):  # n8n saves the execution just after it answers
         data = api.get("/executions", params={"workflowId": wid, "limit": 10, "includeData": "true"}).json()
         for e in data.get("data", []):
@@ -172,6 +167,40 @@ def n8n_execution_url(uc: str, call_id: str) -> str | None:
                 return f"{s.n8n_url}/workflow/{wid}/executions/{e['id']}"
         time.sleep(1)
     return f"{s.n8n_url}/workflow/{wid}/executions"
+
+
+def _n8n_api() -> httpx.Client:
+    s = settings()
+    return httpx.Client(base_url=f"{s.n8n_url}/api/v1", headers={"X-N8N-API-KEY": s.n8n_api_key}, timeout=10)
+
+
+def _n8n_workflow(api: httpx.Client, uc: str) -> dict | None:
+    """The active workflow with the webhook path `uc` (the last one, if there are more)."""
+    hit = None
+    for w in api.get("/workflows", params={"active": "true", "limit": 100}).json().get("data", []):
+        if any(
+            n.get("type") == "n8n-nodes-base.webhook" and n.get("parameters", {}).get("path") == uc
+            for n in w.get("nodes", [])
+        ):
+            hit = w
+    return hit
+
+
+def n8n_unpublished(uc: str) -> str | None:
+    """A warning if the n8n workflow of `uc` has edits that are not published, else None.
+    n8n 2.x saves editor edits as a draft; the webhook (so the eval) runs the published version."""
+    if not settings().n8n_api_key:
+        return None
+    try:
+        w = _n8n_workflow(_n8n_api(), uc)
+    except (httpx.HTTPError, ValueError):
+        return None
+    if w and w.get("activeVersionId") and w.get("versionId") != w["activeVersionId"]:
+        return (
+            f"n8n: '{w['name']}' has changes that are not published. The eval runs the published version: "
+            "click Publish in the n8n editor."
+        )
+    return None
 
 
 def _post_n8n(uc: str, engine_input: dict, call_id: str):

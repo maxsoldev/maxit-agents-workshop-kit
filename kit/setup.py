@@ -773,6 +773,9 @@ def n8n_export(only_uc: str = "") -> int:
             f"OK    {uc}: '{full['name']}' from n8n -> {path.relative_to(ROOT)}. Look at it with git diff, "
             "then commit it"
         )
+        if full.get("activeVersionId") and full.get("versionId") != full["activeVersionId"]:
+            # n8n 2.x: editor edits are a draft; the webhook runs the published version
+            print(f"WARN  {uc}: the file has your latest edits, but they are not published. Click Publish in n8n")
     return 1 if bad else 0
 
 
