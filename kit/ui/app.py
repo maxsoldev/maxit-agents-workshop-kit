@@ -312,6 +312,7 @@ def page(request: Request, name: str, uc: str | None = None, status: int = 200, 
         engines=config.ENGINES,
         settings=s,
         langfuse_link=s.langfuse_mode != "off",
+        guide_docs=[(k, t) for k, (t, _) in doc_files().items()],  # the doc list in the side panel
     )
     response = templates.TemplateResponse(request, name, ctx, status_code=status)
     if uc and uc in ctx["usecases"]:
@@ -819,19 +820,26 @@ def doc_path(path: Path) -> str:
 MARKDOWN = MarkdownIt("commonmark", {"html": False}).enable("table")  # no raw HTML: participants edit BRIEF.md
 
 
-def render_doc(name: str, text: str, files: dict) -> Markup:
-    """Markdown to HTML. A link to another doc (relative to this one) opens it on the Guide page."""
+def render_doc(name: str, text: str, files: dict, panel: bool = False) -> Markup:
+    """Markdown to HTML. A link to another doc (relative to this one) opens it on the Guide page.
+    `panel`: for the side panel. A doc link gets `data-doc` (the panel opens it in place),
+    an outside link opens in a new tab."""
     by_path = {p.resolve(): k for k, (_, p) in files.items()}
     tokens = MARKDOWN.parse(text)
     for tok in tokens:
         for t in tok.children or []:
             href = str(t.attrGet("href") or "") if t.type == "link_open" else ""
             path, _, anchor = href.partition("#")
+            if panel and (":" in path or path.startswith("/")):
+                t.attrSet("target", "_blank")
+                t.attrSet("rel", "noopener")
             if not path or ":" in path or path.startswith("/") or name not in files:
                 continue
             target = by_path.get((files[name][1].parent / path).resolve())
             if target:
                 t.attrSet("href", f"/docs?name={quote(target)}" + (f"#{anchor}" if anchor else ""))
+                if panel:
+                    t.attrSet("data-doc", target)
     return Markup(MARKDOWN.renderer.render(tokens, MARKDOWN.options, {}))
 
 
@@ -843,6 +851,15 @@ def docs_page(request: Request, name: str = ""):
     nav = [(k, t) for k, (t, _) in files.items()]
     path = doc_path(files[name][1]) if name else ""
     return page(request, "docs.html", None, nav=nav, doc=name, path=path, html=render_doc(name, text, files))
+
+
+@app.get("/docs/fragment", response_class=HTMLResponse)
+def doc_fragment(name: str):
+    """Only the rendered doc, for the Guide side panel (`static/guide.js`)."""
+    files = doc_files()
+    if name not in files:
+        raise HTTPException(404, "no such doc")
+    return render_doc(name, files[name][1].read_text(encoding="utf-8"), files, panel=True)
 
 
 @app.get("/docs/raw", response_class=PlainTextResponse)

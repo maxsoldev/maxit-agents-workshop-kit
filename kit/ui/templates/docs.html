@@ -6,7 +6,9 @@
     {% for f, title in nav %}<a href="/docs?name={{ f }}" class="{{ 'on' if f == doc }}">{{ title }}</a>{% endfor %}
   </nav>
   <article>
-    {% if path %}<div class="muted small">File: <a href="/docs/raw?name={{ doc }}"><code>{{ path }}</code></a></div>{% endif %}
+    {% if path %}<div class="doc-head"><span class="muted small">File: <a href="/docs/raw?name={{ doc }}"><code>{{ path }}</code></a></span>
+      <button type="button" id="gp-as-panel" class="btn" data-doc="{{ doc }}"
+        data-fallback="{{ '/uc/' ~ nav_uc ~ '/run' if nav_uc else '/' }}">📖 Open as side panel</button></div>{% endif %}
     <div class="doc">{{ html }}</div>
   </article>
 </div>

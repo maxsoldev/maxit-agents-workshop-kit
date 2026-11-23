@@ -311,6 +311,33 @@ def test_docs_page(client):
     assert 'href="/docs?name=SETUP.md"' in client.get("/docs?name=README.md").text  # a link to another doc
 
 
+def test_doc_fragment_for_the_side_panel(client):
+    brief = "# Demo brief\n\n<script>x</script>\n\n[web](https://example.org) [setup](../../SETUP.md) [top](#a)\n"
+    (config.USECASES_DIR / "demo" / "BRIEF.md").write_text(brief, encoding="utf-8")
+    r = client.get("/docs/fragment?name=demo/BRIEF.md")
+    assert r.status_code == 200 and "<h1>Demo brief</h1>" in r.text
+    assert "<header" not in r.text and "<script>x" not in r.text  # only the doc, raw HTML still off
+    assert '<a href="https://example.org" target="_blank" rel="noopener">' in r.text  # outside: new tab
+    assert '<a href="#a">' in r.text  # an anchor stays in the panel
+    readme = client.get("/docs/fragment?name=README.md").text
+    assert '<a href="/docs?name=SETUP.md" data-doc="SETUP.md">' in readme  # a doc link opens in the panel
+    assert 'data-doc="SETUP.md"' not in client.get("/docs?name=README.md").text  # not on the full page
+    assert client.get("/docs/fragment?name=nope.md").status_code == 404
+
+
+def test_side_panel_markup(client):
+    html = client.get("/uc/demo/run").text
+    assert '<script src="/static/guide.js"></script>' in html
+    assert 'id="gp-toggle"' in header(html) and 'id="guide-panel"' in html
+    panel = html.split('id="guide-panel"', 1)[1].split("</aside>", 1)[0]
+    assert '<option value="docs/tutorial.md">Tutorial</option>' in panel
+    assert 'id="gp-full"' in panel and 'class="gp-close"' in panel
+    guide = client.get("/docs?name=SETUP.md").text  # the full page: no panel, a button to open it
+    assert 'id="guide-panel"' not in guide and 'id="gp-toggle"' not in guide
+    assert 'id="gp-as-panel" class="btn" data-doc="SETUP.md"' in guide
+    assert client.get("/static/guide.js").status_code == 200
+
+
 def header(html: str) -> str:
     return html.split("<header", 1)[1].split("</header>", 1)[0]
 

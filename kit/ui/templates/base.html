@@ -6,12 +6,15 @@
   <title>{% block title %}Kit{% endblock %} · MaxIT agent kit</title>
   <link rel="stylesheet" href="/static/style.css">
   <script src="/static/htmx.min.js"></script>
+  <script src="/static/guide.js"></script>
 </head>
 <body>
 <header class="top sticky">
   {% set here = request.url.path %}{# not `path`: the Guide page uses that name #}
+  {% set guide_page = here.startswith('/docs') %}
   <nav class="pages">
-    <a href="/docs" class="{{ 'on' if here.startswith('/docs') }}">Guide</a>
+    <a href="/docs" class="{{ 'on' if guide_page }}">Guide</a>
+    {% if not guide_page %}<button type="button" id="gp-toggle" class="gp-toggle" title="Read the Guide next to this page">📖 Side panel</button>{% endif %}
     {% if nav_uc %}
     <a href="/uc/{{ nav_uc }}/cases" class="{{ 'on' if '/cases' in here }}">Cases</a>
     <a href="/uc/{{ nav_uc }}/run" class="{{ 'on' if here.endswith('/run') }}">Run</a>
@@ -41,5 +44,16 @@
 {% endif %}
 {% block main %}{% endblock %}
 </main>
+{% if not guide_page and guide_docs %}
+<aside id="guide-panel" class="guide-panel" aria-label="Guide">
+  <div class="gp-resize" title="Drag to change the width"></div>
+  <div class="gp-bar">
+    <select aria-label="Doc">{% for f, title in guide_docs %}<option value="{{ f }}">{{ title }}</option>{% endfor %}</select>
+    <a id="gp-full" href="/docs" title="Open this doc as the full Guide page">Full page</a>
+    <button type="button" class="gp-close" title="Close the panel" aria-label="Close">✕</button>
+  </div>
+  <div class="gp-body"></div>
+</aside>
+{% endif %}
 </body>
 </html>
