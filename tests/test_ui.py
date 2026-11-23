@@ -168,9 +168,12 @@ def test_check_runs_hidden_and_compare_default(client):
     assert ">check<" not in runs and "1 <code>make check</code> run(s) hidden" in runs
     assert ">check<" in client.get("/uc/demo/runs?checks=1").text
     page = client.get("/runs/20261124-102000-demo-n8n").text
-    assert 'value="20261124-101500-demo-n8n" selected' in page  # previous n8n run, not the check run
+    # default: the last n8n run with the same cases (not "small", which has other cases; not the check run)
+    assert 'value="20261124-100000-demo-n8n" selected' in page
     assert "small · " in page and "other cases" in page and "20261124-101000-demo-n8n" not in page
     assert page.index("small") < page.index("py ·")  # the same engine first
+    save("20261124-103000-demo-n8n", "n8n", "one", ["m07"])  # no run with the same cases: the last full run
+    assert 'value="20261124-102000-demo-n8n" selected' in client.get("/runs/20261124-103000-demo-n8n").text
 
 
 def test_compare_marks_changes(client):

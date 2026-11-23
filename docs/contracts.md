@@ -100,7 +100,8 @@ compare(run_id_a, run_id_b) -> dict     # per case: better / worse / same
 ```
 
 `make check` names its runs `check`: the UI hides them in the Runs list (link "Show checks") and in Compare.
-Compare defaults to the previous run of the same engine, lists that engine first, and marks runs with other
+Compare defaults to the last older run of the same engine with the same case ids (else the last one that ran
+all of these cases, else the last one of that engine), lists that engine first, and marks runs with other
 case ids ("other cases").
 
 `on_progress(event: dict)` is called with `{"case_id", "status": "running"|"done", "passed"?, "error"?}`. Cases run up to
