@@ -22,7 +22,7 @@
 | `open` | We know about it, but nobody has checked it yet. |
 | `needs_info` | We asked the traveller something and wait for the answer. |
 | `waiting_for_request` | No travel number yet: do not book. |
-| `ready_to_book` | Travel number present, options prepared. A person books. |
+| `ready_to_book` | Travel number present (DRA). We can prepare options; a person books. |
 | `cancelled` | It does not happen. Stop all work on it. |
 | `done` | Booked or finished. |
 
