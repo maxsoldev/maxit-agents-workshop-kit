@@ -275,6 +275,14 @@ def test_parse_json_text():
     assert engines.parse_json_text(' {"a": 3} ') == {"a": 3}
 
 
+def test_claude_text_without_valid_json_says_where():
+    """A real answer (23 Nov) with a stray `<br>` between two fields: the error shows the start and the spot."""
+    text = (FIX / "claude" / "result-with-br.txt").read_text(encoding="utf-8")
+    out, err, _ = engines.call_claude("fake", {"case_id": "x", "input": {"mode": "text", "answer": text}}, {})
+    assert out is None and "Expecting ',' delimiter" in err and '."<br>, "route_to"' in err
+    assert '{"category": "unverified_outreach"' in err and "CLAUDE.md" in err
+
+
 def test_read_python_tool_log():
     err = 'hello\ntool contacts_lookup {"query": "a -> b"} -> "x\\n\\"y\\""\ntool rules_get {} -> "r"\ntool broken'
     assert engines.read_tool_log(err) == [
@@ -320,6 +328,11 @@ def test_claude_run_with_fake_cli():
     f01, f03 = run["cases"]
     assert f01["passed"] and f01["meta"]["turns"] == 2 and f01["meta"]["cost_usd"] == 0.01
     assert "Not logged in" in f03["error"]
+    # the schema goes to --json-schema (without "$schema"); the answer comes from structured_output
+    schema = {"type": "object", "properties": {"category": {"type": "string"}}}
+    inp = {"case_id": "x", "input": {"mode": "ok", "want": "a"}, "output_schema": {"$schema": "x", **schema}}
+    out, err, _ = engines.call_claude("fake", inp, {})
+    assert err is None and out["category"] == "a"
 
 
 def test_n8n_run(n8n):

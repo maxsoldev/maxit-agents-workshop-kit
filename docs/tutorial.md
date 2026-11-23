@@ -72,8 +72,7 @@ This gap is on purpose (`usecases/marketing/BRIEF.md`).
       When we reply ourselves, write "route_to": "". Never leave the field out.
    ```
 
-   Claude: also add `"route_to": ""` to the example JSON in the part "Answer". Claude copies the example; n8n
-   and Python force the schema, so they need only the line.
+   All 3 engines get the schema with each case and must answer in its shape, so the line is enough.
    n8n: the schema needs no edit in n8n (the node **Result shape** reads it from the case). Only change the
    System Message, click **Publish**, and run `make n8n-export UC=marketing`.
 3. Run again, run name `route`. On the Results page, check **Compare with**: it shows your `scaffold` run (pick
@@ -84,9 +83,8 @@ This gap is on purpose (`usecases/marketing/BRIEF.md`).
 - `m14` no longer fails on "missing": open it, the check `equals route_to` is ✓ (`got tech_team`).
 - If the other checks of `m14` pass too, Compare shows **▲ better** for `m14`. It can stay red on another check,
   often the judge on the reply. That is a real mistake in the reply, not in `route_to`.
-- A case can also get **▼ worse**: for example, the agent leaves out the new field
-  (``schema: the field `route_to` is missing``; we saw it on Claude). That is the next thing to fix, not a
-  reason to stop.
+- A case can also get **▼ worse**: for example, the judge gives the reply 3 this time. That is the next thing
+  to look at, not a reason to stop.
 
 **What it teaches**
 
@@ -102,8 +100,7 @@ Run again with **no change**, run name `route-2`. Compare `route-2` with `route`
 **What you see**
 
 Some cases flip: green before, red now, or the other way. On all engines `m14` and `m23` flip often: their
-`judge` check on the reply gives 3 one time and 4 the next. On Python `m06` and `m07` flip too. On Claude the
-case that leaves out `route_to` changes from run to run. Nothing changed: the model is not the same each time.
+`judge` check on the reply gives 3 one time and 4 the next. On Python `m06` and `m07` flip too. Nothing changed: the model is not the same each time.
 
 **What it teaches**
 

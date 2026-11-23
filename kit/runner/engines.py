@@ -94,6 +94,13 @@ def parse_json_text(text: str):
     return json.loads(candidate.strip())
 
 
+def json_problem(e: ValueError) -> str:
+    """Where the JSON broke: `Expecting ',' delimiter near '...reasons."<br>, "route_to"'`."""
+    if isinstance(e, json.JSONDecodeError):
+        return f"{e.msg} near {e.doc[max(0, e.pos - 60) : e.pos + 20]!r}"
+    return str(e)
+
+
 def _as_result(value):
     """n8n can answer `[{...}]`: take the one object. Return (dict, None) or (None, error)."""
     if isinstance(value, list) and len(value) == 1:
@@ -256,7 +263,7 @@ def read_stream(out: str, limit: int = 4000):
             result = ev
         content = (ev.get("message") or {}).get("content") if ev.get("type") in ("assistant", "user") else None
         for c in content if isinstance(content, list) else []:
-            if c.get("type") == "tool_use" and c.get("name") != "ToolSearch":
+            if c.get("type") == "tool_use" and c.get("name") not in ("ToolSearch", "StructuredOutput"):
                 by_id[c.get("id")] = {
                     "name": c.get("name", "").removeprefix("mcp__kit__"),
                     "input": c.get("input"),
@@ -299,6 +306,11 @@ def call_claude(uc: str, engine_input: dict, extra_env: dict):
         "project",
         "--no-session-persistence",
     ]
+    # Claude Code checks the answer against the schema (as n8n and python do) and puts it in `structured_output`.
+    # Without it, Claude writes the JSON as text, and now and then the text is broken (a stray `<br>`).
+    schema = {k: v for k, v in (engine_input.get("output_schema") or {}).items() if k != "$schema"}
+    if schema:  # Claude Code does not accept the "$schema" line
+        cmd += ["--json-schema", json.dumps(schema)]
     code, out, err = _run(cmd, folder, "", engine_env(extra_env), TIMEOUTS["claude"])
     if code is None:
         return None, f"Claude did not finish in {TIMEOUTS['claude']} s: make the task smaller or check the tools", {}
@@ -320,14 +332,17 @@ def call_claude(uc: str, engine_input: dict, extra_env: dict):
     text = data.get("result") or ""
     if data.get("is_error") or code != 0:
         return None, f"Claude failed ({data.get('subtype', f'exit {code}')}): {text[:300] or _tail(err)}", meta
-    try:
-        value = parse_json_text(text)
-    except ValueError:
-        return (
-            None,
-            f"Claude's answer has no valid JSON: {text[:200]!r}. Tell it in CLAUDE.md to answer only JSON",
-            meta,
-        )
+    value = data.get("structured_output")
+    if value is None:  # no schema, or an old Claude Code: read the JSON from the text
+        try:
+            value = parse_json_text(text)
+        except ValueError as e:
+            return (
+                None,
+                f"Claude's answer has no valid JSON ({json_problem(e)}). It starts: {text[:200]!r}. "
+                "Tell it in CLAUDE.md to answer only JSON",
+                meta,
+            )
     output, error = _as_result(value)
     return output, error, meta
 
