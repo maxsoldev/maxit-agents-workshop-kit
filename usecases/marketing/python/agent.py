@@ -15,7 +15,7 @@ from pathlib import Path
 from mcp import Client
 from openai import OpenAI
 
-MODEL = os.environ.get("KIT_MODEL", "gpt-5-mini")
+MODEL = os.environ.get("KIT_MODEL", "gpt-6-luna")
 TOOLS_URL = os.environ.get("KIT_TOOLS_URL", "http://localhost:5701/mcp")
 # The runner sends the result shape as case["output_schema"]; the file is the fallback for runs by hand.
 SCHEMA_FILE = Path(__file__).resolve().parent.parent / "output.schema.json"

@@ -89,8 +89,8 @@ def settings() -> Settings:
     return Settings(
         openai_api_key=_env("OPENAI_API_KEY"),
         openai_base_url=_env("OPENAI_BASE_URL").rstrip("/"),
-        model=_env("KIT_MODEL", "gpt-5-mini"),
-        judge_model=_env("KIT_JUDGE_MODEL", "gpt-5-mini"),
+        model=_env("KIT_MODEL", "gpt-6-luna"),
+        judge_model=_env("KIT_JUDGE_MODEL", "gpt-6.1-terra"),
         ui_port=int(_env("KIT_UI_PORT", "5700")),
         tools_port=int(_env("KIT_TOOLS_PORT", "5701")),
         n8n_mode=n8n_mode,

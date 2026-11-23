@@ -45,6 +45,6 @@ def score(value, rubric: str, case_input: dict, tool_calls: list[dict] | None = 
     except BadRequestError as e:
         if "temperature" not in str(e):
             raise
-        r = client.chat.completions.create(**args)  # some models (gpt-5 family) allow only the default
+        r = client.chat.completions.create(**args)  # some models (reasoning models) allow only the default
     data = json.loads(r.choices[0].message.content or "{}")
     return max(1, min(5, int(data.get("score", 1)))), str(data.get("reason", "")).strip()
