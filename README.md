@@ -6,6 +6,7 @@ Your team picks the service, writes the cases first, then makes the score go up.
 - First time? **[SETUP.md](SETUP.md)**, part "Before the day".
 - Setup done? **[docs/tutorial.md](docs/tutorial.md)** (30 min).
 - The day: **[docs/day-plan.md](docs/day-plan.md)**. The method: **[docs/the-loop.md](docs/the-loop.md)**.
+- The theory: **[docs/theory-deck.pdf](docs/theory-deck.pdf)** (slides: building blocks, the loop, workflows, agents).
 
 ```text
    write a case  ──►  run the eval  ──►  read the failures and traces
@@ -53,7 +54,7 @@ usecases/<uc>/             YOUR TEAM OWNS THIS FOLDER
   n8n/  claude/  python/   the three scaffolds; each has one business rules file (kit UI: Rules)
 kit/                       the shared kit: UI, runner, tools, setup
 runs/                      one JSON file per eval run (not in git)
-docs/                      tutorial, the loop, day plan, contracts, data pack
+docs/                      tutorial, the loop, day plan, contracts, data pack, theory deck
 ```
 
 The UI: `make serve`, then http://localhost:5700. Without the UI: `make eval UC=marketing ENGINE=claude`.
