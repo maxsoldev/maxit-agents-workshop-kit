@@ -12,8 +12,9 @@
     {% if job.error %}<div class="alert">The run failed: {{ job.error }}</div>{% endif %}
     <ul class="live">
       {% for c in job.cases %}
-      <li class="st-{{ c.status }}"><span class="mark">{{ {"waiting": "·", "running": "…", "pass": "✓", "fail": "✗"}[c.status] }}</span>
-        <code>{{ c.id }}</code> {{ c.title }} <span class="muted small">{{ c.status }}</span></li>
+      <li class="st-{{ c.status }}"><span class="mark">{{ {"waiting": "·", "running": "…", "pass": "✓", "fail": "✗", "error": "!"}[c.status] }}</span>
+        <code>{{ c.id }}</code> {{ c.title }} <span class="muted small">{{ c.status }}</span>
+        {% if c.error %}<div class="bad small">{{ c.error }}</div>{% endif %}</li>
       {% endfor %}
     </ul>
     {% if job.run_id %}<a class="btn primary" href="/runs/{{ job.run_id }}">Open results →</a>{% endif %}

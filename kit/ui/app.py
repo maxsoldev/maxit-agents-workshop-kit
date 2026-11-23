@@ -309,6 +309,8 @@ def start_job(uc: str, engine: str, case_ids: list[str] | None, name: str | None
         for c in job["cases"]:
             if c["id"] == ev.get("case_id"):
                 c["status"] = "running" if ev.get("status") == "running" else ("pass" if ev.get("passed") else "fail")
+                if ev.get("error"):  # the engine did not answer: say why right here, not only on the results page
+                    c["status"], c["error"] = "error", ev["error"]
 
     def work():
         try:
@@ -323,11 +325,23 @@ def start_job(uc: str, engine: str, case_ids: list[str] | None, name: str | None
     return None
 
 
+def default_engine(uc: str) -> str:
+    """The engine of the last run of this use case (not `make check`), else claude; only KIT_ENGINES."""
+    used = config.settings().engines
+    try:
+        runs = runner().list_runs(uc)
+    except Exception:
+        runs = []
+    last = next((r.get("engine") for r in runs if r.get("name") != CHECK_RUN and r.get("engine") in used), None)
+    return last or ("claude" if "claude" in used else used[0])
+
+
 @app.get("/uc/{uc}/run", response_class=HTMLResponse)
-def run_page(request: Request, uc: str, engine: str = "n8n", error: str = ""):
+def run_page(request: Request, uc: str, engine: str = "", error: str = ""):
     cases, load_error = load_cases_safe(uc)
     jobs = {e: JOBS[(uc, e)] for e in config.ENGINES if (uc, e) in JOBS}
-    return page(request, "run.html", uc, cases=cases, error=error or load_error, jobs=jobs, engine=engine)
+    return page(request, "run.html", uc, cases=cases, error=error or load_error, jobs=jobs,
+                engine=engine or default_engine(uc), run_engines=config.settings().engines)
 
 
 @app.post("/uc/{uc}/run")

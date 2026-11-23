@@ -68,6 +68,8 @@ cp .env.example .env      # skip if you did it before the day
 ```
 
 Open `.env` and set `OPENAI_API_KEY=sk-...`. Your trainer gives you `TRAINS_URL`.
+If your team does not use all engines, set them, e.g. `KIT_ENGINES=claude,python`: then `make up`, `make setup`
+and `make check` skip n8n, and the Run page shows only these engines.
 
 - **Check:** `grep -c OPENAI_API_KEY=sk- .env` prints `1`.
 
@@ -116,7 +118,7 @@ make serve
 make check
 ```
 
-This runs the first case of each use case on each engine.
+This runs the first case of each use case on each engine (only the ones in `KIT_ENGINES`).
 
 - **Check:** OK for n8n, claude and python on both use cases. A failing check (the case does not pass) is
   fine; an error (the engine did not answer) is not.

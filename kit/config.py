@@ -56,6 +56,7 @@ class Settings:
     langfuse_user_email: str  # local: the login Langfuse creates at first start
     trains_url: str       # our MOTIS; empty = use the fallback only
     trains_fallback_url: str
+    engines: tuple[str, ...]  # KIT_ENGINES: the engines this team uses (default all); setup and check skip the rest
 
     @property
     def tools_url(self) -> str:
@@ -104,7 +105,14 @@ def settings() -> Settings:
         langfuse_user_email=_env("LANGFUSE_INIT_USER_EMAIL", "kit@example.com"),
         trains_url=_env("TRAINS_URL").rstrip("/"),
         trains_fallback_url=_env("TRAINS_FALLBACK_URL", "https://api.transitous.org").rstrip("/"),
+        engines=parse_engines(_env("KIT_ENGINES")),
     )
+
+
+def parse_engines(text: str) -> tuple[str, ...]:
+    """`n8n,claude` -> ("n8n", "claude"), in the order of ENGINES. Empty or no known name = all engines."""
+    names = {p.strip().lower() for p in text.split(",")}
+    return tuple(e for e in ENGINES if e in names) or ENGINES
 
 
 def usecases() -> list[str]:

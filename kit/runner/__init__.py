@@ -118,7 +118,7 @@ def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=No
     def one(case):
         progress({"case_id": case["id"], "status": "running"})
         res = run_case(usecase, engine, case, schema, run_id, run["name"])
-        progress({"case_id": case["id"], "status": "done", "passed": res["passed"]})
+        progress({"case_id": case["id"], "status": "done", "passed": res["passed"], "error": res["error"]})
         return res
 
     awake = _keep_awake()

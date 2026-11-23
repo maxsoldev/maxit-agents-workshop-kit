@@ -111,3 +111,11 @@ def test_settings_read_env_file_each_time(tmp_path, monkeypatch):
     assert config.settings().judge_model == "second"
     monkeypatch.setenv("KIT_JUDGE_MODEL", "shell")  # the shell env wins
     assert config.settings().judge_model == "shell"
+
+
+def test_kit_engines_limits_profiles_and_engines():
+    from kit.config import parse_engines
+    assert parse_engines("") == ("n8n", "claude", "python")
+    assert parse_engines("python, Claude") == ("claude", "python")
+    assert compose_profiles({"KIT_ENGINES": "claude,python"}) == ["langfuse"]
+    assert compose_profiles({"KIT_ENGINES": "n8n"}) == ["n8n", "langfuse"]

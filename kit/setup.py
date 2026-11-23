@@ -18,7 +18,7 @@ from pathlib import Path
 
 import httpx
 
-from kit.config import ENGINES, ROOT, RUNS_DIR, USECASES_DIR, settings, usecases
+from kit.config import ROOT, RUNS_DIR, USECASES_DIR, parse_engines, settings, usecases
 
 ENV_FILE = ROOT / ".env"
 OPENAI_CRED_NAME = "Kit OpenAI"
@@ -60,9 +60,10 @@ def set_env_key(path: Path, key: str, value: str) -> None:
 
 
 def compose_profiles(env: dict[str, str]) -> list[str]:
-    """Compose profiles to start: n8n if N8N=local, langfuse if LANGFUSE=local (both default to local)."""
+    """Compose profiles to start: n8n if N8N=local (and n8n is in KIT_ENGINES), langfuse if LANGFUSE=local.
+    Both default to local."""
     out = []
-    if env.get("N8N", "local").strip().lower() == "local":
+    if env.get("N8N", "local").strip().lower() == "local" and "n8n" in parse_engines(env.get("KIT_ENGINES", "")):
         out.append("n8n")
     if env.get("LANGFUSE", "local").strip().lower() == "local":
         out.append("langfuse")
@@ -157,7 +158,7 @@ def check_host() -> bool:
     else:
         fail("OPENAI_API_KEY is empty. Put your key in .env, then run make setup again")
         good = False
-    if (settings().n8n_mode == "local" or settings().langfuse_mode == "local"):
+    if (settings().n8n_mode == "local" and "n8n" in settings().engines) or settings().langfuse_mode == "local":
         up, _ = _run(["docker", "info", "--format", "{{.ServerVersion}}"])
         if up:
             ok("Docker is running")
@@ -169,11 +170,12 @@ def check_host() -> bool:
         ok(f"uv: {ver}")
     else:
         fail("uv not found. Install it: https://docs.astral.sh/uv/")
-    found, ver = _run(["claude", "--version"])
-    if found:
-        ok(f"claude: {ver}")
-    else:
-        warn("claude not found: the claude engine will not work. Install Claude Code and log in")
+    if "claude" in settings().engines:
+        found, ver = _run(["claude", "--version"])
+        if found:
+            ok(f"claude: {ver}")
+        else:
+            warn("claude not found: the claude engine will not work. Install Claude Code and log in")
     return good
 
 
@@ -453,7 +455,9 @@ def summary() -> None:
     print("\nWhere things are")
     print(f"  Kit UI     http://localhost:{s.ui_port}   (start it: make serve)")
     print(f"  Tools MCP  {s.tools_url}   (n8n uses {s.tools_url_docker})")
-    if s.n8n_mode == "local":
+    if "n8n" not in s.engines:
+        print("  n8n        not used (KIT_ENGINES)")
+    elif s.n8n_mode == "local":
         print(f"  n8n        {s.n8n_url}   login {s.n8n_owner_email}, password N8N_OWNER_PASSWORD in .env")
     else:
         print(f"  n8n        {s.n8n_url}   (hosted)")
@@ -469,7 +473,12 @@ def setup() -> int:
     host = check_host()
     if not ENV_FILE.exists():
         return 1
-    n8n = setup_n8n()
+    print(f"Engines: {', '.join(settings().engines)} (KIT_ENGINES in .env)")
+    if "n8n" in settings().engines:
+        n8n = setup_n8n()
+    else:
+        print("n8n\n  SKIP  not in KIT_ENGINES")
+        n8n = True
     lf = setup_langfuse()
     summary()
     if host and n8n and lf:
@@ -513,6 +522,9 @@ def check() -> int:
                 print(f"Using the tools server that already runs on :{s.tools_port}.")
             else:
                 print(f"WARN  the tools server did not start on :{s.tools_port}; tool calls will fail. Run make serve")
+    unused = [e for e in ("n8n", "claude", "python") if e not in s.engines]
+    if unused:
+        print(f"SKIP  {', '.join(unused)}: not in KIT_ENGINES")
     bad = 0
     for uc in usecases():
         lines = (USECASES_DIR / uc / "cases.jsonl").read_text().splitlines()
@@ -520,7 +532,7 @@ def check() -> int:
         if not first:
             print(f"SKIP  {uc}: cases.jsonl has no cases")
             continue
-        for engine in ENGINES:
+        for engine in s.engines:
             label = f"{uc}/{engine} ({first})"
             if not (USECASES_DIR / uc / engine).exists():
                 print(f"SKIP  {label}: no usecases/{uc}/{engine}/ folder")
