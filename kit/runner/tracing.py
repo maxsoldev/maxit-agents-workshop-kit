@@ -148,7 +148,7 @@ def start_experiment(uc: str, cases: list[dict], run: dict) -> dict:
         "name": name,
         "dataset_id": dataset_id,
         "metadata": {"engine": run["engine"], "model": s.model, "judge_model": s.judge_model, "git": _git_commit()},
-        "url": f"{s.langfuse_host}/project/{project_id}/datasets/{dataset_id}/runs/{exp_id}",
+        "url": f"{s.langfuse_host}/project/{project_id}/experiments/results?baseline={exp_id}",
     }
 
 
