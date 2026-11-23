@@ -116,7 +116,7 @@ def run_check(check: dict, output, expected: dict, case_input: dict) -> dict:
         hits = [i for i, item in enumerate(got) if _item_matches(item, where, contains)]
         want = short({**where, **{k: f"~{v}" for k, v in contains.items()}})
         if hits:
-            return result(kind, field, True, f"item {hits[0]} matches {want}")
+            return result(kind, field, True, f"item {hits[0] + 1} of {len(got)} matches {want}")  # 1 = the first
         return result(kind, field, False, f"no item of {len(got)} matches {want}")
     if kind == "judge":
         minimum = check.get("min", 4)

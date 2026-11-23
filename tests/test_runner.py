@@ -138,7 +138,7 @@ def test_count_and_any_checks():
     bad = run({"type": "count", "field": "tasks", "max": 1})
     assert not bad["passed"] and bad["reason"] == "2 items, expected max 1"
     assert not run({"type": "count", "field": "reply", "min": 1})["passed"]
-    assert run({"type": "any", "field": "tasks", "where": {"kind": "leave"}})["reason"].startswith("item 1")
+    assert run({"type": "any", "field": "tasks", "where": {"kind": "leave"}})["reason"].startswith("item 2 of 2")
     assert run({"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "heidelberg"}})["passed"]
     assert run({"type": "any", "field": "tasks", "where": {"who.name": "elena"}})["passed"]
     miss = run({"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "Riga"}})
