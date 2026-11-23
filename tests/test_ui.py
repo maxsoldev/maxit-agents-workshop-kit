@@ -298,14 +298,14 @@ def test_docs_page(client):
 def test_docs_names_order_and_file_path(client, tmp_path, monkeypatch):
     root = tmp_path / "repo"
     (root / "docs").mkdir(parents=True)
-    for f in ["README.md", "SETUP.md", "docs/tutorial.md", "docs/contracts.md", "docs/zz-new.md"]:
+    for f in ["README.md", "SETUP.md", "docs/day-plan.md", "docs/tutorial.md", "docs/contracts.md", "docs/zz-new.md"]:
         (root / f).write_text(f"# {f}\n", encoding="utf-8")
     for uc in ["travel", "marketing", "demo"]:
         (config.USECASES_DIR / uc / "data").mkdir(parents=True, exist_ok=True)
         (config.USECASES_DIR / uc / "BRIEF.md").write_text(f"# {uc}\n", encoding="utf-8")
     monkeypatch.setattr(config, "ROOT", root)
     html = client.get("/docs").text
-    names = ["Overview", "Setup", "Tutorial", "Marketing brief", "Travel brief", "Demo brief"]
+    names = ["Overview", "Day plan", "Setup", "Tutorial", "Marketing brief", "Travel brief", "Demo brief"]
     names += ["Infra and architecture", "zz-new.md"]  # a doc not in the list is still there, at the end
     spots = [html.index(f">{n}</a>") for n in names]
     assert spots == sorted(spots)

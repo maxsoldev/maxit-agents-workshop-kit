@@ -691,9 +691,9 @@ def results_page(request: Request, run_id: str, vs: str = ""):
 
 DOCS_FIRST = {
     "README.md": "Overview",
-    "SETUP.md": "Setup",
     "docs/day-plan.md": "Day plan",
     "docs/the-loop.md": "AI engineering loop",
+    "SETUP.md": "Setup",
     "docs/tutorial.md": "Tutorial",
 }
 DOCS_AFTER_BRIEFS = {"docs/contracts.md": "Infra and architecture", "docs/data-pack.md": "Data pack"}
