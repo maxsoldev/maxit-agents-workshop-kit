@@ -365,3 +365,25 @@ def test_claude_engine_does_not_load_the_builder_files():
     assert str(USECASES_DIR / "marketing" / "claude" / "CLAUDE.md") not in out["claudeMdExcludes"]
     builder = {p.name for p in (ROOT / ".claude" / "skills").glob("*/")}
     assert set(out["skillOverrides"]) == builder and set(out["skillOverrides"].values()) <= {"off"}
+
+
+def test_credential_is_reused_from_the_kit_workflows(tmp_path, monkeypatch):
+    """A new .env (no N8N_OPENAI_CREDENTIAL_ID) on an n8n that has the kit workflows: setup takes their
+    credential, so the workflows stay the same as the files. No second credential."""
+    s = types.SimpleNamespace(
+        openai_api_key="sk-x", openai_base_url_docker="https://api.openai.com/v1", n8n_openai_credential_id=""
+    )
+    monkeypatch.setattr(setup, "settings", lambda: s)
+    monkeypatch.setattr(setup, "ENV_FILE", tmp_path / ".env")
+    cred = {"openAiApi": {"id": "old1", "name": setup.OPENAI_CRED_NAME}}
+    flows = [{"name": "Kit: x workflow", "nodes": [{"name": "Model", "credentials": cred}]}]
+    calls = []
+
+    def api(method, path, body=None):
+        calls.append((method, path))
+        return httpx.Response(200, json={"id": "new1"})
+
+    fake = types.SimpleNamespace(workflows=lambda: flows, api=api)
+    assert setup.setup_credential(fake) == "old1"
+    assert ("PATCH", "/credentials/old1") in calls and ("POST", "/credentials") not in calls
+    assert setup.read_env(tmp_path / ".env")["N8N_OPENAI_CREDENTIAL_ID"] == "old1"

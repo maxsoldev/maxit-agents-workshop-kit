@@ -457,8 +457,12 @@ def setup_credential(n8n: N8n) -> str:
         if read_env(ENV_FILE).get("N8N_OPENAI_KEY_FINGERPRINT") == fingerprint:
             ok(f"credential '{OPENAI_CRED_NAME}' exists")
             return cred_id
+    else:  # a new .env on an n8n that has the kit already (a second clone, or .env made again)
+        cred_id = kit_credential_in_use(n8n)
+    if cred_id:
         r = n8n.api("PATCH", f"/credentials/{cred_id}", {"name": OPENAI_CRED_NAME, "type": "openAiApi", "data": data})
         if r.status_code < 300:
+            set_env_key(ENV_FILE, "N8N_OPENAI_CREDENTIAL_ID", cred_id)
             set_env_key(ENV_FILE, "N8N_OPENAI_KEY_FINGERPRINT", fingerprint)
             ok(f"credential '{OPENAI_CRED_NAME}' updated with the key from .env")
             return cred_id
@@ -471,6 +475,17 @@ def setup_credential(n8n: N8n) -> str:
     set_env_key(ENV_FILE, "N8N_OPENAI_KEY_FINGERPRINT", fingerprint)
     ok(f"credential '{OPENAI_CRED_NAME}' created (N8N_OPENAI_CREDENTIAL_ID in .env)")
     return cred_id
+
+
+def kit_credential_in_use(n8n: N8n) -> str:
+    """The id of the kit's OpenAI credential that a workflow in n8n uses, else "".
+    With it, a new .env keeps the workflows the same as the files (the credential id is in the hash)."""
+    for w in n8n.workflows():
+        for node in w.get("nodes") or []:
+            for c in (node.get("credentials") or {}).values():
+                if (c or {}).get("name") == OPENAI_CRED_NAME and c.get("id"):
+                    return c["id"]
+    return ""
 
 
 def webhook_paths(wf: dict) -> set[str]:
