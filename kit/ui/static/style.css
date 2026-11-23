@@ -148,6 +148,12 @@ details.res.chg-better > summary { background: var(--pass-bg); }
 details.res.chg-worse > summary { background: var(--fail-bg); }
 details.res[open] > summary { border-bottom: 1px dashed var(--line); }
 .detail { padding: 0.6rem 0.6rem 1rem 2.8rem; }
+/* Case sections (Input, Tool calls, Output and expected, Engine log): one look, like a heading. */
+.detail > details > summary { font-weight: 600; font-size: 1rem; color: var(--fg, inherit); margin-top: 0.8rem;
+  cursor: pointer; }
+/* A toggle inside a section (e.g. Input as JSON) sits indented under it, so it does not read as a section. */
+.detail details details { margin: 0.3rem 0 0 1.2rem; }
+.detail details details > summary { font-weight: 400; cursor: pointer; }
 .badge { font-size: 0.85rem; font-weight: 700; padding: 0.1rem 0.5rem; border-radius: 4px; }
 .badge.better { background: var(--pass); color: #fff; }
 .badge.worse { background: var(--fail); color: #fff; }
