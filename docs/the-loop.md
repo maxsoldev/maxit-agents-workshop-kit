@@ -49,7 +49,7 @@ the team then keeps its cases and scores next to the workflow.
 - **One change at a time.** With two changes you do not know which one helped. A new output field is one
   change, also if it touches several files: the field in `output.schema.json`, plus one line about it in the
   prompt of each engine you use (`claude/CLAUDE.md`, the n8n system message, `python/agent.py`). The n8n
-  **Result shape** node needs no edit: it reads the schema from the case.
+  model node of the last AI step (**Draft model**, **Tasks model**) needs no edit: it reads the schema from the case.
 - **Read the trace, not only the score.** The trace shows which tools the agent called, what it read and
   where it went wrong. Claude: Langfuse (the `tool:<name>` spans have the input and output; the results page
   lists the same tool calls, for all engines). n8n: Langfuse too (one span per node: Triage, Junk?, Find
@@ -97,7 +97,7 @@ the team then keeps its cases and scores next to the workflow.
 
 The **schema** check always runs first: the result must match `output.schema.json`. A check on a field that is
 not in the schema fails with "missing": add the field to the schema. The runner sends the schema to every engine
-(`output_schema` in the engine input): the Claude agent, `agent.py` and the n8n **Result shape** node read it from
+(`output_schema` in the engine input): the Claude agent, `agent.py` and the n8n model node of the last AI step read it from
 there. Say in the prompt what the new field means, if its name and description are not enough.
 
 Prefer simple checks: they are fast, free and never wrong. Use `judge` for quality only, and write the rubric

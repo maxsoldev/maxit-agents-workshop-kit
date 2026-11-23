@@ -50,7 +50,6 @@
       "parameters": {
         "promptType": "define",
         "text": "=Email:\n{{ $('Case in').item.json.body.input.email }}",
-        "hasOutputParser": true,
         "messages": {
           "messageValues": [
             {
@@ -58,6 +57,20 @@
             }
           ]
         }
+      }
+    },
+    {
+      "id": "e44b02b5-7d93-454b-a774-3d76a8379447",
+      "name": "Triage fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The model answers JSON text, in the Response Format of its model node. Read it into `output`.\n// Also takes {\"output\": {...}} or a ```json block, so a good answer never stops the workflow.\nconst text = $json.text.trim().replace(/^```(?:json)?\\s*|\\s*```$/g, '');\nconst answer = JSON.parse(text);\nconst wrapped = answer.output && typeof answer.output === 'object' && Object.keys(answer).length === 1;\nreturn { json: { output: wrapped ? answer.output : answer } };"
       }
     },
     {
@@ -75,10 +88,17 @@
           "mode": "id",
           "value": "{{KIT_MODEL}}"
         },
-        "responsesApiEnabled": false,
+        "responsesApiEnabled": true,
         "options": {
           "timeout": 100000,
-          "maxRetries": 1
+          "maxRetries": 1,
+          "textFormat": {
+            "textOptions": {
+              "type": "json_schema",
+              "name": "triage",
+              "schema": "{\n  \"type\": \"object\",\n  \"required\": [\n    \"category\",\n    \"flags\",\n    \"sender_email\",\n    \"reason\"\n  ],\n  \"properties\": {\n    \"category\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"institute_request\",\n        \"membership\",\n        \"partnership\",\n        \"event_invitation\",\n        \"press\",\n        \"service_offer\",\n        \"unverified_outreach\",\n        \"newsletter\",\n        \"spam\"\n      ]\n    },\n    \"flags\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\",\n        \"enum\": [\n          \"phishing\",\n          \"injection\",\n          \"unverified\",\n          \"off_target\"\n        ]\n      }\n    },\n    \"sender_email\": {\n      \"type\": \"string\"\n    },\n    \"reason\": {\n      \"type\": \"string\"\n    }\n  }\n}"
+            }
+          }
         }
       },
       "credentials": {
@@ -89,26 +109,12 @@
       }
     },
     {
-      "id": "59394370-420d-4ac3-a779-415ea4bb121f",
-      "name": "Triage fields",
-      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
-      "typeVersion": 1.3,
-      "position": [
-        560,
-        200
-      ],
-      "parameters": {
-        "schemaType": "manual",
-        "inputSchema": "{\n  \"type\": \"object\",\n  \"required\": [\"category\", \"flags\", \"sender_email\", \"reason\"],\n  \"properties\": {\n    \"category\": {\"type\": \"string\", \"enum\": [\"institute_request\", \"membership\", \"partnership\", \"event_invitation\", \"press\", \"service_offer\", \"unverified_outreach\", \"newsletter\", \"spam\"]},\n    \"flags\": {\"type\": \"array\", \"items\": {\"type\": \"string\", \"enum\": [\"phishing\", \"injection\", \"unverified\", \"off_target\"]}},\n    \"sender_email\": {\"type\": \"string\"},\n    \"reason\": {\"type\": \"string\"}\n  }\n}"
-      }
-    },
-    {
       "id": "24d811f6-1f79-44a1-8b18-23a9e1511667",
       "name": "Junk?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        780,
+        1000,
         0
       ],
       "parameters": {
@@ -142,11 +148,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1860,
+        2300,
         -180
       ],
       "parameters": {
-        "jsCode": "// No reply and no more model calls: build the result in code, in the shape of the case schema.\nconst triage = $('Triage').first().json.output;\nconst schema = $('Case in').first().json.body.output_schema;\nconst result = { category: triage.category, flags: triage.flags, reply: '', reasons: 'No reply. ' + triage.reason };\n// Only the fields of the schema; a required field we do not know (e.g. route_to) gets an empty value.\nconst output = {};\nfor (const [key, prop] of Object.entries(schema.properties)) {\n  if (key in result) output[key] = result[key];\n  else if ((schema.required || []).includes(key)) output[key] = prop.type === 'array' ? [] : prop.type === 'boolean' ? false : '';\n}\nreturn [{ json: { output } }];"
+        "jsCode": "// No reply and no more model calls: build the result in code, in the shape of the case schema.\nconst triage = $('Triage fields').first().json.output;\nconst schema = $('Case in').first().json.body.output_schema;\nconst result = { category: triage.category, flags: triage.flags, reply: '', reasons: 'No reply. ' + triage.reason };\n// Only the fields of the schema; a required field we do not know (e.g. route_to) gets an empty value.\nconst output = {};\nfor (const [key, prop] of Object.entries(schema.properties)) {\n  if (key in result) output[key] = result[key];\n  else if ((schema.required || []).includes(key)) output[key] = prop.type === 'array' ? [] : prop.type === 'boolean' ? false : '';\n}\nreturn [{ json: { output } }];"
       }
     },
     {
@@ -155,7 +161,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1040,
+        1260,
         0
       ],
       "parameters": {
@@ -163,7 +169,7 @@
         "url": "{{KIT_TOOLS_URL}}/call/contacts_lookup",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ query: $('Triage').item.json.output.sender_email }) }}",
+        "jsonBody": "={{ JSON.stringify({ query: $('Triage fields').item.json.output.sender_email }) }}",
         "options": {
           "timeout": 60000
         }
@@ -175,7 +181,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1240,
+        1460,
         0
       ],
       "parameters": {
@@ -183,7 +189,7 @@
         "url": "{{KIT_TOOLS_URL}}/call/inbox_history",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ sender: $('Triage').item.json.output.sender_email, before: $('Case in').item.json.body.today }) }}",
+        "jsonBody": "={{ JSON.stringify({ sender: $('Triage fields').item.json.output.sender_email, before: $('Case in').item.json.body.today }) }}",
         "options": {
           "timeout": 60000
         }
@@ -195,13 +201,12 @@
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.9,
       "position": [
-        1460,
+        1680,
         0
       ],
       "parameters": {
         "promptType": "define",
-        "text": "=Case input:\n{{ JSON.stringify($('Case in').item.json.body.input) }}\n\nTriage:\n{{ JSON.stringify($('Triage').item.json.output) }}\n\nContact sheet rows of the sender (contacts_lookup):\n{{ JSON.stringify($('Find sender').item.json.output) }}\n\nEarlier emails of the sender (inbox_history):\n{{ JSON.stringify($json.output) }}",
-        "hasOutputParser": true,
+        "text": "=Case input:\n{{ JSON.stringify($('Case in').item.json.body.input) }}\n\nTriage:\n{{ JSON.stringify($('Triage fields').item.json.output) }}\n\nContact sheet rows of the sender (contacts_lookup):\n{{ JSON.stringify($('Find sender').item.json.output) }}\n\nEarlier emails of the sender (inbox_history):\n{{ JSON.stringify($json.output) }}",
         "messages": {
           "messageValues": [
             {
@@ -212,12 +217,26 @@
       }
     },
     {
+      "id": "745ca2e9-64cf-44e8-8b16-a037fd9b068b",
+      "name": "Read result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The model answers JSON text, in the Response Format of its model node. Read it into `output`.\n// Also takes {\"output\": {...}} or a ```json block, so a good answer never stops the workflow.\nconst text = $json.text.trim().replace(/^```(?:json)?\\s*|\\s*```$/g, '');\nconst answer = JSON.parse(text);\nconst wrapped = answer.output && typeof answer.output === 'object' && Object.keys(answer).length === 1;\nreturn { json: { output: wrapped ? answer.output : answer } };"
+      }
+    },
+    {
       "id": "4090872b-9e72-4c95-8e4d-208913bdfa37",
       "name": "Draft model",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.3,
       "position": [
-        1440,
+        1660,
         200
       ],
       "parameters": {
@@ -226,10 +245,17 @@
           "mode": "id",
           "value": "{{KIT_MODEL}}"
         },
-        "responsesApiEnabled": false,
+        "responsesApiEnabled": true,
         "options": {
           "timeout": 100000,
-          "maxRetries": 1
+          "maxRetries": 1,
+          "textFormat": {
+            "textOptions": {
+              "type": "json_schema",
+              "name": "result",
+              "schema": "={{ JSON.stringify({ ...$('Case in').item.json.body.output_schema, $schema: undefined, title: undefined }) }}"
+            }
+          }
         }
       },
       "credentials": {
@@ -240,26 +266,12 @@
       }
     },
     {
-      "id": "ea7d224d-99f2-4a3e-9eb2-da3a4b33a276",
-      "name": "Result shape",
-      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
-      "typeVersion": 1.3,
-      "position": [
-        1580,
-        200
-      ],
-      "parameters": {
-        "schemaType": "manual",
-        "inputSchema": "={{ JSON.stringify($('Case in').item.json.body.output_schema) }}"
-      }
-    },
-    {
       "id": "34736874-6510-4819-b392-3278ae776ba1",
       "name": "Result out",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        1860,
+        2300,
         0
       ],
       "parameters": {
@@ -295,9 +307,9 @@
       ],
       "parameters": {
         "color": 4,
-        "width": 320,
+        "width": 540,
         "height": 760,
-        "content": "## 2 Triage (AI step)\nOne model call: category, flags, sender address.\nPrompt: node **Triage** > Chat Messages > **Message**.\nThe fields: sub-node **Triage fields**."
+        "content": "## 2 Triage (AI step)\nOne model call: category, flags, sender address.\nPrompt: node **Triage** > Chat Messages > **Message**.\nThe fields: sub-node **Triage model** > Options > Response Format (JSON Schema). **Triage fields** reads the answer."
       }
     },
     {
@@ -306,7 +318,7 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        720,
+        940,
         -440
       ],
       "parameters": {
@@ -322,7 +334,7 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        980,
+        1200,
         -440
       ],
       "parameters": {
@@ -338,14 +350,14 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        1400,
+        1620,
         -440
       ],
       "parameters": {
         "color": 4,
-        "width": 340,
+        "width": 560,
         "height": 760,
-        "content": "## 5 Decide and draft (AI step)\n**The main prompt is here**: node **Decide and draft** > Chat Messages > **Message** (the steps). Change one thing, Publish, run the eval again.\n**Result shape** forces the schema of the case (`output.schema.json`): a schema change needs no edit here."
+        "content": "## 5 Decide and draft (AI step)\n**The main prompt is here**: node **Decide and draft** > Chat Messages > **Message** (the steps). Change one thing, Publish, run the eval again.\n**Draft model** (Response Format = JSON Schema) forces the schema of the case (`output.schema.json`): a schema change needs no edit here. **Read result** reads the answer."
       }
     },
     {
@@ -354,7 +366,7 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        1760,
+        2200,
         -440
       ],
       "parameters": {
@@ -392,7 +404,7 @@
       "main": [
         [
           {
-            "node": "Junk?",
+            "node": "Triage fields",
             "type": "main",
             "index": 0
           }
@@ -454,7 +466,7 @@
       "main": [
         [
           {
-            "node": "Result out",
+            "node": "Read result",
             "type": "main",
             "index": 0
           }
@@ -472,17 +484,6 @@
         ]
       ]
     },
-    "Triage fields": {
-      "ai_outputParser": [
-        [
-          {
-            "node": "Triage",
-            "type": "ai_outputParser",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Draft model": {
       "ai_languageModel": [
         [
@@ -494,12 +495,23 @@
         ]
       ]
     },
-    "Result shape": {
-      "ai_outputParser": [
+    "Triage fields": {
+      "main": [
         [
           {
-            "node": "Decide and draft",
-            "type": "ai_outputParser",
+            "node": "Junk?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read result": {
+      "main": [
+        [
+          {
+            "node": "Result out",
+            "type": "main",
             "index": 0
           }
         ]

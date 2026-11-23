@@ -161,6 +161,8 @@ def call_n8n(hook: str, engine_input: dict):
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             meta["execution_url"] = None  # a link is nice to have; never fail the case for it
             execution = None
+        if error and (failure := n8n_failure(execution)):  # n8n only says "Error in workflow": say where and why
+            error = f"{failure} (open the n8n execution: {meta['execution_url']})"
         try:
             meta["n8n_nodes"] = n8n_nodes(execution)
         except Exception:
@@ -187,6 +189,19 @@ def n8n_execution(hook: str, call_id: str) -> tuple[str | None, dict | None]:
                 return f"{s.n8n_url}/workflow/{wid}/executions/{e['id']}", e
         time.sleep(1)
     return f"{s.n8n_url}/workflow/{wid}/executions", None
+
+
+def n8n_failure(execution: dict | None) -> str | None:
+    """`n8n failed at <node>: <message>` for a failed execution, else None. A sub-node error (e.g. a parser)
+    names its AI node too: `Triage > Triage fields`."""
+    result = ((execution or {}).get("data") or {}).get("resultData") or {}
+    error = result.get("error") or {}
+    if not error:
+        return None
+    node, last = (error.get("node") or {}).get("name"), result.get("lastNodeExecuted")
+    where = f"{last} > {node}" if node and last and node != last else (node or last or "a node")
+    why = (error.get("context") or {}).get("outputParserFailReason")
+    return f"n8n failed at {where}: {error.get('message') or 'error'}" + (f" ({why})" if why else "")
 
 
 def _first_json(part, kind: str = "ai_tool", index: int = 0) -> dict | None:
@@ -290,7 +305,8 @@ def n8n_nodes(execution: dict | None, limit: int = 4000) -> list[dict]:
             e["kind"], e["input"] = "generation", (e["input"] or {}).get("messages", e["input"])
             e["output"] = "\n".join(str(g.get("text", "")) for g in gens) or out
             e["model"] = tracing.get("gen_ai.response.model") or tracing.get("gen_ai.request.model")
-            tokens = out.get("tokenUsage") or {}
+            # With the Responses API (the workflows' model nodes) n8n 2.x stores only its own estimate.
+            tokens = out.get("tokenUsage") or out.get("tokenUsageEstimate") or {}
             usage = {"input": tokens.get("promptTokens"), "output": tokens.get("completionTokens")}
             usage["total"] = tokens.get("totalTokens")
             e["usage"] = {k: v for k, v in usage.items() if isinstance(v, int)} or None

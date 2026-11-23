@@ -363,6 +363,27 @@ def test_n8n_node_error():
     assert (nodes[1]["start"], nodes[1]["end"], nodes[1]["output"]) == (11, 16, None)
 
 
+def test_n8n_failure_names_the_node(monkeypatch):
+    # a real execution: the model answered valid JSON without the {"output": ...} wrapper that the
+    # Structured Output Parser wants (m21 on 23 Nov); n8n itself only answered 500 "Error in workflow"
+    execution = json.loads((FIX / "n8n_parser_error_execution.json").read_text(encoding="utf-8"))
+    assert engines.n8n_failure(execution) == (
+        "n8n failed at Triage > Triage fields: The AI model returned an empty response to the Structured "
+        "Output Parser (Model output wrapper is an empty object)"
+    )
+    assert engines.n8n_failure(None) is None and engines.n8n_failure({"data": {"resultData": {}}}) is None
+    answer = (None, 'n8n answered 500: {"message":"Error in workflow"} (look at Executions in n8n)', {"status": 500})
+    monkeypatch.setattr(engines, "_post_n8n", lambda *a: answer)
+    monkeypatch.setattr(engines, "n8n_execution", lambda *a: ("http://n8n/x/executions/33", execution))
+    _, err, meta = engines.call_n8n("marketing", {})
+    assert err.startswith("n8n failed at Triage > Triage fields: ") and err.endswith(
+        "execution: http://n8n/x/executions/33)"
+    )
+    by = {n["name"]: n for n in meta["n8n_nodes"]}
+    assert by["Triage fields"]["error"] and by["Triage"]["error"]  # the trace shows the failed nodes too
+    assert by["Triage model"]["usage"] == {"input": 546, "output": 92, "total": 638}  # Responses API: n8n's estimate
+
+
 def test_n8n_tool_calls_from_http_nodes():
     """The workflows call the tools by plain HTTP; the answer repeats the input."""
 

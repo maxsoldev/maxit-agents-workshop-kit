@@ -99,3 +99,22 @@ def test_n8n_workflow_shape(uc, file, name, hook):
     assert any(n["type"] == "n8n-nodes-base.respondToWebhook" for n in wf["nodes"])
     agent = any(n["type"] == "@n8n/n8n-nodes-langchain.agent" for n in wf["nodes"])
     assert agent == (file == "agent")  # the workflow has no AI Agent node: code decides the path
+
+
+@pytest.mark.parametrize("uc", UCS)
+def test_n8n_ai_steps_need_no_parser(uc):
+    """n8n's Structured Output Parser wants {"output": {...}} and fails on a good unwrapped answer (m21).
+    So each AI step: the model node forces a JSON schema, a Code node after the chain reads the text."""
+    wf = json.loads((USECASES / uc / "n8n" / "workflow.json").read_text())
+    by = {n["name"]: n for n in wf["nodes"]}
+    links = wf["connections"]
+    chains = [n for n in wf["nodes"] if n["type"] == "@n8n/n8n-nodes-langchain.chainLlm"]
+    assert chains and not any(n["type"].endswith("outputParserStructured") for n in wf["nodes"])
+    for chain in chains:
+        model = next(
+            by[m] for m, out in links.items() if out.get("ai_languageModel", [[{}]])[0][0].get("node") == chain["name"]
+        )
+        fmt = model["parameters"]["options"]["textFormat"]["textOptions"]
+        assert model["parameters"]["responsesApiEnabled"] and fmt["type"] == "json_schema", model["name"]
+        reader = by[links[chain["name"]]["main"][0][0]["node"]]
+        assert reader["type"] == "n8n-nodes-base.code" and "JSON.parse" in reader["parameters"]["jsCode"]

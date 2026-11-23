@@ -78,7 +78,7 @@ This gap is on purpose (`usecases/marketing/BRIEF.md`).
    ```
 
    All 3 engines get the schema with each case and must answer in its shape, so the line is enough.
-   n8n: the schema needs no edit in n8n (the node **Result shape** reads it from the case). Open the node
+   n8n: the schema needs no edit in n8n (the model node **Draft model** reads it from the case). Open the node
    **Decide and draft**, Chat Messages → **Message**, and put the line after step 5 (`5. Write reasons: ...`).
    Close the node, click **Publish** (top right; the Run page of the kit warns while an edit is not
    published), and run `make n8n-export UC=marketing`. Junk emails do not reach this node: the code node
