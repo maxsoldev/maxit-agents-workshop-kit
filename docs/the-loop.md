@@ -62,9 +62,13 @@ A judge that cannot run (no key, API error) is **skipped**: the case passes or f
 Open http://localhost:5700 → your use case → **Cases** → **Add case**.
 
 1. **Title:** what the situation is, in a few words ("Unknown fund wants a call").
-2. **Input:** pick the email file (`data/emails/...`) or paste a message.
+2. **Input:** pick an email (`data/emails/...`) or one chat message (`mattermost: ...`) and click **Add to
+   input**, or paste a message into **Or paste a message**. The form writes the JSON for you and sets
+   **Today** from the date of the email or message.
 3. **Expected:** what a good colleague would answer, field by field (category, route, date, ...).
 4. **Checks:** for each important point, one check. "Must never" points become `not_contains` or a `judge`.
+   The field is a path into the result: `tasks.0.kind` = the kind of the first task (`tasks.1` = the second).
+   "Some task is a trip to Riga" = an `any` check on `tasks`. The case list shows every check in words.
 
 Then save. The case goes into `cases.jsonl`, so git shows the change. A developer never has to write the
 expected answer: the person who does the job today knows it best.

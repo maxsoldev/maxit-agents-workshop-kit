@@ -8,25 +8,34 @@
 <form method="post" action="/uc/{{ uc }}/cases/save" class="case-form">
   <input type="hidden" name="original_id" value="{{ original_id }}">
   <div class="row3">
-    <label>id <input name="id" value="{{ case.id }}" required placeholder="m24"></label>
-    <label class="grow">Title <input name="title" value="{{ case.title }}" placeholder="Short name of the case"></label>
-    <label>Today <input type="date" name="today" value="{{ case.today or '' }}"></label>
+    <label>id <input name="id" value="{{ case.id }}" required placeholder="{{ hints.id }}"></label>
+    <label class="grow">Title <input name="title" value="{{ case.title }}" required placeholder="Short name of the case"></label>
+    <label>Today <input type="date" name="today" id="today" value="{{ case.today or '' }}"
+      title="The agent's 'today'. Empty: it is set from the date of the email or message you add."></label>
   </div>
 
   <div class="cols">
     <div>
-      <label>Input (JSON) <textarea name="input" id="input" rows="8" spellcheck="false">{{ raw.input }}</textarea></label>
       <div class="picker">
-        <select name="path" id="file-pick" hx-get="/uc/{{ uc }}/file" hx-target="#pick-preview" hx-trigger="change">
-          <option value="">Pick a file from data/ …</option>
-          {% for f in files %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
+        <select id="file-pick" onchange="showPick()">
+          <option value="">Pick an email{{ ' or a message' if has_messages }} from data/ …</option>
+          {% for p in picks %}<option value="{{ loop.index0 }}">{{ p.label }}</option>{% endfor %}
         </select>
-        <button type="button" class="btn" onclick="addFile()">Add to input</button>
+        <button type="button" class="btn" onclick="addPick()">Add to input</button>
       </div>
-      <p class="muted small">A key that ends in <code>_file</code> is a path in the use case folder.
-        The runner adds the file text for the agent (for example <code>email_file</code> → <code>email</code>).
-        A second email becomes <code>email_2_file</code> (→ <code>email_2</code>), and so on.</p>
       <div id="pick-preview"></div>
+      {% if has_messages %}
+      <details class="message-box" {{ 'open' if not original_id }}><summary>Or paste a message (chat)</summary>
+        <label>Channel <input id="msg-channel" value="mattermost" size="12"></label>
+        <textarea id="msg-text" rows="4" placeholder="Priya Nair  18.11.2026, 10:30&#10;Update: Riga fällt bei mir doch aus, sorry!"></textarea>
+        <button type="button" class="btn" onclick="addMessage()">Put the message into the input</button>
+      </details>
+      {% endif %}
+      <label>Input (JSON) <textarea name="input" id="input" rows="8" spellcheck="false">{{ raw.input }}</textarea></label>
+      <p class="muted small">The picker and the message box write this for you. A key that ends in <code>_file</code>
+        is a path in the use case folder: the runner adds the file text for the agent (<code>email_file</code> →
+        <code>email</code>; a second email is <code>email_2_file</code>). A message is
+        <code>{"channel": "mattermost", "message": "..."}</code>.</p>
     </div>
     <div>
       <label>Expected (JSON) <textarea name="expected" rows="8" spellcheck="false">{{ raw.expected }}</textarea></label>
@@ -38,7 +47,14 @@
   <div id="preview">{% include "_previews.html" %}</div>
 
   <h2>Checks</h2>
-  <p class="muted small"><b>field</b> is a dotted path into the result (<code>reply</code>, <code>options.0.price</code>).
+  {% if case.checks %}
+  <table class="words">
+    <caption class="muted small">What this case checks (saved version, in words)</caption>
+    {% for ch in case.checks %}<tr><td>{{ ch.field|field_words }}</td><td>{{ check_words(ch, case.expected or {}) }}</td></tr>{% endfor %}
+  </table>
+  {% endif %}
+  <p class="muted small"><b>field</b> is a path into the result: <code>reply</code>, <code>tasks.0.kind</code>
+    (<code>tasks.0</code> = the first task, <code>tasks.1</code> = the second). For "some task has ...", use <b>any</b> on <code>tasks</code>; for "how many", use <b>count</b>.
     The text box is: <b>equals</b> value (empty = use expected), <b>in</b> values (<code>a, b</code> or a JSON list),
     <b>contains / not_contains</b> value, <b>count</b> the number of items in a list (<code>2</code>, or
     <code>{"min": 1, "max": 3}</code>), <b>any</b> one item of a list matches (<code>{"kind": "trip"}</code>, or
@@ -63,22 +79,47 @@ function addCheck() {
   const row = document.getElementById("check-row").content.cloneNode(true);
   document.querySelector("#checks tbody").appendChild(row);
 }
-function addFile() {
-  // Put the picked file into the input JSON, e.g. data/emails/06.eml -> "email_file".
-  const path = document.getElementById("file-pick").value;
-  if (!path) return;
+const PICKS = {{ picks|tojson }};
+
+function inputObj() {
+  try { return JSON.parse(document.getElementById("input").value || "{}"); }
+  catch (e) { alert("The input box has no valid JSON. Fix it first (names and texts need double quotes \")."); return null; }
+}
+function setInput(obj, date) {
   const box = document.getElementById("input");
-  let obj = {};
-  try { obj = JSON.parse(box.value || "{}"); } catch (e) { alert("Input is not valid JSON. Fix it first."); return; }
-  // A second file of the same kind gets a number: email_file, email_2_file, email_3_file, ...
-  const name = path.startsWith("data/emails/") ? "email" : path.split("/").pop().replace(/\.[^.]*$/, "").replace(/\W+/g, "_");
-  if (Object.values(obj).includes(path)) return;  // already in the input
-  let key = name + "_file";
-  for (let n = 2; key in obj; n++) key = name + "_" + n + "_file";
-  obj[key] = path;
   box.value = JSON.stringify(obj, null, 2);
+  const today = document.getElementById("today");
+  if (date && !today.value) today.value = date;  // the agent's "today" = the day of the email or message
   document.getElementById("pick-preview").innerHTML = "";
   htmx.ajax("POST", "/uc/{{ uc }}/previews", {target: "#preview", values: {input: box.value}});
+}
+function showPick() {
+  const p = PICKS[document.getElementById("file-pick").value], out = document.getElementById("pick-preview");
+  if (!p) { out.innerHTML = ""; return; }
+  if (p.kind === "message") {
+    const pre = document.createElement("pre"); pre.className = "mail-body"; pre.textContent = p.text;
+    out.replaceChildren(pre);
+  } else htmx.ajax("GET", "/uc/{{ uc }}/file?path=" + encodeURIComponent(p.path), {target: "#pick-preview"});
+}
+function addPick() {
+  const p = PICKS[document.getElementById("file-pick").value], obj = inputObj();
+  if (!p || !obj) return;
+  if (p.kind === "message") { obj.channel = p.channel; obj.message = p.text; return setInput(obj, p.date); }
+  // A file: data/emails/06.eml -> "email_file". A second one gets a number: email_2_file, email_3_file, ...
+  const name = p.path.startsWith("data/emails/") ? "email" : p.path.split("/").pop().replace(/\.[^.]*$/, "").replace(/\W+/g, "_");
+  if (Object.values(obj).includes(p.path)) return;  // already in the input
+  let key = name + "_file";
+  for (let n = 2; key in obj; n++) key = name + "_" + n + "_file";
+  obj[key] = p.path;
+  setInput(obj, p.date);
+}
+function addMessage() {
+  const text = document.getElementById("msg-text").value.trim(), obj = inputObj();
+  if (!text || !obj) return;
+  obj.channel = document.getElementById("msg-channel").value.trim() || "mattermost";
+  obj.message = text;
+  const d = text.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);  // "18.11.2026" -> 2026-11-18
+  setInput(obj, d ? `${d[3]}-${d[2].padStart(2, "0")}-${d[1].padStart(2, "0")}` : "");
 }
 </script>
 {% endblock %}

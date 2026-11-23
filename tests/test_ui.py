@@ -171,5 +171,33 @@ def test_compare_marks_changes(client):
     assert ui.compare_cases(a, b) == {"x": "better", "y": "same", "z": "new"}
 
 
+def test_picker_lists_single_messages_and_hides_rules(client):
+    from kit.ui import app as ui
+    data = config.USECASES_DIR / "demo" / "data"
+    (data / "rules.md").write_text("# Rules\n")
+    (data / "mattermost_messages.txt").write_text(
+        "Header line\n\n--- Direktnachricht mit Priya Nair ---\nPriya Nair  10.11.2026, 13:22\nHi Martina,\nRiga?\n\n"
+        "Priya Nair  18.11.2026, 10:30\nUpdate: Riga fällt aus.\n", encoding="utf-8")
+    picks = ui.input_picks("demo")
+    assert [p["kind"] for p in picks] == ["file", "message", "message"]
+    assert picks[0]["date"] == "2026-11-04"  # from the Date header of the email
+    assert picks[2] == {"label": "mattermost: Priya Nair, 2026-11-18: Update: Riga fällt aus.", "kind": "message",
+                        "channel": "mattermost", "text": "Priya Nair  18.11.2026, 10:30\nUpdate: Riga fällt aus.",
+                        "date": "2026-11-18"}
+    page = client.get("/uc/demo/cases/new").text
+    assert "rules.md" not in page and "Or paste a message" in page and 'placeholder="m07"' in page
+
+
+def test_checks_in_words():
+    from kit.ui.app import check_words, field_words
+    assert field_words("tasks.0.kind") == "tasks #1 → kind"
+    exp = {"tasks": [{"kind": "leave"}], "reply": ""}
+    assert check_words({"type": "equals", "field": "tasks.0.kind"}, exp) == 'is "leave" (from expected)'
+    assert check_words({"type": "equals", "field": "reply"}, exp) == 'is "" (from expected)'
+    assert check_words({"type": "count", "field": "tasks", "min": 1, "max": 2}, {}) == "has 1 to 2 items"
+    assert check_words({"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "Riga"}},
+                       {}) == 'has an item where kind is "trip" and event contains "Riga"'
+
+
 def test_docs_page(client):
     assert client.get("/docs").status_code == 200

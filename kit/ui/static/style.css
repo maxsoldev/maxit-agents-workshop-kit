@@ -73,6 +73,12 @@ table.cases td.input summary { cursor: pointer; }
 table.cases .actions { white-space: nowrap; }
 table.cases .actions a, table.cases .actions form { display: inline; margin-right: 0.5rem; }
 table.checks td { border: 0; padding: 0.2rem 0.3rem; }
+table.words { width: auto; font-size: 0.85rem; margin-bottom: 0.4rem; }
+table.words td { border: 0; padding: 0.1rem 0.5rem 0.1rem 0; vertical-align: top; }
+table.words td:first-child { white-space: nowrap; color: var(--muted, #666); }
+table.words caption { text-align: left; }
+.message-box { margin: 0.5rem 0; }
+.message-box textarea { width: 100%; }
 table.checks select { width: 9rem; }
 table.checks td.grow { width: 55%; }
 table.checks input.num { width: 3.5rem; }

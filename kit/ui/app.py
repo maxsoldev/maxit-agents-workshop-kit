@@ -6,8 +6,10 @@ from __future__ import annotations
 
 import email
 import email.policy
+import email.utils
 import importlib
 import json
+import re
 import threading
 from urllib.parse import quote
 from pathlib import Path
@@ -57,6 +59,120 @@ def data_files(uc: str) -> list[str]:
     return sorted(str(p.relative_to(base)) for p in (base / "data").rglob("*") if p.is_file() and not p.name.startswith("."))
 
 
+# A chat message starts with a head line like "Priya Nair  18.11.2026, 10:30" (name, 2+ spaces, date, time).
+MESSAGE_HEAD = re.compile(r"^(?P<who>\S.*?)\s{2,}(?P<d>\d{1,2})\.(?P<m>\d{1,2})\.(?P<y>\d{4}),? (?P<t>\d{1,2}:\d{2})\s*$")
+
+
+def chat_messages(path: Path) -> list[dict]:
+    """The single messages of a chat file (e.g. mattermost_messages.txt): {"who", "date", "text"}.
+    `text` is the head line plus the message, as in the starter cases."""
+    out, cur = [], None
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        m = MESSAGE_HEAD.match(line)
+        if m:
+            cur = {"who": m["who"], "date": f"{m['y']}-{int(m['m']):02d}-{int(m['d']):02d}", "text": line}
+            out.append(cur)
+        elif line.startswith("---"):
+            cur = None
+        elif cur is not None:
+            cur["text"] += "\n" + line
+    for c in out:
+        c["text"] = c["text"].strip()
+    return out
+
+
+def email_date(path: Path) -> str:
+    """The Date header of an .eml file as YYYY-MM-DD, or ""."""
+    try:
+        msg = email.message_from_bytes(path.read_bytes(), policy=email.policy.default)
+        return email.utils.parsedate_to_datetime(str(msg["date"])).date().isoformat()
+    except (TypeError, ValueError, OSError):
+        return ""
+
+
+def input_picks(uc: str) -> list[dict]:
+    """What the input picker lists: data files (no rule .md files), and each single message of a chat file.
+    Each item: {"label", "kind": "file"|"message", "path" or "channel"+"text", "date"}."""
+    base, picks = uc_dir(uc), []
+    for rel in data_files(uc):
+        path = base / rel
+        if path.suffix == ".md":
+            continue  # the owner's rules: the agent reads them with rules_get, they are not an input
+        messages = chat_messages(path) if path.suffix == ".txt" else []
+        if messages:
+            channel = path.stem.split("_")[0]  # mattermost_messages.txt -> mattermost
+            for m in messages:
+                first = " ".join(m["text"].splitlines()[1:])[:70]
+                picks.append({"label": f"{channel}: {m['who']}, {m['date']}: {first}", "kind": "message",
+                              "channel": channel, "text": m["text"], "date": m["date"]})
+            continue
+        picks.append({"label": rel, "kind": "file", "path": rel,
+                      "date": email_date(path) if path.suffix == ".eml" else ""})
+    return picks
+
+
+def field_words(path: str) -> str:
+    """`tasks.0.kind` -> `tasks #1 → kind`; `options.*.trains` -> `every item of options → trains`."""
+    out: list[str] = []
+    for part in path.split("."):
+        if part.isdigit():
+            out[-1:] = [f"{out[-1] if out else ''} #{int(part) + 1}"]
+        elif part == "*":
+            out[-1:] = [f"every item of {out[-1]}" if out else "every item"]
+        else:
+            out.append(part)
+    return " → ".join(out)
+
+
+def check_words(c: dict, expected: dict) -> str:
+    """One check in words, e.g. `is "leave"`, `has 1 to 3 items`, `does not contain "@"`."""
+    def v(x):
+        return json.dumps(x, ensure_ascii=False)
+
+    t = c.get("type")
+    if t == "equals":
+        if "value" in c:
+            return f"is {v(c['value'])}"
+        want = expected
+        for part in (c.get("field") or "").split("."):
+            want = want.get(part) if isinstance(want, dict) else (
+                want[int(part)] if isinstance(want, list) and part.isdigit() and int(part) < len(want) else None)
+        return f"is {v(want)} (from expected)" if want is not None else "is … (no expected value: add one)"
+    if t == "in":
+        return "is one of " + ", ".join(v(x) for x in c.get("values") or [])
+    if t == "contains":
+        return f"contains {v(c.get('value'))}"
+    if t == "not_contains":
+        return f"does not contain {v(c.get('value'))}"
+    if t == "count":
+        if "equals" in c:
+            return f"has exactly {c['equals']} item(s)"
+        if "min" in c and "max" in c:
+            return f"has {c['min']} to {c['max']} items"
+        return f"has at least {c['min']} item(s)" if "min" in c else f"has at most {c.get('max')} item(s)"
+    if t == "any":
+        parts = [f"{k} is {v(x)}" for k, x in (c.get("where") or {}).items()]
+        parts += [f"{k} contains {v(x)}" for k, x in (c.get("contains") or {}).items()]
+        return "has an item where " + " and ".join(parts)
+    if t == "judge":
+        return f"judge (score {c.get('min', 4)} or more): {c.get('rubric', '')}"
+    return t or "?"
+
+
+def case_hints(uc: str, cases: list[dict]) -> dict:
+    """Placeholders for the form from this use case's cases: the next id (t06) and a typical field."""
+    nums = [re.fullmatch(r"([a-zA-Z]+)(\d+)", c.get("id", "")) for c in cases]
+    nums = [m for m in nums if m]
+    if nums:
+        prefix, width = nums[-1][1], len(nums[-1][2])
+        top = max(int(m[2]) for m in nums if m[1] == prefix)
+        next_id = f"{prefix}{top + 1:0{width}d}"
+    else:
+        next_id = f"{uc[:1]}01"
+    fields = [ch.get("field") for c in cases for ch in c.get("checks", []) if ch.get("field")]
+    return {"id": next_id, "field": fields[0] if fields else "category"}
+
+
 def safe_file(uc: str, rel: str) -> Path | None:
     """The file `rel` in the use case folder, or None if it is outside data/ or missing."""
     base = uc_dir(uc)
@@ -104,6 +220,8 @@ def check_label(c: dict) -> str:
 
 
 templates.env.filters["check_label"] = check_label
+templates.env.filters["field_words"] = field_words
+templates.env.globals["check_words"] = check_words
 
 
 def page(request: Request, name: str, uc: str | None = None, status: int = 200, **ctx) -> HTMLResponse:
@@ -165,8 +283,12 @@ def case_form(request, uc, case, original_id, errors=None, raw=None, status=200)
     checks = [{"type": c.get("type", "equals"), "field": c.get("field", ""), "arg": check_arg(c),
                "min": c.get("min", "")} for c in case.get("checks", [])] \
         or [{"type": "equals", "field": "", "arg": "", "min": ""}]  # one empty row to start with
+    cases = load_cases_safe(uc)[0]
+    picks = input_picks(uc)
+    has_messages = any(p["kind"] == "message" for p in picks) or any("message" in (c.get("input") or {}) for c in cases)
     return page(request, "case_form.html", uc, status=status, case=case, original_id=original_id, raw=raw,
-                checks=checks, errors=errors or [], files=data_files(uc), check_types=CHECK_TYPES,
+                checks=checks, errors=errors or [], picks=picks, has_messages=has_messages, check_types=CHECK_TYPES,
+                hints=case_hints(uc, cases),
                 previews=file_previews(uc, case.get("input") if isinstance(case.get("input"), dict) else {}))
 
 
