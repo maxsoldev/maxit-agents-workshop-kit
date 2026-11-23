@@ -16,7 +16,10 @@
   {% for r in runs %}{% set s = r.summary or {} %}
   <tr onclick="location.href='/runs/{{ r.run_id }}'">
     <td class="score-cell"><b>{{ s.passed }}/{{ s.cases }}</b>
-      <span class="bar"><span style="width: {{ (100 * (s.passed or 0) / (s.cases or 1))|round|int }}%"></span></span></td>
+      <span class="bar"><span style="width: {{ (100 * (s.passed or 0) / (s.cases or 1))|round|int }}%"></span></span>
+      {% set notes = [] %}{% if r.new_cases %}{% set _ = notes.append(r.new_cases ~ ' new') %}{% endif %}
+      {% if r.changed_cases %}{% set _ = notes.append(r.changed_cases ~ ' changed') %}{% endif %}
+      <div class="muted small" title="against the run below">{{ s.cases }} cases{% if notes %} ({{ notes|join(', ') }}){% endif %}</div></td>
     <td><span class="chip">{{ r.engine }}</span></td>
     <td><a href="/runs/{{ r.run_id }}">{{ r.name or '—' }}</a></td>
     <td>{{ r.started_at|when }}</td>

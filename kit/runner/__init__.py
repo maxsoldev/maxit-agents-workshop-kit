@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -48,10 +49,19 @@ def _keep_awake():
         return None
 
 
+def case_hash(case: dict) -> str:
+    """Short hash of what a case asks: today, input, expected, checks (not the title).
+    Compare uses it to see that a case changed between two runs."""
+    text = json.dumps({k: case.get(k) for k in ("today", "input", "expected", "checks")}, sort_keys=True,
+                      ensure_ascii=False)
+    return hashlib.sha256(text.encode()).hexdigest()[:12]
+
+
 def run_case(uc: str, engine: str, case: dict, schema: dict, run_id: str, run_name: str) -> dict:
     """Run one case and check it. Never raises: a crash is a failed case with `error`."""
     t0 = time.time()  # wall clock: on macOS, monotonic time stops while the computer sleeps
-    res = {"id": case["id"], "title": case.get("title", ""), "passed": False, "seconds": 0.0, "error": None,
+    res = {"id": case["id"], "title": case.get("title", ""), "case_hash": case_hash(case),
+           "passed": False, "seconds": 0.0, "error": None,
            "input": case.get("input", {}), "expected": case.get("expected", {}), "output": None, "checks": [],
            "trace_url": None, "n8n_execution_url": None, "meta": {}}
     try:
@@ -148,6 +158,7 @@ def compare(run_id_a: str, run_id_b: str) -> dict:
     """How run B changed against run A, per case: better / worse / same (or new / removed).
 
     A case is better if it passes in B and not in A; if both are equal, more passed checks is better.
+    `case_changed`: the case itself (input, expected, checks) is not the same in both runs.
     """
     a, b = load_run(run_id_a), load_run(run_id_b)
     cases_a = {c["id"]: c for c in a["cases"]}
@@ -164,7 +175,8 @@ def compare(run_id_a: str, run_id_b: str) -> dict:
             key_b = (cb["passed"], _check_count(cb)[0])
             change = "better" if key_b > key_a else "worse" if key_b < key_a else "same"
         counts[change] += 1
-        rows.append({"id": cid, "title": (cb or ca).get("title", ""), "change": change,
+        changed = bool(ca and cb and ca.get("case_hash") and cb.get("case_hash") and ca["case_hash"] != cb["case_hash"])
+        rows.append({"id": cid, "title": (cb or ca).get("title", ""), "change": change, "case_changed": changed,
                      "a_passed": ca["passed"] if ca else None, "b_passed": cb["passed"] if cb else None,
                      "a_checks": list(_check_count(ca)), "b_checks": list(_check_count(cb))})
     keys = ("run_id", "name", "engine", "summary")

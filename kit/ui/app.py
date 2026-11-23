@@ -500,6 +500,10 @@ def runs_page(request: Request, uc: str, checks: int = 0):
     hidden = sum(1 for r in runs if r.get("name") == CHECK_RUN)
     if not checks:
         runs = [r for r in runs if r.get("name") != CHECK_RUN]
+    for r, prev in zip(runs, runs[1:]):  # against the run before it: "13 cases (2 new, 1 changed)"
+        now, before = r.get("case_hashes") or {}, prev.get("case_hashes") or {}
+        r["new_cases"] = sum(1 for i in now if i not in before)
+        r["changed_cases"] = sum(1 for i, h in now.items() if h and before.get(i) and before[i] != h)
     return page(request, "runs.html", uc, runs=runs, hidden=hidden, show_checks=bool(checks))
 
 
@@ -517,6 +521,13 @@ def compare_cases(run: dict, other: dict | None) -> dict:
         else:
             out[c.get("id")] = "better" if c.get("passed") else "worse"
     return out
+
+
+def changed_cases(run: dict, other: dict | None) -> set:
+    """Ids of cases that are not the same case in both runs (input, expected or checks changed)."""
+    before = {c.get("id"): c.get("case_hash") for c in (other or {}).get("cases", [])}
+    return {c.get("id") for c in run.get("cases", [])
+            if c.get("case_hash") and before.get(c.get("id")) and before[c.get("id")] != c["case_hash"]}
 
 
 @app.get("/runs/{run_id}", response_class=HTMLResponse)
@@ -538,12 +549,14 @@ def results_page(request: Request, run_id: str, vs: str = ""):
     other = runner().load_run(vs) if vs and vs != "none" else None
     changes = compare_cases(run, other)
     counts = {k: sum(1 for v in changes.values() if v == k) for k in ("better", "worse", "same", "new")}
+    changed = changed_cases(run, other)
+    counts["changed"] = len(changed)
     for c in run.get("cases", []):
         c["_first_fail"] = c.get("error") or next(
             (ch.get("reason") for ch in c.get("checks", []) if ch.get("passed") is False), None)
         c["_files"] = file_previews(uc, c.get("input")) if uc in usecases() else []
     return page(request, "results.html", uc if uc in usecases() else None, run=run, others=others, vs=vs,
-                other=other, changes=changes, counts=counts)
+                other=other, changes=changes, counts=counts, changed=changed)
 
 
 # ---------- docs ----------

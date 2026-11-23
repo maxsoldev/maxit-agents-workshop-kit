@@ -148,6 +148,7 @@ details.res[open] > summary { border-bottom: 1px dashed var(--line); }
 .badge.better { background: var(--pass); color: #fff; }
 .badge.worse { background: var(--fail); color: #fff; }
 .badge.same, .badge.new { color: var(--muted); border: 1px solid var(--line); }
+.badge.changed { background: var(--warn-bg); color: var(--warn); }
 table.checks-res td { padding: 0.3rem 0.5rem; }
 table.checks-res .mark { width: 2rem; font-weight: 700; text-align: center; }
 table.checks-res tr.pass .mark { color: var(--pass); }

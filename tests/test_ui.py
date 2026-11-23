@@ -169,6 +169,22 @@ def test_compare_marks_changes(client):
     a = {"cases": [{"id": "x", "passed": True}, {"id": "y", "passed": False}, {"id": "z", "passed": True}]}
     b = {"cases": [{"id": "x", "passed": False}, {"id": "y", "passed": False}]}
     assert ui.compare_cases(a, b) == {"x": "better", "y": "same", "z": "new"}
+    a["cases"][0]["case_hash"], b["cases"][0]["case_hash"] = "h2", "h1"
+    assert ui.changed_cases(a, b) == {"x"}
+
+
+def test_runs_list_says_new_and_changed_cases(client):
+    config.RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    for run_id, hashes in (("20261124-100000-demo-n8n", {"m06": "a"}),
+                           ("20261124-101000-demo-n8n", {"m06": "b", "m07": "c", "m08": "d"})):
+        run = {"run_id": run_id, "name": run_id[-8:], "usecase": "demo", "engine": "n8n", "started_at": run_id,
+               "summary": {"cases": len(hashes), "passed": 0, "by_check": {}},
+               "cases": [{"id": i, "case_hash": h, "passed": False, "checks": [], "input": {}, "expected": {},
+                          "output": {}} for i, h in hashes.items()]}
+        (config.RUNS_DIR / f"{run_id}.json").write_text(json.dumps(run))
+    page = client.get("/uc/demo/runs").text
+    assert "3 cases (2 new, 1 changed)" in page
+    assert "case changed" in client.get("/runs/20261124-101000-demo-n8n").text
 
 
 def test_picker_lists_single_messages_and_hides_rules(client):

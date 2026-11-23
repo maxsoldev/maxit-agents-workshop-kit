@@ -113,6 +113,11 @@ Run file `runs/<run_id>.json`, `run_id` = `<YYYYmmdd-HHMMSS>-<uc>-<engine>`:
             "trace_url": "http://localhost:5703/...", "n8n_execution_url": "http://localhost:5702/workflow/<id>/executions/<n>"}]}
 ```
 
+`case_hash` (each case result): a short hash of the case's `today`, `input`, `expected` and `checks`. Compare
+marks a case "case changed" when the hash differs between the two runs (and "new case" when it was not in the
+other run); the Runs list shows "13 cases (2 new, 1 changed)" against the run before. `list_runs` rows have
+`case_hashes` (`{id: hash}`).
+
 `n8n_execution_url` (n8n only, needs `N8N_API_KEY`): the runner sends an `x-kit-call` header with each POST and
 finds the execution with that header; if it cannot, the link goes to the workflow's Executions list.
 

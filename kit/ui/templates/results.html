@@ -26,7 +26,7 @@
       </select></label>
     {% if other %}
     <div class="diff"><span class="better">▲ {{ counts.better }} better</span> <span class="worse">▼ {{ counts.worse }} worse</span>
-      <span class="muted">{{ counts.same }} same{% if counts.new %} · {{ counts.new }} new{% endif %}</span></div>
+      <span class="muted">{{ counts.same }} same{% if counts.new %} · {{ counts.new }} new case(s){% endif %}{% if counts.changed %} · {{ counts.changed }} case(s) changed since then{% endif %}</span></div>
     {% endif %}
   </form>
 </div>
@@ -41,7 +41,8 @@
       <span><code>{{ c.id }}</code> {{ c.title }}</span>
       <span class="muted">{{ '%.1f'|format(c.seconds or 0) }} s</span>
       <span class="reason">{{ c._first_fail or '' }}</span>
-      <span>{% if ch %}<span class="badge {{ ch }}">{{ {'better': '▲ better', 'worse': '▼ worse', 'same': 'same', 'new': 'new'}[ch] }}</span>{% endif %}</span>
+      <span>{% if ch %}<span class="badge {{ ch }}">{{ {'better': '▲ better', 'worse': '▼ worse', 'same': 'same', 'new': 'new case'}[ch] }}</span>{% endif %}
+        {% if c.id in changed %}<span class="badge changed" title="the case (input, expected or checks) is not the same as in the other run: the score may differ because of the case, not the agent">case changed</span>{% endif %}</span>
     </summary>
     <div class="detail">
       {% if c.error %}<div class="alert"><b>Error:</b> {{ c.error }}</div>{% endif %}
