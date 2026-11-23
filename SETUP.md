@@ -14,6 +14,17 @@ Each step has a **Check**. If the check fails, read **If it goes wrong**, or ask
 
 Install Docker Desktop (macOS, Windows) or Docker Engine + Compose (Linux). Start it.
 
+**Memory (RAM).** With everything local, the Docker part uses about 4 GB: Langfuse about 3 GB, n8n about 0.5 GB.
+Your browser, Claude Code and the kit need more on top of that.
+
+| Laptop RAM | What to do |
+|---|---|
+| 16 GB or more | Comfortable. Keep everything local. |
+| 12 GB | This works. Close other heavy apps. |
+| 8 GB | Too little for local Langfuse. Set `LANGFUSE=off` or `LANGFUSE=hosted` in `.env` (see "Langfuse" below). |
+
+Docker Desktop → Settings → Resources: set Memory to **6 GB or more** (3 GB with `LANGFUSE=off`).
+
 - **Check:** `docker compose version` prints a version (v2.20 or newer).
 - **If it goes wrong:** on Windows, use WSL 2 and run everything inside WSL. If your laptop cannot run Docker,
   tell your trainer: you will use the hosted n8n and Langfuse (see "Backups" below).
