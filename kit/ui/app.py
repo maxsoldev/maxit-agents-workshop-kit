@@ -754,8 +754,8 @@ def default_compare(run: dict, others: list[dict]) -> str:
     return pick["run_id"] if pick else ""
 
 
-@app.get("/runs/{run_id}", response_class=HTMLResponse)
-def results_page(request: Request, run_id: str, vs: str = ""):
+def run_results(run_id: str, vs: str) -> dict:
+    """What the results page and the case page show: the run, its cases ready to show, the compare run."""
     try:
         run = runner().load_run(run_id)
     except (FileNotFoundError, KeyError):
@@ -787,19 +787,37 @@ def results_page(request: Request, run_id: str, vs: str = ""):
             (ch.get("reason") for ch in c.get("checks", []) if ch.get("passed") is False), None
         )
         c["_files"] = file_previews(uc, c.get("input")) if uc in usecases() else []
-    return page(
-        request,
-        "results.html",
-        uc if uc in usecases() else None,
-        run=run,
-        others=others,
-        vs=vs,
-        other=other,
-        changes=changes,
-        counts=counts,
-        changed=changed,
-        agent_changed=bool(other) and getattr(runner(), "agent_changed", lambda a, b: False)(run, other),
-    )
+    return {
+        "uc": uc if uc in usecases() else None,
+        "run": run,
+        "others": others,
+        "vs": vs,
+        "vs_query": f"?vs={quote(vs)}" if vs else "",  # case links keep the compare run
+        "other": other,
+        "changes": changes,
+        "counts": counts,
+        "changed": changed,
+    }
+
+
+@app.get("/runs/{run_id}", response_class=HTMLResponse)
+def results_page(request: Request, run_id: str, vs: str = ""):
+    ctx = run_results(run_id, vs)
+    run, other = ctx["run"], ctx["other"]
+    agent_changed = bool(other) and getattr(runner(), "agent_changed", lambda a, b: False)(run, other)
+    return page(request, "results.html", agent_changed=agent_changed, **ctx)
+
+
+@app.get("/runs/{run_id}/cases/{case_id}", response_class=HTMLResponse)
+def case_result_page(request: Request, run_id: str, case_id: str, vs: str = ""):
+    """One case of a run, with back and prev / next (in the run's order)."""
+    ctx = run_results(run_id, vs)
+    cases = ctx["run"].get("cases") or []
+    i = next((n for n, c in enumerate(cases) if c.get("id") == case_id), None)
+    if i is None:
+        raise HTTPException(404, f"No case '{case_id}' in run '{run_id}'")
+    near = {"prev": cases[i - 1] if i else None, "next": cases[i + 1] if i + 1 < len(cases) else None}
+    return page(request, "case_result.html", c=cases[i], pos=i + 1, total=len(cases), **near, **ctx)
 
 
 # ---------- docs ----------

@@ -1,0 +1,42 @@
+{# One case of a run: checks, links, input, tool calls, output and expected, engine log. Needs `c`, `uc`. #}
+    <div class="detail">
+      {% if c.error %}<div class="alert"><b>Error:</b> {{ c.error }}</div>{% endif %}
+      <table class="checks-res">
+        {% for k in c.checks or [] %}
+        <tr class="{{ 'skip muted' if k.skipped else ('pass' if k.passed else 'fail') }}"><td class="mark">{{ '–' if k.skipped else ('✓' if k.passed else '✗') }}</td>
+          <td><b>{{ k.type }}</b> <code>{{ k.field }}</code>{% set d = k._def %}
+            {%- if d and d|check_target %} → <code class="target">{{ d|check_target }}</code>{% endif %}
+            {%- if k.type == 'judge' %} <span class="muted">(min {{ (d or {}).min or 4 }})</span>
+              {%- if d and d.rubric %}<div class="muted small rubric">{{ d.rubric }}</div>{% endif %}{% endif %}
+            {%- if k._from_today and (d|check_target or k.type == 'judge') %} <span class="muted small">(from today's case)</span>{% endif %}</td>
+          <td>{{ k.reason }}</td></tr>
+        {% endfor %}
+      </table>
+      <div class="links">
+        {% if uc %}<a href="/uc/{{ uc }}/cases/{{ c.id }}/edit">Edit this case</a>{% endif %}
+        {% if c.trace_url and langfuse_link %}<a href="{{ c.trace_url }}" target="_blank">Langfuse trace ↗</a>{% endif %}
+        {% if c.n8n_execution_url %}<a href="{{ c.n8n_execution_url }}" target="_blank">n8n execution ↗</a>{% endif %}
+      </div>
+      {# Order of the case story: input → tool calls → output next to expected. Input and output open. #}
+      <details class="tool-calls" open><summary>Input{% if c.today %} (today {{ c.today }}){% endif %}</summary>
+        {% with previews = c._files %}{% include "_previews.html" %}{% endwith %}
+        <details><summary class="muted small">Input as JSON (what the engine got)</summary><pre>{{ c.input|pretty }}</pre></details>
+      </details>
+      {% if (c.meta or {}).tool_calls %}
+      <details class="tool-calls"><summary>Tool calls ({{ c.meta.tool_calls|length }})</summary>
+        {% for t in c.meta.tool_calls %}
+        <div><b>{{ t.name }}</b> <code>{{ t.input|compact }}</code><pre>{{ (t.output or '')[:1500] }}</pre></div>
+        {% endfor %}
+      </details>
+      {% endif %}
+      <details class="tool-calls" open><summary>Output and expected</summary>
+        <div class="cols">
+          <div><h3>Output</h3><pre>{{ c.output|pretty }}</pre></div>
+          <div><h3>Expected</h3><pre>{{ c.expected|pretty }}</pre>
+            {% if c._also_want %}<div class="small also-want">The checks also want: {{ c._also_want|join(' · ') }}{% if c._targets_from_today %} <span class="muted">(from today's case)</span>{% endif %}</div>{% endif %}</div>
+        </div>
+      </details>
+      {% if (c.meta or {}).stderr %}
+      <details class="tool-calls"><summary>Engine log (stderr, last lines)</summary><pre>{{ c.meta.stderr }}</pre></details>
+      {% endif %}
+    </div>

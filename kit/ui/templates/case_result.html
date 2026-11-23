@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ c.id }} · {{ run.run_id }}{% endblock %}
+{% block main %}
+<p class="case-nav">
+  <a href="/runs/{{ run.run_id }}{{ vs_query }}">← back to the run</a>
+  <span>{% if prev %}<a href="/runs/{{ run.run_id }}/cases/{{ prev.id }}{{ vs_query }}" title="{{ prev.title }}">← prev <code>{{ prev.id }}</code></a>{% else %}<span class="muted">← prev</span>{% endif %}
+    <span class="muted">{{ pos }}/{{ total }}</span>
+    {% if next %}<a href="/runs/{{ run.run_id }}/cases/{{ next.id }}{{ vs_query }}" title="{{ next.title }}">next <code>{{ next.id }}</code> →</a>{% else %}<span class="muted">next →</span>{% endif %}</span>
+</p>
+<div>
+  <h1 class="res-case {{ 'pass' if c.passed else 'fail' }}"><span class="mark">{{ '✓ pass' if c.passed else '✗ fail' }}</span>
+    <code>{{ c.id }}</code> {{ c.title }}</h1>
+  <p class="muted">{{ run.name or run.run_id }} · {{ (run.usecase or '')|uc_name }} · {{ run.engine }} · {{ run.started_at|when }} · {{ '%.1f'|format(c.seconds or 0) }} s
+    {% if other %}· vs {{ other.name or other.run_id }}: {% include "_case_badges.html" %}{% endif %}</p>
+</div>
+{% include "_case_detail.html" %}
+{% endblock %}

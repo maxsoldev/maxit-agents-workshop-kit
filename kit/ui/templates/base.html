@@ -16,7 +16,7 @@
     {# Guide opens the side panel (static/guide.js); on the Guide page, and without JS, it is a normal link #}
     <a href="/docs" class="{{ 'on' if guide_page }}"{% if not guide_page %} id="gp-toggle" title="Read the Guide next to this page"{% endif %}>Guide</a>
     {% if nav_uc %}
-    <a href="/uc/{{ nav_uc }}/cases" class="{{ 'on' if '/cases' in here }}">Cases</a>
+    <a href="/uc/{{ nav_uc }}/cases" class="{{ 'on' if '/cases' in here and not here.startswith('/runs/') }}">Cases</a>
     <a href="/uc/{{ nav_uc }}/run" class="{{ 'on' if here.endswith('/run') }}">Run</a>
     <a href="/uc/{{ nav_uc }}/runs" class="{{ 'on' if '/runs' in here }}">Runs</a>
     {% endif %}

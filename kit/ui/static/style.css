@@ -133,21 +133,22 @@ ul.live .mark { display: inline-block; width: 1.6rem; text-align: center; font-w
 .diff { margin-top: 0.3rem; font-weight: 600; }
 .better { color: var(--pass); }
 .worse { color: var(--fail); }
-.res-head, details.res > summary { display: grid; grid-template-columns: 2.2rem 1.4fr 4.5rem 2fr 7rem; gap: 0.6rem;
+.res-head, a.res { display: grid; grid-template-columns: 2.2rem 1.4fr 4.5rem 2fr 7rem; gap: 0.6rem;
   align-items: baseline; padding: 0.5rem 0.6rem; }
 .res-head { font-size: 0.85rem; color: var(--muted); font-weight: 600; border-bottom: 2px solid var(--line); }
-details.res { border-bottom: 1px solid var(--line); }
-details.res > summary { cursor: pointer; list-style: none; }
-details.res > summary::-webkit-details-marker { display: none; }
-details.res > summary:hover { background: var(--soft); }
-details.res .mark { font-size: 1.3rem; font-weight: 700; text-align: center; }
-details.res.pass > summary .mark { color: var(--pass); }
-details.res.fail > summary .mark { color: var(--fail); }
-details.res .reason { color: var(--fail); font-size: 0.92rem; }
-details.res.chg-better > summary { background: var(--pass-bg); }
-details.res.chg-worse > summary { background: var(--fail-bg); }
-details.res[open] > summary { border-bottom: 1px dashed var(--line); }
-.detail { padding: 0.6rem 0.6rem 1rem 2.8rem; }
+/* One row per case; a click opens the case page. */
+a.res { border-bottom: 1px solid var(--line); color: inherit; text-decoration: none; }
+a.res:hover { background: var(--soft); }
+.res .mark, .res-case .mark { font-size: 1.3rem; font-weight: 700; text-align: center; }
+.res.pass .mark, .res-case.pass .mark { color: var(--pass); }
+.res.fail .mark, .res-case.fail .mark { color: var(--fail); }
+a.res .reason { color: var(--fail); font-size: 0.92rem; }
+a.res.chg-better { background: var(--pass-bg); }
+a.res.chg-worse { background: var(--fail-bg); }
+.res-case .mark { margin-right: 0.5rem; }
+.case-nav { display: flex; justify-content: space-between; gap: 1rem; }
+.case-nav > span { display: flex; gap: 1rem; align-items: baseline; }
+.detail { padding: 0.6rem 0.6rem 1rem 0; }
 /* Case sections (Input, Tool calls, Output and expected, Engine log): one look, like a heading. */
 .detail > details > summary { font-weight: 600; font-size: 1rem; color: var(--fg, inherit); margin-top: 0.8rem;
   cursor: pointer; }

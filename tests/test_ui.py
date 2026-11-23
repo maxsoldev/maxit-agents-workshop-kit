@@ -172,15 +172,45 @@ def test_run_results_runs(client):
     run_id = ui_fake_runner.list_runs("demo")[0]["run_id"]
     page = client.get(f"/runs/{run_id}")
     assert page.status_code == 200 and "Service offer" in page.text
-    # the row (also the title) opens the details; the edit page is one link inside them
-    assert page.text.count('href="/uc/demo/cases/m06/edit"') == 1
-    assert '<a href="/uc/demo/cases/m06/edit">Edit this case</a>' in page.text
-    case = page.text.split('id="c-m06"', 1)[1].split("</details>\n  {% endfor", 1)[0]
+    # a clean list: the row opens the case page; the case detail is not on the list
+    assert f'id="c-m06" href="/runs/{run_id}/cases/m06"' in page.text
+    assert "Edit this case" not in page.text and "<summary>Input" not in page.text
+    case = client.get(f"/runs/{run_id}/cases/m06").text
+    assert '<a href="/uc/demo/cases/m06/edit">Edit this case</a>' in case
     spots = [case.index(s) for s in ("<summary>Input", "<summary>Output and expected")]
     assert spots == sorted(spots)  # input first, then (tool calls), then output next to expected
     assert '<details class="tool-calls" open><summary>Input' in case
     assert '<details class="tool-calls" open><summary>Output and expected' in case
     assert client.get("/runs/nope").status_code == 404
+    assert client.get("/runs/nope/cases/m06").status_code == 404
+    assert client.get(f"/runs/{run_id}/cases/nope").status_code == 404
+
+
+def test_case_page_back_prev_next_and_compare(client):
+    """Each case has its own page: back to the run, prev / next in the run's order, the compare run kept."""
+    config.RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    for run_id, passed in (("20261124-100000-demo-python", True), ("20261124-110000-demo-python", False)):
+        cases = [
+            {"id": i, "title": f"T {i}", "passed": passed, "checks": [], "input": {}, "expected": {}, "output": {}}
+            for i in ("a1", "b2", "c3")
+        ]
+        run = {"run_id": run_id, "usecase": "demo", "engine": "python", "name": run_id[-6:], "cases": cases}
+        (config.RUNS_DIR / f"{run_id}.json").write_text(json.dumps(run))
+    new, old = "/runs/20261124-110000-demo-python", "20261124-100000-demo-python"
+    page = client.get(f"{new}?vs={old}").text
+    assert f'href="{new}/cases/b2?vs={old}"' in page  # the list links keep the compare run
+    assert 'location.hash.startsWith("#c-")' in page  # old #c-<case> links open the case page
+    case = client.get(f"{new}/cases/b2?vs={old}").text
+    assert f'<a href="{new}?vs={old}">← back to the run</a>' in case
+    assert f'href="{new}/cases/a1?vs={old}"' in case and f'href="{new}/cases/c3?vs={old}"' in case
+    assert 'class="on">Runs</a>' in case and 'class="on">Cases</a>' not in case  # the header tab
+    assert "2/3" in case and "✗ fail" in case and "T b2" in case and "▼ worse" in case
+    for s in ("<summary>Input", "<summary>Output and expected", "checks-res"):
+        assert s in case
+    first = client.get(f"{new}/cases/a1?vs=none").text
+    assert '<span class="muted">← prev</span>' in first and f'href="{new}/cases/b2?vs=none"' in first
+    assert "▼ worse" not in first
+    assert '<span class="muted">next →</span>' in client.get(f"{new}/cases/c3").text
 
 
 def test_n8n_unpublished_warning(client, monkeypatch):
@@ -445,7 +475,7 @@ def test_results_show_check_targets(client):
     run["cases"] = [{**case, "passed": True, "output": {}, "checks": results}]
     config.RUNS_DIR.mkdir(parents=True, exist_ok=True)
     (config.RUNS_DIR / f"{run['run_id']}.json").write_text(json.dumps(run))
-    page = client.get(f"/runs/{run['run_id']}").text
+    page = client.get(f"/runs/{run['run_id']}/cases/m06").text
     assert '<code>flags</code> → <code class="target">off_target</code>' in page
     assert '<code>reply</code> → <code class="target">@</code>' in page
     assert '(min 3)</span><div class="muted small rubric">Polite no.</div>' in page
@@ -466,10 +496,10 @@ def test_results_targets_from_run_file(client):
         run = {"run_id": run_id, "usecase": "demo", "engine": "python", "name": value, "summary": {}}
         run["cases"] = [{**c, "checks": [k]}]
         (config.RUNS_DIR / f"{run_id}.json").write_text(json.dumps(run))
-    page = client.get("/runs/20261124-100000-demo-python?vs=20261124-110000-demo-python").text
+    page = client.get("/runs/20261124-100000-demo-python/cases/m06?vs=20261124-110000-demo-python").text
     assert '<code class="target">off_target</code>' in page and '<code class="target">vip</code>' not in page
     assert "case changed" in page and "from today" not in page
-    page = client.get("/runs/20261124-110000-demo-python?vs=20261124-100000-demo-python").text
+    page = client.get("/runs/20261124-110000-demo-python/cases/m06?vs=20261124-100000-demo-python").text
     assert '<code class="target">vip</code>' in page and '<code class="target">off_target</code>' not in page
 
 

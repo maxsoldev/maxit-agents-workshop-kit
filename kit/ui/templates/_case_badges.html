@@ -1,0 +1,2 @@
+{% set ch = changes.get(c.id) %}{% if ch %}<span class="badge {{ ch }}">{{ {'better': '▲ better', 'worse': '▼ worse', 'same': 'same', 'new': 'new case'}[ch] }}</span>{% endif %}
+        {% if c.id in changed %}<span class="badge changed" title="the case (input, expected or checks) is not the same as in the other run: the score may differ because of the case, not the agent">case changed</span>{% endif %}
