@@ -161,7 +161,8 @@ Set `LANGFUSE` in `.env`, then run `make up` and `make setup` again.
 | `LANGFUSE=hosted` | The trainer's Langfuse. Set `LANGFUSE_HOST`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` of your team's project. |
 | `LANGFUSE=off` | No traces and no trace links. Evals work the same. |
 
-n8n steps are not in Langfuse: open **Executions** in n8n (the results page links to it).
+n8n steps are in Langfuse too: the runner reads each n8n execution and writes one span per node (with times,
+input, output and the model's tokens). The full detail stays in **Executions** in n8n (the results page links to it).
 
 ## Backups
 

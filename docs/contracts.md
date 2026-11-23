@@ -163,6 +163,16 @@ Claude also gets `OTEL_LOG_TOOL_DETAILS=1`, `OTEL_LOG_TOOL_CONTENT=1`, `OTEL_LOG
 a span event, which Langfuse does not show). So the runner reads the tool calls from Claude's stream-json and
 writes one TOOL span per call, `tool:<name>`, with input and output, under the case trace. The run file has
 them too (`meta.tool_calls`, output cut to 4000 characters); the results page lists them.
+**n8n** (engines `n8n` and `n8n-agent`): Langfuse has no n8n tracing, so the runner reads the execution data it
+already fetches (`engines.n8n_nodes`) and writes **one observation per executed node run** under the case trace:
+name = node name (a tool sub-node run: `<node>: <tool>`), start and end time from the execution, input and
+output (cut to 4000 characters; a main node's input = the output of the node before it), metadata
+`n8n_node_type` (and `branch` for an IF/Switch), level `ERROR` with the message if the node failed. Types: model
+sub-nodes = GENERATION with model and token usage, LLM chain nodes = CHAIN, the AI Agent node = AGENT, tool
+nodes (the plain HTTP tool calls and MCP tool runs) = TOOL, other nodes = SPAN. Sub-nodes (model, tool, output
+parser) nest under their AI node; the rest is flat under the case root. The `tool:<name>` spans are written for
+n8n too. Not found (no `N8N_API_KEY`) or any error: no node spans, the case goes on. The run file does not get
+the nodes.
 
 **Dataset and experiment** (`run_eval`: UI Run and `make eval`; not `make check` runs, named `check`, and not
 `run-case`). Before the cases run, the runner syncs **all** cases of `cases.jsonl` (holdout too) to the Langfuse

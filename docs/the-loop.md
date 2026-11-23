@@ -27,6 +27,23 @@ per case). Each eval **run** is an **experiment** (a dataset run) on that datase
 link **Open this experiment in Langfuse** on the results page). It shows the scores per case, side by side.
 `cases.jsonl` stays the source: each eval writes the changed cases to the dataset.
 
+## In n8n: Evaluations
+
+n8n has its own evaluations ([overview](https://docs.n8n.io/advanced-ai/evaluations/overview/)). The dataset
+is a Data table or a Google Sheet (one row per case). An **Evaluation Trigger** sends each row through the
+workflow, and the **Evaluation** node writes the outputs back to the row (**Set Outputs**).
+- **Light evaluations** ([docs](https://docs.n8n.io/advanced-ai/evaluations/light-evaluations/)): you
+  compare the outputs with the expected ones by eye. Self-hosted, they need a Registered Community licence (free).
+- **Metric-based evaluations**
+  ([docs](https://docs.n8n.io/advanced-ai/evaluations/metric-based-evaluations/)): **Set Metrics** gives
+  scores (correctness, categorization, tools used, your own), shown per run on the Evaluations tab.
+  Self-hosted, they need Enterprise; Registered Community allows them for one workflow only.
+
+The kit uses its own runner, because it runs the **same cases on all 3 engines** (n8n, Claude, Python), with
+the same checks, and puts each run in Langfuse as an experiment, so you can compare engines and runs side by
+side. n8n's evaluations see only n8n. They are a good choice after the day for a service that runs only in n8n:
+the team then keeps its cases and scores next to the workflow.
+
 ## Rules that save time
 
 - **One change at a time.** With two changes you do not know which one helped. A new output field is one
@@ -35,7 +52,8 @@ link **Open this experiment in Langfuse** on the results page). It shows the sco
   **Result shape** node needs no edit: it reads the schema from the case.
 - **Read the trace, not only the score.** The trace shows which tools the agent called, what it read and
   where it went wrong. Claude: Langfuse (the `tool:<name>` spans have the input and output; the results page
-  lists the same tool calls, for all engines). n8n: Executions (the results page links to each one). Python: the `tool ...`
+  lists the same tool calls, for all engines). n8n: Langfuse too (one span per node: Triage, Junk?, Find
+  sender, ...), and Executions in n8n for all detail (the results page links to each one). Python: the `tool ...`
   lines it logs on stderr (the results page shows them under **Engine log**).
   To look at one case closely: `make run-case UC=marketing ENGINE=python CASE=m14` (or `uv run kit run-case
   marketing python m14`) prints the engine input, the output, the tool calls, the log and the checks.
@@ -55,6 +73,8 @@ link **Open this experiment in Langfuse** on the results page). It shows the sco
   `tool:<name>` lines from top to bottom: each one is one thing the agent looked up (`tool:rules_get` with
   `"name": "priorities"` = "it read your priorities"), with what it got back. Skip the technical lines
   (`claude_code.llm_request` = one model call, `ToolSearch`, `blocked_on_user`): they are not your rules.
+  An n8n trace also has one line per node, in the order they ran (`Triage`, `Junk?`, `Find sender`, ...); open
+  the model line under an AI node (`Draft model`) to see the prompt it got and what it answered.
 - **Keep 3 to 5 cases aside.** After many loops, your cases get easy: the agent is tuned to them. Mark a few
   new cases as **holdout** (tick in the case form, or `"holdout": true`). The eval skips them; run them at the
   end (`make eval ... HOLDOUT=1`, or the tick on the Run page) to see if the agent works on cases it never saw.
