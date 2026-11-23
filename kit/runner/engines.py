@@ -13,6 +13,7 @@ import signal
 import subprocess
 import threading
 import time
+import uuid
 
 import httpx
 
@@ -125,13 +126,49 @@ def _tail(text: str, lines: int = 5) -> str:
 
 
 def call_n8n(uc: str, engine_input: dict):
+    """POST the case to the webhook. meta["execution_url"] links to the n8n execution (if found)."""
+    call_id = uuid.uuid4().hex
+    output, error, meta = _post_n8n(uc, engine_input, call_id)
+    if meta.get("status"):  # n8n answered, so there is an execution
+        try:
+            meta["execution_url"] = n8n_execution_url(uc, call_id)
+        except (httpx.HTTPError, ValueError, KeyError, TypeError):
+            meta["execution_url"] = None  # a link is nice to have; never fail the case for it
+    return output, error, meta
+
+
+def n8n_execution_url(uc: str, call_id: str) -> str | None:
+    """Find our execution: the newest ones of the workflow, matched by our `x-kit-call` header.
+    Falls back to the workflow's Executions list. Needs N8N_API_KEY."""
+    s = settings()
+    if not s.n8n_api_key:
+        return None
+    api = httpx.Client(base_url=f"{s.n8n_url}/api/v1", headers={"X-N8N-API-KEY": s.n8n_api_key}, timeout=10)
+    wid = None
+    for w in api.get("/workflows", params={"active": "true", "limit": 100}).json().get("data", []):
+        if any(n.get("type") == "n8n-nodes-base.webhook" and n.get("parameters", {}).get("path") == uc
+               for n in w.get("nodes", [])):
+            wid = w["id"]
+    if not wid:
+        return None
+    for attempt in range(3):  # n8n saves the execution just after it answers
+        data = api.get("/executions", params={"workflowId": wid, "limit": 10, "includeData": "true"}).json()
+        for e in data.get("data", []):
+            if call_id in json.dumps((e.get("data") or {}).get("resultData", {}).get("runData", {}).get("Case in", [])):
+                return f"{s.n8n_url}/workflow/{wid}/executions/{e['id']}"
+        time.sleep(1)
+    return f"{s.n8n_url}/workflow/{wid}/executions"
+
+
+def _post_n8n(uc: str, engine_input: dict, call_id: str):
     s = settings()
     url = f"{s.n8n_url}/webhook/{uc}"
     meta = {"url": url}
     try:
         # n8n sends nothing until the workflow ends, so the read timeout is the total time.
         # call_with_deadline adds a hard wall-clock limit on top.
-        r = httpx.post(url, json=engine_input, timeout=httpx.Timeout(TIMEOUTS["n8n"], connect=10))
+        r = httpx.post(url, json=engine_input, headers={"x-kit-call": call_id},
+                       timeout=httpx.Timeout(TIMEOUTS["n8n"], connect=10))
     except httpx.ConnectError:
         return None, f"cannot reach n8n at {s.n8n_url}: is it running? run `make up` (or check N8N_URL in .env)", meta
     except httpx.TimeoutException:

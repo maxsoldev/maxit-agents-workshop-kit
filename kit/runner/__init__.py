@@ -62,6 +62,7 @@ def run_case(uc: str, engine: str, case: dict, schema: dict, run_id: str, run_na
             res["trace_url"] = trace.url
             output, error, meta = engines.call_with_deadline(uc, engine, inp, trace.env(engine))
             res.update(output=output, error=error, meta=meta)
+            res["n8n_execution_url"] = meta.pop("execution_url", None)
             res["checks"] = checks.run_checks(case, output, schema, inp["input"])
             res["passed"] = error is None and all(c["passed"] for c in res["checks"])
             trace.finish(output, error, res["checks"], res["passed"])

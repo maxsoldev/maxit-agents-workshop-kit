@@ -38,6 +38,8 @@ def main(usecase: str, engine: str, case_ids: list[str] | None = None, name: str
         if not c["passed"]:
             first = c["error"] or next((_label(k) for k in c["checks"] if not k["passed"]), "")
             line += "  " + " ".join(first.split())[:140]
+            if c.get("n8n_execution_url"):
+                line += f"\n           n8n: {c['n8n_execution_url']}"
         print(line)
     s = run["summary"]
     by_check = "  ".join(f"{t} {p}/{n}" for t, (p, n) in s["by_check"].items())

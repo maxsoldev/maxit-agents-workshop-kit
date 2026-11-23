@@ -97,8 +97,11 @@ Run file `runs/<run_id>.json`, `run_id` = `<YYYYmmdd-HHMMSS>-<uc>-<engine>`:
  "cases": [{"id": "m06", "title": "...", "passed": false, "seconds": 3.2, "error": null,
             "input": {...}, "expected": {...}, "output": {...},
             "checks": [{"type": "equals", "field": "category", "passed": false, "reason": "got unverified_outreach, expected service_offer"}],
-            "trace_url": "http://localhost:5703/...", "n8n_execution_url": null}]}
+            "trace_url": "http://localhost:5703/...", "n8n_execution_url": "http://localhost:5702/workflow/<id>/executions/<n>"}]}
 ```
+
+`n8n_execution_url` (n8n only, needs `N8N_API_KEY`): the runner sends an `x-kit-call` header with each POST and
+finds the execution with that header; if it cannot, the link goes to the workflow's Executions list.
 
 ## 6. Tracing
 
