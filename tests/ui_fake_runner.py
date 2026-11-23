@@ -155,10 +155,35 @@ def n8n_warning(uc):
     return UNPUBLISHED
 
 
+def load_schema(uc):
+    return {"type": "object", "properties": {"category": {"type": "string"}, "reply": {"type": "string"}}}
+
+
+TRIED: list[dict] = []  # the cases run_case got (the Try page)
+
+
+def run_case(uc, engine, case, schema, run_id, run_name, experiment=None):
+    TRIED.append(case)
+    reply = "Dear Ms Weber, thank you for your offer. We do not need node hosting at the moment. Kind regards"
+    return {
+        "id": case["id"],
+        "passed": True,
+        "seconds": 2.0,
+        "cost_usd": 0.001,
+        "error": None,
+        "input": case["input"],
+        "output": {"category": "service_offer", "reply": reply},
+        "checks": [{"type": "schema", "field": "", "passed": True, "reason": "ok"}],
+        "meta": {"tool_calls": [{"name": "contacts_lookup", "input": {"query": "Weber"}, "output": "[]"}]},
+        "trace_url": None,
+        "n8n_execution_url": None,
+    }
+
+
 def install():
     mod = types.ModuleType("kit.runner")
     names = ("load_cases", "save_cases", "validate_case", "run_eval", "load_run", "list_runs", "compare")
-    for name in (*names, "n8n_warning"):
+    for name in (*names, "n8n_warning", "load_schema", "run_case"):
         setattr(mod, name, globals()[name])
     sys.modules["kit.runner"] = mod
     return mod

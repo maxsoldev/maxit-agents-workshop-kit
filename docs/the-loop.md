@@ -75,6 +75,17 @@ counts only if the score stays the same.
   fact the agent looked up is not "invented". A fact that is in no tool result: write it into the rubric.
 - A judge that cannot run (no key, API error) is **skipped**: the case passes or fails on its other checks.
 
+## How business people change the rules (in the UI)
+
+Open **Rules**: the owner's files `data/*.md` (categories, routing, reply guidelines, priorities, templates).
+Change a rule, **Save** (Ctrl+S), then run the eval and compare. The categories, flags, routes and status
+words live only in these files: add one there, with no change to the code or the schema. The page and the
+file stay in sync: an edit on disk (by a developer or Claude Code) shows in the page, and the page never
+saves over an edit it has not seen.
+
+**Try** runs the agent on one email or message, as a person uses it: no checks, no run file. A good or a
+bad answer? **Make a case from this**.
+
 ## How business people write cases (in the UI)
 
 Open http://localhost:5700 → your use case → **Cases** → **Add case**.

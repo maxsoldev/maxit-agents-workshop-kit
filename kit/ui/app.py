@@ -5,19 +5,23 @@ Start it with `uv run kit serve` (port 5700). All case and run data goes through
 
 from __future__ import annotations
 
+import asyncio
 import email
 import email.policy
 import email.utils
+import hashlib
 import importlib
 import json
+import os
 import re
 import threading
 import time
+from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markdown_it import MarkdownIt
@@ -379,7 +383,7 @@ def index(request: Request):
 
 def same_page(back: str, to: str) -> str:
     """The page of the same kind for use case `to`: Runs -> Runs, a results page -> Runs, Guide stays."""
-    m = re.match(r"^/uc/[^/]+/(cases|runs|run)\b", back)
+    m = re.match(r"^/uc/[^/]+/(cases|runs|rules|run|try)\b", back)
     if m:
         return f"/uc/{to}/{m[1]}"
     if back.startswith("/runs/"):
@@ -431,7 +435,7 @@ def case_edit(request: Request, uc: str, case_id: str):
     return case_form(request, uc, case, original_id=case_id)
 
 
-def case_form(request, uc, case, original_id, errors=None, raw=None, status=200):
+def case_form(request, uc, case, original_id, errors=None, raw=None, status=200, note=None):
     """The add / edit form. `raw` keeps the text the user typed when it did not parse."""
     raw = raw or {
         "input": json.dumps(case.get("input", {}), indent=2, ensure_ascii=False),
@@ -454,6 +458,7 @@ def case_form(request, uc, case, original_id, errors=None, raw=None, status=200)
         raw=raw,
         checks=checks,
         errors=errors or [],
+        note=note,
         picks=picks,
         has_messages=has_messages,
         check_types=CHECK_TYPES,
@@ -706,6 +711,143 @@ def run_progress(request: Request, uc: str):
     """htmx partial, polled every second while a run is going."""
     jobs = visible_jobs(uc)
     return templates.TemplateResponse(request, "_progress.html", {"uc": uc, "jobs": jobs})
+
+
+# ---------- try: the agent on one input, no checks ----------
+
+
+@app.get("/uc/{uc}/try", response_class=HTMLResponse)
+def try_page(request: Request, uc: str, engine: str = ""):
+    picks = input_picks(uc)
+    run_engines = config.settings().engines
+    return page(
+        request,
+        "try.html",
+        uc,
+        picks=picks,
+        has_messages=any(p["kind"] == "message" for p in picks),
+        raw={"input": "{}"},
+        try_page=True,
+        previews=[],
+        engine=engine or default_engine(uc),
+        run_engines=run_engines,
+        n8n_warning=runner().n8n_warning(uc) if "n8n" in run_engines else None,
+    )
+
+
+@app.post("/uc/{uc}/try", response_class=HTMLResponse)
+async def try_run(request: Request, uc: str):
+    """htmx partial: run the agent on one input like an eval case with no checks (only the schema check).
+    No run file is written. The Langfuse trace has the run name "try"."""
+    f = await request.form()
+    engine = str(f.get("engine", ""))
+    if engine not in config.ENGINES:
+        raise HTTPException(400, f"Unknown engine '{engine}'")
+    ctx: dict = {"uc": uc, "engine": engine, "langfuse_link": config.settings().langfuse_mode != "off"}
+    try:
+        inp = json.loads(str(f.get("input", "")) or "{}")
+    except json.JSONDecodeError as e:
+        inp, ctx["problem"] = {}, f"The input is not valid JSON (line {e.lineno}, column {e.colno})."
+    if not ctx.get("problem") and (not isinstance(inp, dict) or not inp):
+        ctx["problem"] = "The input is empty: pick an email or a message, or paste one."
+    if ctx.get("problem"):
+        return templates.TemplateResponse(request, "_try_result.html", ctx)
+    today = str(f.get("today", "")).strip() or date.today().isoformat()
+    case = {"id": "try", "title": "Try", "today": today, "input": inp, "expected": {}, "checks": []}
+    try:
+        schema = runner().load_schema(uc)
+    except Exception as e:  # a broken output.schema.json: say so, do not crash
+        ctx["problem"] = f"output.schema.json cannot be read: {e}"
+        return templates.TemplateResponse(request, "_try_result.html", ctx)
+    run_id = f"{datetime.now():%Y%m%d-%H%M%S}-{uc}-{engine}-try"
+    res = await asyncio.to_thread(runner().run_case, uc, engine, case, schema, run_id, "try")
+    ctx.update(r=res, today=today, input_json=json.dumps(inp, ensure_ascii=False))
+    return templates.TemplateResponse(request, "_try_result.html", ctx)
+
+
+@app.post("/uc/{uc}/cases/from-try", response_class=HTMLResponse)
+async def case_from_try(request: Request, uc: str):
+    """The case form, filled from a Try result: its input and today, and the agent's output as Expected."""
+    f = await request.form()
+    raw = {"input": str(f.get("input", "{}")), "expected": str(f.get("expected", "{}"))}
+    case = {"id": "", "title": "", "today": str(f.get("today", "")), "input": {}, "expected": {}, "checks": []}
+    try:
+        case["input"] = json.loads(raw["input"])  # for the file previews
+        raw = {k: json.dumps(json.loads(v), indent=2, ensure_ascii=False) for k, v in raw.items()}
+    except json.JSONDecodeError:
+        pass  # show the text as it came; Save says what is wrong
+    note = (
+        "Expected is the agent's answer. Keep only the fields that matter, fix what is wrong, "
+        "then add a check for each important point."
+    )
+    return case_form(request, uc, case, original_id="", raw=raw, note=note)
+
+
+# ---------- rules: the owner's data/*.md, kept in sync with the files on disk ----------
+
+
+def rule_files(uc: str) -> list[str]:
+    """The owner's rule files of a use case: data/*.md (what the agents read with rules_get)."""
+    return sorted(p.name for p in (uc_dir(uc) / "data").glob("*.md"))
+
+
+def rule_path(uc: str, name: str) -> Path:
+    if name not in rule_files(uc):
+        raise HTTPException(404, f"No rule file '{name}' in usecases/{uc}/data/")
+    return uc_dir(uc) / "data" / name
+
+
+def text_version(path: Path) -> str:
+    """A short hash of the file as it is on disk. The page sends it back on save, to see edits by others."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+
+
+@app.get("/uc/{uc}/rules", response_class=HTMLResponse)
+def rules_page(request: Request, uc: str, name: str = ""):
+    files = rule_files(uc)
+    name = name if name in files else (files[0] if files else "")
+    path = rule_path(uc, name) if name else None
+    return page(
+        request,
+        "rules.html",
+        uc,
+        files=files,
+        rule=name,
+        text=path.read_text(encoding="utf-8") if path else "",
+        version=text_version(path) if path else "",
+    )
+
+
+@app.get("/uc/{uc}/rules/file")
+def rules_file(uc: str, name: str):
+    """The file as it is on disk now: {"version", "text"}. The editor asks every 2 s."""
+    path = rule_path(uc, name)
+    return {"version": text_version(path), "text": path.read_text(encoding="utf-8")}
+
+
+@app.post("/uc/{uc}/rules/save")
+async def rules_save(request: Request, uc: str):
+    """Write the file, but only if it is still the version the page loaded (else 409: someone else changed it).
+    `force=1` writes anyway. The write is atomic: an agent that reads the file sees the old or the new text."""
+    f = await request.form()
+    path = rule_path(uc, str(f.get("name", "")))
+    if not f.get("force") and str(f.get("version", "")) != text_version(path):
+        return JSONResponse(
+            {"ok": False, "version": text_version(path), "error": "The file changed on disk after you opened it."},
+            status_code=409,
+        )
+    text = str(f.get("text", "")).replace("\r\n", "\n")
+    tmp = path.with_name(f".{path.name}.saving")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+    return {"ok": True, "version": text_version(path)}
+
+
+@app.post("/uc/{uc}/rules/preview", response_class=HTMLResponse)
+async def rules_preview(request: Request, uc: str):
+    """htmx partial: the text of the editor as the formatted page."""
+    uc_dir(uc)
+    return Markup(MARKDOWN.render(str((await request.form()).get("text", ""))))
 
 
 # ---------- runs and results ----------

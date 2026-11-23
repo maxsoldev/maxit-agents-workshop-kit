@@ -593,3 +593,78 @@ def test_run_page_shows_only_running_or_newest_job(monkeypatch):
     assert list(ui.visible_jobs("demo")) == ["python"]
     jobs[("demo", "n8n")]["done"] = False
     assert list(ui.visible_jobs("demo")) == ["n8n"]
+
+
+# ---------- Try page ----------
+
+
+def test_try_page_has_the_input_picker(client):
+    page = client.get("/uc/demo/try").text
+    assert "Run the agent" in page and "data/emails/06.eml" in page and "Or paste an email" in page
+    assert 'href="/uc/demo/try"' in page and 'href="/uc/demo/rules"' in page  # in the header
+
+
+def test_try_runs_one_input_with_no_checks(client):
+    ui_fake_runner.TRIED.clear()
+    r = client.post("/uc/demo/try", data={"engine": "python", "today": "2026-11-04", "input": '{"email": "Hi"}'})
+    assert r.status_code == 200
+    assert ui_fake_runner.TRIED[-1] == {
+        "id": "try",
+        "title": "Try",
+        "today": "2026-11-04",
+        "input": {"email": "Hi"},
+        "expected": {},
+        "checks": [],
+    }
+    assert "We do not need node hosting" in r.text  # a long text field shows as text
+    assert "contacts_lookup" in r.text and "Make a case from this" in r.text
+    assert not list(config.RUNS_DIR.glob("*.json")) if config.RUNS_DIR.exists() else True  # no run file
+
+
+def test_try_says_what_is_wrong_with_the_input(client):
+    assert "The input is empty" in client.post("/uc/demo/try", data={"engine": "python", "input": "{}"}).text
+    assert "not valid JSON" in client.post("/uc/demo/try", data={"engine": "python", "input": "{x"}).text
+
+
+def test_make_a_case_from_a_try(client):
+    data = {"input": '{"email": "Hi"}', "today": "2026-11-04", "expected": '{"category": "service_offer"}'}
+    page = client.post("/uc/demo/cases/from-try", data=data).text
+    assert "Expected is the agent&#39;s answer" in page
+    assert "&#34;category&#34;: &#34;service_offer&#34;" in page and 'value="2026-11-04"' in page
+    page = client.post("/uc/demo/cases/from-try", data={**data, "input": '{"email_file": "data/emails/06.eml"}'}).text
+    assert "Guten Tag, wir bieten Nodes an." in page  # the file preview
+
+
+# ---------- Rules page ----------
+
+
+@pytest.fixture
+def rule(client):
+    path = config.USECASES_DIR / "demo" / "data" / "categories.md"
+    path.write_text("# Categories\n\n| `spam` | junk |\n", encoding="utf-8")
+    return path
+
+
+def test_rules_page_shows_the_file(client, rule):
+    page = client.get("/uc/demo/rules").text
+    assert "categories.md" in page and "| `spam` | junk |" in page
+    assert client.get("/uc/demo/rules?name=../cases.jsonl").status_code == 200  # unknown name: the first file
+    assert client.get("/uc/demo/rules/file?name=../cases.jsonl").status_code == 404
+
+
+def test_rules_save_needs_the_version_on_disk(client, rule):
+    v1 = client.get("/uc/demo/rules/file?name=categories.md").json()["version"]
+    r = client.post("/uc/demo/rules/save", data={"name": "categories.md", "text": "A\r\nB\n", "version": v1})
+    assert r.json()["ok"] and rule.read_text(encoding="utf-8") == "A\nB\n"
+    v2 = r.json()["version"]
+    assert v2 != v1 and client.get("/uc/demo/rules/file?name=categories.md").json() == {"version": v2, "text": "A\nB\n"}
+    rule.write_text("changed on disk\n", encoding="utf-8")  # a developer or Claude Code edits the file
+    r = client.post("/uc/demo/rules/save", data={"name": "categories.md", "text": "mine", "version": v2})
+    assert r.status_code == 409 and rule.read_text(encoding="utf-8") == "changed on disk\n"
+    r = client.post("/uc/demo/rules/save", data={"name": "categories.md", "text": "mine", "version": v2, "force": "1"})
+    assert r.json()["ok"] and rule.read_text(encoding="utf-8") == "mine"
+
+
+def test_rules_preview_renders_markdown(client, rule):
+    html = client.post("/uc/demo/rules/preview", data={"text": "| a | b |\n|---|---|\n| 1 | 2 |"}).text
+    assert "<table>" in html

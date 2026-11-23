@@ -219,3 +219,15 @@ html.gp-open .guide-panel { display: flex; }
   .guide-panel { width: min(92vw, 40rem); box-shadow: 6px 0 24px #0004; }
   .gp-resize { display: none; }
 }
+
+/* Rules page: the file list on the left, the editor on the right. */
+.rules { display: grid; grid-template-columns: 14rem 1fr; gap: 1.5rem; }
+.rule-files { position: sticky; top: 4rem; align-self: start; }
+.rule-files a { display: block; padding: 0.3rem 0.5rem; border-radius: 6px; }
+.rule-files a.on { background: var(--soft); font-weight: 600; }
+.rule-bar { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 0.5rem; }
+.rule-bar .grow { flex: 1; }
+.rule-edit textarea { width: 100%; min-height: 65vh; font: 0.92rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 0.6rem 0.8rem; border: 1px solid var(--line); border-radius: 6px; }
+.rule-edit .banner { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
+#rule-preview { min-height: 65vh; border: 1px solid var(--line); border-radius: 6px; padding: 0.4rem 1rem; max-width: none; }

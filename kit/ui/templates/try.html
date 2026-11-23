@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Try · {{ uc|uc_name }}{% endblock %}
+{% block main %}
+<h1>Try the agent <span class="muted">· {{ uc|uc_name }}</span></h1>
+<p class="muted">Give the agent one email or message and see what it proposes. There are no checks and no run
+  file: this is how a person uses the agent. A good or a bad answer? <b>Make a case from it</b>.</p>
+{% if n8n_warning %}<div class="banner">{{ n8n_warning }}</div>{% endif %}
+<form hx-post="/uc/{{ uc }}/try" hx-target="#try-result" hx-indicator="#try-busy" hx-disabled-elt="find button.primary">
+  <div class="row3">
+    <fieldset class="engines"><legend>Engine</legend>
+      {% for e in run_engines %}<label class="radio"><input type="radio" name="engine" value="{{ e }}" {{ 'checked' if e == engine }}> {{ e }}</label>{% endfor %}
+    </fieldset>
+    <label>Today <input type="date" name="today" id="today"
+      title="The agent's 'today'. Empty: it is set from the date of the email or message you add, else it is today."></label>
+    <div class="go"><button class="btn primary big">Run the agent</button></div>
+  </div>
+  <div class="cols">
+    <div>{% include "_input_picker.html" %}</div>
+    <div><h2>Files in the input</h2><div id="preview"></div></div>
+  </div>
+</form>
+<p id="try-busy" class="htmx-indicator muted">The agent works … (often 10 to 60 s; Claude can take longer)</p>
+<div id="try-result"></div>
+{% endblock %}

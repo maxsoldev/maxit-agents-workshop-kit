@@ -1,0 +1,36 @@
+{# The answer of the Try page. Needs uc, engine; r (the result of run_case), today, input_json; or problem. #}
+{% if problem %}<div class="alert">{{ problem }}</div>{% else %}
+<div class="detail">
+  <h2>What the agent proposes <span class="muted small">· {{ engine }} · {{ '%.1f'|format(r.seconds or 0) }} s · {{ r.cost_usd|usd }}</span></h2>
+  {% if r.error %}<div class="alert"><b>Error:</b> {{ r.error }}</div>{% endif %}
+  {% for k in r.checks if k.passed is false %}<div class="alert"><b>The answer does not fit <code>output.schema.json</code>:</b> {{ k.reason }}</div>{% endfor %}
+  {% if r.output is mapping %}
+  {# Long texts (a reply draft, a message) as text you can read; the whole result as JSON below. #}
+  {% for key, v in r.output.items() if v is string and v|length > 80 %}
+  <h3><code>{{ key }}</code></h3><pre class="mail-body">{{ v }}</pre>
+  {% endfor %}
+  {% endif %}
+  <details class="tool-calls" open><summary>Result (JSON)</summary><pre>{{ r.output|pretty }}</pre></details>
+  {% if (r.meta or {}).tool_calls %}
+  <details class="tool-calls"><summary>Tool calls ({{ r.meta.tool_calls|length }}): what the agent looked up</summary>
+    {% for t in r.meta.tool_calls %}
+    <div><b>{{ t.name }}</b> <code>{{ t.input|compact }}</code><pre>{{ (t.output or '')[:1500] }}</pre></div>
+    {% endfor %}
+  </details>
+  {% endif %}
+  {% if (r.meta or {}).stderr %}
+  <details class="tool-calls"><summary>Engine log (stderr, last lines)</summary><pre>{{ r.meta.stderr }}</pre></details>
+  {% endif %}
+  <div class="links">
+    {% if r.trace_url and langfuse_link %}<a href="{{ r.trace_url }}" target="_blank">Langfuse trace ↗</a>{% endif %}
+    {% if r.n8n_execution_url %}<a href="{{ r.n8n_execution_url }}" target="_blank">n8n execution ↗</a>{% endif %}
+  </div>
+  <form method="post" action="/uc/{{ uc }}/cases/from-try">
+    <input type="hidden" name="input" value="{{ input_json }}">
+    <input type="hidden" name="today" value="{{ today }}">
+    <input type="hidden" name="expected" value="{{ (r.output if r.output is mapping else {})|compact }}">
+    <button class="btn">Make a case from this</button>
+    <span class="muted small">The case form opens with this input, and this answer as Expected: fix it there.</span>
+  </form>
+</div>
+{% endif %}

@@ -1,0 +1,80 @@
+{# The input of a case: pick an email or a message from data/, or paste one. It writes the JSON into #input.
+   Needs uc, picks, has_messages, raw.input (try_page: the Try page); the page has #today and #preview. #}
+      <div class="picker">
+        <select id="file-pick" onchange="showPick()">
+          <option value="">Pick an email{{ ' or a message' if has_messages }} from data/ …</option>
+          {% for p in picks %}<option value="{{ loop.index0 }}">{{ p.label }}</option>{% endfor %}
+        </select>
+        <button type="button" class="btn" onclick="addPick()">Add to input</button>
+      </div>
+      <div id="pick-preview"></div>
+      <details class="message-box" {{ 'open' if try_page }}><summary>Or paste an email</summary>
+        <textarea id="mail-text" rows="6" placeholder="From: Anna Schulz &lt;a.schulz@uni.example&gt;&#10;Date: Mon, 23 Nov 2026 09:12:00 +0100&#10;Subject: Demo request&#10;&#10;Dear bloxberg team, ..."></textarea>
+        <button type="button" class="btn" onclick="addEmail()">Put the email into the input</button>
+      </details>
+      {% if has_messages %}
+      <details class="message-box" {{ 'open' if not original_id and not try_page }}><summary>Or paste a message (chat)</summary>
+        <label>Channel <input id="msg-channel" value="mattermost" size="12"></label>
+        <textarea id="msg-text" rows="4" placeholder="Priya Nair  18.11.2026, 10:30&#10;Update: Riga fällt bei mir doch aus, sorry!"></textarea>
+        <button type="button" class="btn" onclick="addMessage()">Put the message into the input</button>
+      </details>
+      {% endif %}
+      <label>Input (JSON) <textarea name="input" id="input" rows="8" spellcheck="false">{{ raw.input }}</textarea></label>
+      <p class="muted small">The picker and the paste boxes write this for you. A key that ends in <code>_file</code>
+        is a path in the use case folder: the runner adds the file text for the agent (<code>email_file</code> →
+        <code>email</code>; a second email is <code>email_2_file</code>). A message is
+        <code>{"channel": "mattermost", "message": "..."}</code>.</p>
+<script>
+const PICKS = {{ picks|tojson }};
+
+function inputObj() {
+  try { return JSON.parse(document.getElementById("input").value || "{}"); }
+  catch (e) { alert("The input box has no valid JSON. Fix it first (names and texts need double quotes \")."); return null; }
+}
+function setInput(obj, date) {
+  const box = document.getElementById("input");
+  box.value = JSON.stringify(obj, null, 2);
+  const today = document.getElementById("today");
+  if (date && !today.value) today.value = date;  // the agent's "today" = the day of the email or message
+  document.getElementById("pick-preview").innerHTML = "";
+  htmx.ajax("POST", "/uc/{{ uc }}/previews", {target: "#preview", values: {input: box.value}});
+}
+function showPick() {
+  const p = PICKS[document.getElementById("file-pick").value], out = document.getElementById("pick-preview");
+  if (!p) { out.innerHTML = ""; return; }
+  if (p.kind === "message") {
+    const pre = document.createElement("pre"); pre.className = "mail-body"; pre.textContent = p.text;
+    out.replaceChildren(pre);
+  } else htmx.ajax("GET", "/uc/{{ uc }}/file?path=" + encodeURIComponent(p.path), {target: "#pick-preview"});
+}
+function addPick() {
+  const p = PICKS[document.getElementById("file-pick").value], obj = inputObj();
+  if (!p || !obj) return;
+  if (p.kind === "message") { obj.channel = p.channel; obj.message = p.text; return setInput(obj, p.date); }
+  // A file: data/emails/06.eml -> "email_file". A second one gets a number: email_2_file, email_3_file, ...
+  const name = p.path.startsWith("data/emails/") ? "email" : p.path.split("/").pop().replace(/\.[^.]*$/, "").replace(/\W+/g, "_");
+  if (Object.values(obj).includes(p.path)) return;  // already in the input
+  let key = name + "_file";
+  for (let n = 2; key in obj; n++) key = name + "_" + n + "_file";
+  obj[key] = p.path;
+  setInput(obj, p.date);
+}
+function addMessage() {
+  const text = document.getElementById("msg-text").value.trim(), obj = inputObj();
+  if (!text || !obj) return;
+  obj.channel = document.getElementById("msg-channel").value.trim() || "mattermost";
+  obj.message = text;
+  const d = text.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);  // "18.11.2026" -> 2026-11-18
+  setInput(obj, d ? `${d[3]}-${d[2].padStart(2, "0")}-${d[1].padStart(2, "0")}` : "");
+}
+function addEmail() {
+  const text = document.getElementById("mail-text").value.trim(), obj = inputObj();
+  if (!text || !obj) return;
+  delete obj.email_file;  // a file would win over the pasted text
+  obj.email = text;
+  // The agent's "today" = the Date line of the email: "Date: Mon, 23 Nov 2026 09:12" -> 2026-11-23.
+  const MONTHS = "janfebmaraprmayjunjulaugsepoctnovdec";
+  const d = text.match(/^Date:.*?(\d{1,2}) ([A-Za-z]{3})\w* (\d{4})/mi), m = d ? MONTHS.indexOf(d[2].toLowerCase()) / 3 + 1 : 0;
+  setInput(obj, Number.isInteger(m) && m >= 1 ? `${d[3]}-${String(m).padStart(2, "0")}-${d[1].padStart(2, "0")}` : "");
+}
+</script>

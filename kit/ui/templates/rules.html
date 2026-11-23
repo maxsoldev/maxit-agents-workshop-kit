@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Rules · {{ uc|uc_name }}{% endblock %}
+{% block main %}
+<h1>The owner's rules <span class="muted">· {{ uc|uc_name }}</span></h1>
+<p class="muted">The agents read these files at each case (tool <code>rules_get</code>), on every engine. Change a
+  rule here, save, then <a href="/uc/{{ uc }}/run">run the eval</a> and compare: the score shows if the agent
+  follows the new rule. The categories, flags, routes and status words live only here, so you can add one with
+  no code change.</p>
+{% if not files %}<div class="alert">No rule files: <code>usecases/{{ uc }}/data/*.md</code> is empty.</div>{% else %}
+<div class="rules">
+  <nav class="rule-files">
+    {% for f in files %}<a href="/uc/{{ uc }}/rules?name={{ f|urlencode }}" class="{{ 'on' if f == rule }}">{{ f }}</a>{% endfor %}
+  </nav>
+  <div class="rule-edit">
+    <div class="rule-bar">
+      <code>usecases/{{ uc }}/data/{{ rule }}</code>
+      <span id="rule-state" class="muted small">In sync with the file</span>
+      <span class="grow"></span>
+      <button type="button" class="btn" id="rule-view" onclick="togglePreview()">Preview</button>
+      <button type="button" class="btn primary" id="rule-save" onclick="saveRule(false)" disabled>Save</button>
+    </div>
+    <div id="rule-conflict" class="banner" hidden>
+      <span id="rule-conflict-text"></span>
+      <button type="button" class="btn" onclick="loadDisk()">Load the file (drop my edits)</button>
+      <button type="button" class="btn" onclick="saveRule(true)">Save mine over it</button>
+    </div>
+    <textarea id="rule-text" spellcheck="true" aria-label="{{ rule }}">{{ text }}</textarea>
+    <div id="rule-preview" class="doc" hidden></div>
+    <p class="muted small">Markdown: <code>#</code> a heading, <code>**bold**</code>, <code>- </code> a list item,
+      <code>| a | b |</code> a table row. Ctrl+S (⌘S) saves. Edits in the file on disk (by a developer or Claude Code)
+      show here within 2 s.</p>
+  </div>
+</div>
+<script>
+// Two-way sync with the file on disk. The page keeps the version (hash) it loaded:
+// save writes only if the disk still has that version; every 2 s it asks for the disk version.
+const UC = {{ uc|tojson }}, NAME = {{ rule|tojson }};
+const box = document.getElementById("rule-text");
+let version = {{ version|tojson }}, saved = box.value, disk = null;
+
+const dirty = () => box.value !== saved;
+function state(text) { document.getElementById("rule-state").textContent = text; }
+function now() { return new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", second: "2-digit"}); }
+function refresh() {
+  document.getElementById("rule-save").disabled = !dirty();
+  if (dirty()) state("Not saved");
+}
+function conflict(text) {
+  document.getElementById("rule-conflict-text").textContent = text;
+  document.getElementById("rule-conflict").hidden = !text;
+}
+box.addEventListener("input", refresh);
+
+async function saveRule(force) {
+  const body = new URLSearchParams({name: NAME, text: box.value, version, force: force ? "1" : ""});
+  const r = await fetch(`/uc/${UC}/rules/save`, {method: "POST", body});
+  const j = await r.json();
+  if (j.ok) {
+    version = j.version; saved = box.value; disk = null;
+    conflict(""); refresh(); state("Saved " + now());
+  } else {
+    conflict(j.error + " Load it, or save yours over it.");
+  }
+}
+function loadDisk() {
+  if (disk === null) return location.reload();
+  box.value = saved = disk.text; version = disk.version; disk = null;
+  conflict(""); refresh(); state("Loaded from the file " + now());
+}
+async function poll() {
+  let j;
+  try {
+    const r = await fetch(`/uc/${UC}/rules/file?name=${encodeURIComponent(NAME)}`);
+    if (!r.ok) return state(r.status === 404 ? "The file is not on disk any more" : "Cannot read the file");
+    j = await r.json();
+  } catch (e) { return state("The kit does not answer (is make serve running?)"); }
+  if (j.version === version) return;
+  if (!dirty()) {
+    box.value = saved = j.text; version = j.version;
+    state("Updated from the file " + now());
+    if (!document.getElementById("rule-preview").hidden) preview();
+  } else if (disk === null || disk.version !== j.version) {
+    disk = j;
+    conflict("The file changed on disk, and you have edits that are not saved.");
+  }
+}
+setInterval(poll, 2000);
+
+function preview() {
+  htmx.ajax("POST", `/uc/${UC}/rules/preview`, {target: "#rule-preview", values: {text: box.value}});
+}
+function togglePreview() {
+  const pv = document.getElementById("rule-preview"), on = pv.hidden;
+  pv.hidden = !on; box.hidden = on;
+  document.getElementById("rule-view").textContent = on ? "Edit" : "Preview";
+  if (on) preview();
+}
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); if (dirty()) saveRule(false); }
+});
+window.addEventListener("beforeunload", (e) => { if (dirty()) e.preventDefault(); });
+</script>
+{% endif %}
+{% endblock %}
