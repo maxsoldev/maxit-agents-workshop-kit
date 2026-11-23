@@ -77,18 +77,21 @@ def _text(value) -> str:
     return (value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)).strip().lower()
 
 
-def _item_matches(item, where: dict, contains: dict) -> bool:
-    """`any` check: every `where` key equals its value, every `contains` key has its value as a substring.
-    Keys can be dotted paths; values are compared as text, case-insensitive."""
-    for key, want in where.items():
+def _item_misses(item, where: dict, contains: dict) -> list[str]:
+    """`any` check: the keys of one item that do not match (empty list = the item matches).
+    Text values: case-insensitive "contains" ("Elena" matches "Elena Popescu"), in `where` too.
+    Other values (numbers, true/false) in `where` must be equal. Keys can be dotted paths."""
+    misses = []
+    for key, want in {**where, **contains}.items():
         got = get_field(item, key)
-        if got is MISSING or _text(got) != _text(want):
-            return False
-    for key, want in contains.items():
-        got = get_field(item, key)
-        if got is MISSING or _text(want) not in _text(got):
-            return False
-    return True
+        if got is MISSING:
+            misses.append(f"`{key}` is missing")
+            continue
+        exact = key in where and not isinstance(want, str) and key not in contains
+        ok = _text(got) == _text(want) if exact else _text(want) in _text(got)
+        if not ok:
+            misses.append(f"`{key}` is {short(json.dumps(got, ensure_ascii=False))}")
+    return misses
 
 
 def run_check(check: dict, output, expected: dict, case_input: dict, tool_calls: list | None = None) -> dict:
@@ -132,11 +135,16 @@ def run_check(check: dict, output, expected: dict, case_input: dict, tool_calls:
         if not isinstance(got, list):
             return result(kind, field, False, f"`{field}` is not a list: {short(got)}")
         where, contains = check.get("where") or {}, check.get("contains") or {}
-        hits = [i for i, item in enumerate(got) if _item_matches(item, where, contains)]
-        want = short({**where, **{k: f"~{v}" for k, v in contains.items()}})
+        misses = [_item_misses(item, where, contains) for item in got]
+        want = short({**where, **{k: f"~{v}" for k, v in contains.items()}}, 200)
+        hits = [i for i, m in enumerate(misses) if not m]
         if hits:
             return result(kind, field, True, f"item {hits[0] + 1} of {len(got)} matches {want}")  # 1 = the first
-        return result(kind, field, False, f"no item of {len(got)} matches {want}")
+        if not got:
+            return result(kind, field, False, f"`{field}` is empty, so no item matches {want}")
+        best = min(range(len(got)), key=lambda i: len(misses[i]))  # the item that is closest
+        return result(kind, field, False, f"no item of {len(got)} matches {want}; closest is item {best + 1}: "
+                                          + ", ".join(misses[best]))
     if kind == "judge":
         minimum = check.get("min", 4)
         try:

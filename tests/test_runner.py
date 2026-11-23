@@ -143,7 +143,13 @@ def test_count_and_any_checks():
     assert run({"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "heidelberg"}})["passed"]
     assert run({"type": "any", "field": "tasks", "where": {"who.name": "elena"}})["passed"]
     miss = run({"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "Riga"}})
-    assert not miss["passed"] and "no item of 2" in miss["reason"]
+    assert not miss["passed"] and miss["reason"] == ('no item of 2 matches {"kind": "trip", "event": "~Riga"}; '
+                                                     'closest is item 1: `event` is "E-Science-Tage, Heidelberg"')
+    out["tasks"][1]["who"]["name"] = "Elena Popescu"  # `where` text = contains, case-insensitive
+    assert run({"type": "any", "field": "tasks", "where": {"who.name": "elena", "kind": "LEAVE"}})["passed"]
+    out["tasks"][0]["n"] = 12
+    assert not run({"type": "any", "field": "tasks", "where": {"n": 1}})["passed"]  # numbers: equal
+    assert "`n` is missing" in run({"type": "any", "field": "tasks", "where": {"n": 1, "kind": "leave"}})["reason"]
     assert cases.validate_case({"id": "a", "checks": [{"type": "count", "field": "tasks", "min": 1},
                                                       {"type": "any", "field": "tasks", "where": {"k": "v"}}]}) == []
     errors = cases.validate_case({"id": "a", "checks": [{"type": "count", "field": "t"},

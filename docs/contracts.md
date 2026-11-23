@@ -59,7 +59,7 @@ usecases/<uc>/
 | `contains` | `value` is in `result[field]` (substring for text, member for a list); case-insensitive for text | `value` |
 | `not_contains` | the opposite of `contains`; also passes when the field is missing or empty | `value` |
 | `count` | `result[field]` is a list, and its length is `equals` / at least `min` / at most `max` | one or more of `equals`, `min`, `max` (whole numbers) |
-| `any` | `result[field]` is a list of objects, and one item matches all of `where` (equal as text, case-insensitive) and all of `contains` (substring, case-insensitive); keys can be dotted paths in the item | `where` and/or `contains`, e.g. `{"where": {"kind": "trip"}, "contains": {"event": "Riga"}}` |
+| `any` | `result[field]` is a list of objects, and one item matches all of `where` and all of `contains`. Text values match as case-insensitive substring ("Elena" matches "Elena Popescu"), in `where` too; numbers and true/false in `where` must be equal. Keys can be dotted paths in the item. On a fail the reason names the fields of the closest item that do not match | `where` and/or `contains`, e.g. `{"where": {"kind": "trip"}, "contains": {"event": "Riga"}}` |
 | `judge` | an OpenAI model (`KIT_JUDGE_MODEL`) scores `result[field]` 1–5 against `rubric`, given the case input and the engine's tool calls (`meta.tool_calls`, a few KB; facts from tool results are allowed); pass ≥ `min` | `rubric`, `min` (default 4) |
 
 The schema check (§4) always runs first. A case passes when the schema check and all its checks pass.
