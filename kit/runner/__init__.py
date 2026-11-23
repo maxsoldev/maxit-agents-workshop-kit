@@ -181,7 +181,10 @@ def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=No
 
     awake = _keep_awake()
     try:
-        with ThreadPoolExecutor(max_workers=2 if engine == "claude" else 4) as pool:
+        workers = config.settings().parallel
+        if engine == "claude":
+            workers = min(workers, 4)  # each claude -p is a Node process on the user's subscription
+        with ThreadPoolExecutor(max_workers=workers) as pool:
             run["cases"] = list(pool.map(one, cases))
         try:
             engines.with_deadline(tracing.flush, 30)  # a slow Langfuse must not hold the run

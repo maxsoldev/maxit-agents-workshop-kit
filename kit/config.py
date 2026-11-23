@@ -59,6 +59,7 @@ class Settings:
     trains_url: str  # our MOTIS; empty = use the fallback only
     trains_fallback_url: str
     engines: tuple[str, ...]  # KIT_ENGINES: the engines this team uses (default all); setup and check skip the rest
+    parallel: int  # KIT_PARALLEL: cases at the same time in one eval (claude: at most 4, it uses a subscription)
 
     @property
     def tools_url(self) -> str:
@@ -108,6 +109,7 @@ def settings() -> Settings:
         trains_url=_env("TRAINS_URL").rstrip("/"),
         trains_fallback_url=_env("TRAINS_FALLBACK_URL", "https://api.transitous.org").rstrip("/"),
         engines=parse_engines(_env("KIT_ENGINES")),
+        parallel=max(1, int(_env("KIT_PARALLEL", "8") or "8")),
     )
 
 
