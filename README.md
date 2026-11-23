@@ -43,7 +43,7 @@ proposes, a person decides.
 ## Repo map
 
 ```text
-CLAUDE.md  .claude/skills/ for Claude Code at the repo root: it builds and evals the agents with you
+AGENTS.md  .claude/skills/ for your coding agent at the repo root (CLAUDE.md points to AGENTS.md)
 Makefile                   make up · setup · serve · check · eval · run-case · compare · n8n-push · n8n-pull · down · test · lint
 .env.example               settings template: copy to .env
 usecases/<uc>/             YOUR TEAM OWNS THIS FOLDER
