@@ -23,7 +23,8 @@ Your browser, Claude Code and the kit need more on top of that.
 | 12 GB | This works. Close other heavy apps. |
 | 8 GB | Too little for local Langfuse. Set `LANGFUSE=off` or `LANGFUSE=hosted` in `.env` (see "Langfuse" below). |
 
-Docker Desktop → Settings → Resources: set Memory to **6 GB or more** (3 GB with `LANGFUSE=off`).
+Docker Desktop → Settings → Resources: set Memory to **8 GB** on a 16 GB laptop, and to 6 GB at least
+(3 GB with `LANGFUSE=off`). Claude Code and the kit UI run outside Docker, so they do not count here.
 
 - **Check:** `docker compose version` prints a version (v2.20 or newer).
 - **If it goes wrong:** on Windows, use WSL 2 and run everything inside WSL. If your laptop cannot run Docker,
