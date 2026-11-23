@@ -10,6 +10,7 @@
 <body>
 <header class="top">
   <a class="brand" href="/">MaxIT agent kit</a>
+  <nav class="guide"><a href="/docs" class="{{ 'on' if request.url.path.startswith('/docs') }}">Guide</a></nav>
   <nav class="ucs">
     {% for u in usecases %}<a href="/uc/{{ u }}/cases" class="{{ 'on' if u == uc }}">{{ u }}</a>{% endfor %}
   </nav>
@@ -24,7 +25,6 @@
   <nav class="ext">
     <a href="{{ settings.n8n_url }}" target="_blank">n8n ↗</a>
     {% if langfuse_link %}<a href="{{ settings.langfuse_host }}" target="_blank">Langfuse ↗</a>{% endif %}
-    <a href="/docs">Docs</a>
   </nav>
 </header>
 <main>

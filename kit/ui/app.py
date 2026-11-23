@@ -725,7 +725,7 @@ MARKDOWN = MarkdownIt("commonmark", {"html": False}).enable("table")  # no raw H
 
 
 def render_doc(name: str, text: str, files: dict) -> Markup:
-    """Markdown to HTML. A link to another doc (relative to this one) opens it on the Docs page."""
+    """Markdown to HTML. A link to another doc (relative to this one) opens it on the Guide page."""
     by_path = {p.resolve(): k for k, (_, p) in files.items()}
     tokens = MARKDOWN.parse(text)
     for tok in tokens:

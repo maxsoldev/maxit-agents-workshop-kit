@@ -311,6 +311,15 @@ def test_docs_page(client):
     assert 'href="/docs?name=SETUP.md"' in client.get("/docs?name=README.md").text  # a link to another doc
 
 
+def test_guide_is_the_first_header_item(client):
+    """The top header: brand, then Guide (the /docs page), then the use cases. No "Docs" label."""
+    for url in ("/uc/demo/cases", "/docs"):
+        header = client.get(url).text.split("<header", 1)[1].split("</header>", 1)[0]
+        assert header.index('href="/docs"') < header.index('href="/uc/demo/cases"')
+        assert ">Guide</a>" in header and ">Docs<" not in header
+    assert "<title>Guide ·" in client.get("/docs").text
+
+
 def test_docs_names_order_and_file_path(client, tmp_path, monkeypatch):
     root = tmp_path / "repo"
     (root / "docs").mkdir(parents=True)

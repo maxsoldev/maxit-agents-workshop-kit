@@ -29,7 +29,7 @@ h3 { font-size: 1rem; margin: 0.6rem 0 0.2rem; }
 .top a.on { color: #fff; background: #0b5cad; }
 .top .brand { color: #fff; font-weight: 700; padding-left: 0; }
 .top nav { display: flex; gap: 0.25rem; }
-.top .ucs { padding-right: 1rem; border-right: 1px solid #57606a; }
+.top .guide, .top .ucs { padding-right: 1rem; border-right: 1px solid #57606a; }
 .top .ext { margin-left: auto; }
 
 /* buttons, forms */
