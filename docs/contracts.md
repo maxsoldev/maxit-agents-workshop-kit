@@ -149,5 +149,5 @@ adding a function. `kit/tools.py` exposes `serve()` (blocking) and `start_backgr
 | `contacts_lookup(query)` | matching contacts from `usecases/marketing/data/contacts.csv` |
 | `inbox_history(sender)` | earlier emails of that sender (from, date, subject, first 500 chars) |
 | `events_list(date_from, date_to)` | events from `usecases/travel/data/events.csv` |
-| `trains_search(from_place, to_place, date, arrive_by=None)` | up to 5 connections (MOTIS plan API: `TRAINS_URL`, fallback `TRAINS_FALLBACK_URL`) |
+| `trains_search(from_place, to_place, date, arrive_by=None, depart_after=None, modes="rail")` | up to 5 connections on that day, no prices (MOTIS plan API: `TRAINS_URL`, fallback `TRAINS_FALLBACK_URL`). `arrive_by`: the last ones that arrive before the time, latest first; `depart_after`: from that time on (default 06:00). `modes`: `rail` (trains and S-Bahn, no buses) or `all` |
 | `rules_get(usecase, name)` | the text of `usecases/<uc>/data/<name>.md` |

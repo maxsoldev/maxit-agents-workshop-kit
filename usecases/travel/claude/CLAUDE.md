@@ -25,7 +25,7 @@ You never book and never send anything.
 - `rules_get(usecase="travel", name=...)`: the owner's rules. Names: `travel_rules`, `priorities`, `team`,
   `message_templates`, `process`.
 - `events_list(date_from, date_to)`: the annual event overview (event, place, dates, deadlines).
-- `trains_search(from_place, to_place, date, arrive_by)`: train connections.
+- `trains_search(from_place, to_place, date, arrive_by or depart_after)`: train connections on one day (no prices).
 
 ## Safety
 

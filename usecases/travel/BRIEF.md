@@ -46,7 +46,7 @@ request; leave over Christmas and in April; a paper training request mentioned o
 |---|---|
 | `rules_get("travel", name)` | the text of `data/<name>.md` |
 | `events_list(date_from, date_to)` | events from the event overview |
-| `trains_search(from_place, to_place, date, arrive_by)` | up to 5 real train connections |
+| `trains_search(from_place, to_place, date, arrive_by / depart_after, modes)` | up to 5 real train connections on that day (times, trains, changes; **no prices**). `arrive_by="10:00"`: the last ones before 10:00. Trains only, unless `modes="all"` |
 
 No tool books or sends anything. To add a tool (e.g. hotels), add a function in `kit/tools.py`.
 

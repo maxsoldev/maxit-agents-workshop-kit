@@ -121,9 +121,38 @@ def test_trains_search_falls_back(monkeypatch):
     get, calls = fake_get(fail_hosts=("motis.local",))
     monkeypatch.setattr(trains.httpx, "get", get)
     monkeypatch.setenv("TRAINS_URL", "http://motis.local:8080")
-    r = tools.trains_search("München Hbf", "Heidelberg Hbf", "2026-12-07 08:00")
+    r = tools.trains_search("München Hbf", "Heidelberg Hbf", "2026-12-07 06:00")
     assert r["source"] == "https://api.transitous.org" and r["connections"]
     assert sum("motis.local" in u for u in calls) == 1  # one try, no retry loop
+
+
+def _it(start: str, end: str, name: str) -> dict:
+    return {"duration": 3600, "startTime": start, "endTime": end, "transfers": 0,
+            "legs": [{"mode": "HIGHSPEED_RAIL", "displayName": name, "from": {"name": "A"}, "to": {"name": "B"},
+                      "startTime": start, "endTime": end}]}
+
+
+def test_trains_search_filters_to_the_day_and_time(monkeypatch):
+    plan = {"itineraries": [_it("2026-12-07T21:00:00Z", "2026-12-07T23:00:00Z", "day before"),
+                            _it("2026-12-08T05:00:00Z", "2026-12-08T07:00:00Z", "early"),
+                            _it("2026-12-08T06:00:00Z", "2026-12-08T08:30:00Z", "late"),
+                            _it("2026-12-08T08:00:00Z", "2026-12-08T09:30:00Z", "too late")]}
+    seen = []
+
+    def get(url, params=None, headers=None, timeout=None):
+        seen.append(params)
+        body = [{"id": "S1", "name": params["text"]}] if "geocode" in url else plan
+        return httpx.Response(200, json=body, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(trains.httpx, "get", get)
+    monkeypatch.setenv("TRAINS_URL", "")
+    r = tools.trains_search("A", "B", "2026-12-08", arrive_by="10:00")
+    assert [c["trains"][0] for c in r["connections"]] == ["late", "early"]  # before 10:00 local, latest first
+    assert seen[-1]["arriveBy"] == "true" and seen[-1]["transitModes"] == "RAIL,SUBURBAN"
+    r = tools.trains_search("A", "B", "2026-12-08", depart_after="07:00", modes="all")
+    assert [c["trains"][0] for c in r["connections"]] == ["late", "too late"]
+    assert seen[-1]["transitModes"] == "TRANSIT"
+    assert "error" in tools.trains_search("A", "B", "2026-12-08", arrive_by="10:00", depart_after="07:00")
 
 
 def test_trains_search_all_fail_and_bad_input(monkeypatch):

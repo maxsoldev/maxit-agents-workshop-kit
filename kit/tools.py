@@ -118,27 +118,34 @@ def events_list(date_from: str | None = None, date_to: str | None = None) -> dic
 
 
 @mcp.tool()
-def trains_search(from_place: str, to_place: str, date: str, arrive_by: str | None = None) -> dict:
-    """Train connections between two places on one day (Germany and Europe), up to 5.
+def trains_search(from_place: str, to_place: str, date: str, arrive_by: str | None = None,
+                  depart_after: str | None = None, modes: str = "rail") -> dict:
+    """Train connections between two places on one day (Germany and Europe), up to 5. No prices.
 
     `from_place`, `to_place`: station or city, e.g. "München Hbf", "Heidelberg Hbf".
-    `date`: YYYY-MM-DD, or "YYYY-MM-DD HH:MM" to leave after that time (default 06:00).
-    `arrive_by`: optional "HH:MM": arrive by then. Times are local (Europe/Berlin).
-    Each connection: departure, arrival, duration, changes, trains, legs; `source` is the timetable server.
+    `date`: the day, YYYY-MM-DD. Times are local (Europe/Berlin), "HH:MM".
+    `arrive_by`: arrive by then; you get the connections that arrive last before it (the latest first).
+    `depart_after`: leave at or after then (default 06:00); the earliest first. Give one of the two.
+    `modes`: "rail" (default: trains and S-Bahn, no buses) or "all" (also buses and coaches).
+    Only connections that leave and arrive on that day. Each one: departure, arrival, duration, changes, trains, legs.
+    Examples: to a 10:00 meeting: trains_search("München Hbf", "Berlin Hbf", "2026-12-08", arrive_by="10:00").
+    Travel the evening before: trains_search("München Hbf", "Heidelberg Hbf", "2027-03-02", depart_after="16:00").
     """
     if not (from_place or "").strip() or not (to_place or "").strip():
         return _error("from_place and to_place are needed", "Example: 'München Hbf', 'Heidelberg Hbf'.")
+    if arrive_by and depart_after:
+        return _error("give arrive_by or depart_after, not both", "Example: arrive_by='10:00'.")
     text = (date or "").strip().replace("T", " ")
     try:
         day = datetime.strptime(text[:10], "%Y-%m-%d")
-        hhmm = arrive_by or (text[11:16] if len(text) >= 16 else "06:00")
+        hhmm = arrive_by or depart_after or (text[11:16] if len(text) >= 16 else "06:00")  # "YYYY-MM-DD HH:MM" too
         when = datetime.combine(day.date(), datetime.strptime(hhmm.strip(), "%H:%M").time(), trains.TZ)
     except ValueError:
-        return _error(f"bad date or time: {date!r}, arrive_by={arrive_by!r}",
-                      "Use date YYYY-MM-DD and arrive_by HH:MM, e.g. '2026-12-07', '10:00'.")
+        return _error(f"bad date or time: {date!r}, arrive_by={arrive_by!r}, depart_after={depart_after!r}",
+                      "Use date YYYY-MM-DD and times HH:MM, e.g. '2026-12-07', arrive_by='10:00'.")
     s = config.settings()
     servers = list(dict.fromkeys(u for u in (s.trains_url, s.trains_fallback_url) if u))
-    return trains.search(servers, from_place.strip(), to_place.strip(), when, arrive_by is not None)
+    return trains.search(servers, from_place.strip(), to_place.strip(), when, bool(arrive_by), modes or "rail")
 
 
 # ---------- both ----------
