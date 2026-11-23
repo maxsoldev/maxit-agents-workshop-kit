@@ -3,6 +3,11 @@
 Two parts: **before the day** (at home, about 30 min, mostly downloads) and **on the day** (about 15 min).
 Each step has a **Check**. If the check fails, read **If it goes wrong**, or ask your trainer.
 
+> **If you only use the UI** (business people, no terminal): you need no setup of your own. A developer in
+> your team does the steps below on one laptop and runs `make serve`. Then open http://localhost:5700 in the
+> browser on that laptop: write cases (**Cases → Add case**), run evals (**Run**) and read the results
+> (**Runs**). What you say about the service goes into `BRIEF.md`; the developer types it.
+
 ## Before the day
 
 ### Step 1. Docker

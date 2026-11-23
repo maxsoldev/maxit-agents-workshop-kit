@@ -62,4 +62,5 @@ Simple emails (newsletter, spam) stop after step 1; for known contacts, step 2 o
 - Contact sheet complete and up to date
 
 ## Sample data
-`marketing_emails/` (23 synthetic emails, .eml) and `contacts.xlsx` (synthetic contact sheet). All names, organisations and addresses are fictitious.
+`data/emails/` (23 synthetic emails, .eml) and `data/contacts.csv` (synthetic contact sheet, tool
+`contacts_lookup`). All names, organisations and addresses are fictitious.

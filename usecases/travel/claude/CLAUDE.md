@@ -38,7 +38,7 @@ Answer with **only the result JSON**, no other text:
 
 ```json
 {"tasks": [{"kind": "trip", "person": "Jonas Meier", "event": "E-Science-Tage, Heidelberg",
-            "date": "2027-03-02", "status": "ready_to_book"}],
+            "date": "2027-03-02", "status": "waiting_for_request"}],
  "reasons": "..."}
 ```
 

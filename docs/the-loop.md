@@ -6,7 +6,8 @@ then measure every change.**
 ## The steps
 
 1. **Write the cases.** Each case is one input, the expected answer, and the checks (`cases.jsonl`).
-   Start with 5: 2 easy ones, 2 tricky ones, 1 that must never go wrong (a safety case).
+   Start with 5: 2 easy ones, 2 tricky ones, 1 that must never go wrong (a safety case). If you changed
+   `output.schema.json`, the starter cases check old fields: change them to the new fields, or delete them.
 2. **Run the eval** on the scaffold. It fails. Good: now you see the gap.
 3. **Read the failures.** Open each failed case: the output, the reason of each check, the trace.
    Ask: is the agent wrong, or is the case wrong?
@@ -34,7 +35,13 @@ then measure every change.**
   prints what the agent gets.
 - **Do not fit the cases.** A rule like "if the sender is Lara Venn, say unverified" makes the case pass and
   the agent worse. Write rules that hold for the next email too.
-- **Run it twice** before you trust a small change. Models are not fully deterministic.
+- **Run it twice** before you trust a small change. Models are not fully deterministic. This is true for the
+  `judge` too (the kit asks for temperature 0, but many models do not allow it): a judge check can pass on one
+  run and fail on the next with no change. Trust a judge result only when it is the same twice.
+- **How to read a trace (Langfuse, for everyone):** open the case trace from the results page. Read the
+  `tool:<name>` lines from top to bottom: each one is one thing the agent looked up (`tool:rules_get` with
+  `"name": "priorities"` = "it read your priorities"), with what it got back. Skip the technical lines
+  (`claude_code.llm_request` = one model call, `ToolSearch`, `blocked_on_user`): they are not your rules.
 - **Keep 3 to 5 cases aside.** After many loops, your cases get easy: the agent is tuned to them. Mark a few
   new cases as **holdout** (tick in the case form, or `"holdout": true`). The eval skips them; run them at the
   end (`make eval ... HOLDOUT=1`, or the tick on the Run page) to see if the agent works on cases it never saw.
