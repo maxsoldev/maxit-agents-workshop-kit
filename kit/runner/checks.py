@@ -29,7 +29,8 @@ def short(value, limit: int = 60) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
-def result(kind: str, field: str, passed: bool, reason: str) -> dict:
+def result(kind: str, field: str, passed: bool | None, reason: str) -> dict:
+    """passed None (with "skipped": True) = the check could not run; it does not count."""
     return {"type": kind, "field": field, "passed": passed, "reason": reason}
 
 
@@ -115,8 +116,8 @@ def run_check(check: dict, output, expected: dict, case_input: dict) -> dict:
         minimum = check.get("min", 4)
         try:
             score, reason = with_deadline(lambda: judge.score(got, check.get("rubric", ""), case_input), JUDGE_DEADLINE_S)
-        except Exception as e:  # the judge must not stop the run
-            return result(kind, field, False, f"judge failed: {e}")
+        except Exception as e:  # no key, API error, timeout: the judge did not run, so it neither passes nor fails
+            return {**result(kind, field, None, f"judge skipped: {e}"), "skipped": True}
         return result(kind, field, score >= minimum, f"score {score}/5 (min {minimum}): {reason}")
     return result(kind, field, False, f"unknown check type {kind!r}")
 

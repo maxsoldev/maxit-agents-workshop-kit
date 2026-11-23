@@ -64,7 +64,7 @@ def run_case(uc: str, engine: str, case: dict, schema: dict, run_id: str, run_na
             res.update(output=output, error=error, meta=meta)
             res["n8n_execution_url"] = meta.pop("execution_url", None)
             res["checks"] = checks.run_checks(case, output, schema, inp["input"])
-            res["passed"] = error is None and all(c["passed"] for c in res["checks"])
+            res["passed"] = error is None and all(c["passed"] is not False for c in res["checks"])  # skipped ok
             trace.finish(output, error, res["checks"], res["passed"])
     except Exception as e:
         res["error"] = f"{type(e).__name__}: {e}"
@@ -74,13 +74,19 @@ def run_case(uc: str, engine: str, case: dict, schema: dict, run_id: str, run_na
 
 
 def summarize(case_results: list[dict]) -> dict:
+    """Counts per check type; skipped checks (a judge that could not run) are counted apart."""
     by_check: dict[str, list[int]] = {}
+    skipped: dict[str, int] = {}
     for r in case_results:
         for c in r["checks"]:
+            if c.get("skipped"):
+                skipped[c["type"]] = skipped.get(c["type"], 0) + 1
+                continue
             counts = by_check.setdefault(c["type"], [0, 0])
-            counts[0] += c["passed"]
+            counts[0] += c["passed"] is True
             counts[1] += 1
-    return {"cases": len(case_results), "passed": sum(r["passed"] for r in case_results), "by_check": by_check}
+    return {"cases": len(case_results), "passed": sum(r["passed"] for r in case_results), "by_check": by_check,
+            "skipped": skipped}
 
 
 def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=None) -> dict:
@@ -134,7 +140,7 @@ def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=No
 def _check_count(case: dict | None) -> tuple[int, int]:
     if not case:
         return 0, 0
-    return sum(c["passed"] for c in case["checks"]), len(case["checks"])
+    return sum(c["passed"] is True for c in case["checks"]), len(case["checks"])
 
 
 def compare(run_id_a: str, run_id_b: str) -> dict:

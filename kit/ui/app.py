@@ -390,7 +390,8 @@ def results_page(request: Request, run_id: str, vs: str = ""):
     changes = compare_cases(run, other)
     counts = {k: sum(1 for v in changes.values() if v == k) for k in ("better", "worse", "same", "new")}
     for c in run.get("cases", []):
-        c["_first_fail"] = next((ch.get("reason") for ch in c.get("checks", []) if not ch.get("passed")), c.get("error"))
+        c["_first_fail"] = c.get("error") or next(
+            (ch.get("reason") for ch in c.get("checks", []) if ch.get("passed") is False), None)
         c["_files"] = file_previews(uc, c.get("input")) if uc in usecases() else []
     return page(request, "results.html", uc if uc in usecases() else None, run=run, others=others, vs=vs,
                 other=other, changes=changes, counts=counts)

@@ -134,11 +134,15 @@ def test_count_and_any_checks():
     assert len(errors) == 2
 
 
-def test_judge_without_key_fails_clearly(monkeypatch):
-    monkeypatch.undo()  # real judge.score
-    monkeypatch.setenv("OPENAI_API_KEY", "")
+def test_judge_without_key_is_skipped(monkeypatch, capsys):
+    monkeypatch.setattr(judge, "score", lambda *a: (_ for _ in ()).throw(RuntimeError("no OPENAI_API_KEY")))
     r = checks.run_check({"type": "judge", "field": "r", "rubric": "x"}, {"r": "hi"}, {}, {})
-    assert not r["passed"] and "OPENAI_API_KEY" in r["reason"]
+    assert r["passed"] is None and r["skipped"] and "OPENAI_API_KEY" in r["reason"]
+    run = runner.run_eval("fake", "python", case_ids=["f01"])  # f01 has a judge check
+    assert run["cases"][0]["passed"] and run["summary"]["skipped"] == {"judge": 1}
+    assert "judge" not in run["summary"]["by_check"]
+    assert cli.main("fake", "python", ["f01"], "") == 0
+    assert "1 judge skipped" in capsys.readouterr().out
 
 
 def test_schema_check():

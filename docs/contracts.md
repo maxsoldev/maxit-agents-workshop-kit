@@ -55,6 +55,9 @@ usecases/<uc>/
 | `judge` | an OpenAI model (`KIT_JUDGE_MODEL`) scores `result[field]` 1–5 against `rubric`, given the case input; pass ≥ `min` | `rubric`, `min` (default 4) |
 
 The schema check (§4) always runs first. A case passes when the schema check and all its checks pass.
+A `judge` that cannot run (no key, API error, timeout) is **skipped**: `"passed": null, "skipped": true`, the
+reason says why. It does not count: the case passes or fails on its other checks, and the run summary counts it
+under `"skipped": {"judge": n}` (not in `by_check`).
 
 ## 4. Engine contract
 
@@ -95,7 +98,7 @@ Run file `runs/<run_id>.json`, `run_id` = `<YYYYmmdd-HHMMSS>-<uc>-<engine>`:
 
 ```json
 {"run_id": "...", "name": "...", "usecase": "marketing", "engine": "n8n", "started_at": "...", "ended_at": "...",
- "summary": {"cases": 5, "passed": 4, "by_check": {"equals": [4, 5], "judge": [3, 3]}},
+ "summary": {"cases": 5, "passed": 4, "by_check": {"equals": [4, 5], "judge": [3, 3]}, "skipped": {}},
  "cases": [{"id": "m06", "title": "...", "passed": false, "seconds": 3.2, "error": null,
             "input": {...}, "expected": {...}, "output": {...},
             "checks": [{"type": "equals", "field": "category", "passed": false, "reason": "got unverified_outreach, expected service_offer"}],

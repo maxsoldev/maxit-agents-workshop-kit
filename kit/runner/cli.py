@@ -36,13 +36,19 @@ def main(usecase: str, engine: str, case_ids: list[str] | None = None, name: str
         mark = "✓" if c["passed"] else "✗"
         line = f"{mark} {c['id']:<8} {c['title'][:50]:<50} {c['seconds']:>6.1f}s"
         if not c["passed"]:
-            first = c["error"] or next((_label(k) for k in c["checks"] if not k["passed"]), "")
+            first = c["error"] or next((_label(k) for k in c["checks"] if k["passed"] is False), "")
             line += "  " + " ".join(first.split())[:140]
             if c.get("n8n_execution_url"):
                 line += f"\n           n8n: {c['n8n_execution_url']}"
         print(line)
     s = run["summary"]
     by_check = "  ".join(f"{t} {p}/{n}" for t, (p, n) in s["by_check"].items())
-    print(f"\n{s['passed']}/{s['cases']} cases passed   {by_check}")
+    skipped = "  ".join(f"{n} {t} skipped" for t, n in s.get("skipped", {}).items())
+    print(f"\n{s['passed']}/{s['cases']} cases passed   {by_check}" + (f"   ({skipped})" if skipped else ""))
+    for c in run["cases"]:  # say once why the judge was skipped (for example: no key)
+        why = next((k["reason"] for k in c["checks"] if k.get("skipped")), None)
+        if why:
+            print(f"   {why}")
+            break
     print(f"Run file: runs/{run['run_id']}.json")
     return 0

@@ -546,7 +546,7 @@ def check() -> int:
                 continue
             reason = case.get("error") or "; ".join(
                 f"{c['type']} {c.get('field', '')}: {c.get('reason', '')}" for c in case.get("checks", [])
-                if not c.get("passed"))
+                if c.get("passed") is False)
             if case.get("error"):
                 bad += 1
                 print(f"FAIL  {label}: {reason}. Next: {NEXT_STEP[engine]}")

@@ -66,6 +66,8 @@ class CaseTrace(NoTrace):
             self.span.update(output=output if error is None else {"error": error, "output": output},
                              level="ERROR" if error else "DEFAULT")
             for c in checks:
+                if c.get("skipped"):
+                    continue
                 name = c["type"] + (f".{c['field']}" if c["field"] else "")
                 self.span.score_trace(name=name, value=1 if c["passed"] else 0, comment=c["reason"])
             self.span.score_trace(name="passed", value=1 if passed else 0)
