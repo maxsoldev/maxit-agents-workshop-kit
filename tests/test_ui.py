@@ -531,3 +531,18 @@ def test_start_page_opens_the_last_used_use_case(client):
     client.cookies.clear()
     client.cookies.set("kit_last_uc", "gone")  # a use case that is not there any more
     assert client.get("/", follow_redirects=False).headers["location"] == "/uc/demo/cases"
+
+
+def test_run_page_shows_only_running_or_newest_job(monkeypatch):
+    """Two finished runs (n8n, then python): the Run page shows only the newest; a running one wins."""
+    from kit.ui import app as ui
+
+    jobs = {
+        ("demo", "n8n"): {"engine": "n8n", "started": 1, "done": True},
+        ("demo", "python"): {"engine": "python", "started": 2, "done": True},
+        ("other", "claude"): {"engine": "claude", "started": 3, "done": False},
+    }
+    monkeypatch.setattr(ui, "JOBS", jobs)
+    assert list(ui.visible_jobs("demo")) == ["python"]
+    jobs[("demo", "n8n")]["done"] = False
+    assert list(ui.visible_jobs("demo")) == ["n8n"]

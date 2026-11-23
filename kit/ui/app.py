@@ -12,6 +12,7 @@ import importlib
 import json
 import re
 import threading
+import time
 from pathlib import Path
 from urllib.parse import quote
 
@@ -604,6 +605,7 @@ def start_job(
         job = {
             "engine": engine,
             "name": name or "",
+            "started": time.time(),
             "done": False,
             "error": None,
             "run_id": None,
@@ -631,6 +633,13 @@ def start_job(
     return None
 
 
+def visible_jobs(uc: str) -> dict:
+    """The Run page shows the runs still going, else only the newest finished one (older ones are on Runs)."""
+    jobs = sorted((j for (u, _), j in JOBS.items() if u == uc), key=lambda j: j.get("started", 0), reverse=True)
+    busy = [j for j in jobs if not j["done"]]
+    return {j["engine"]: j for j in (busy or jobs[:1])}
+
+
 def default_engine(uc: str) -> str:
     """The engine of the last run of this use case (not `make check`), else claude; only KIT_ENGINES."""
     used = config.settings().engines
@@ -645,7 +654,7 @@ def default_engine(uc: str) -> str:
 @app.get("/uc/{uc}/run", response_class=HTMLResponse)
 def run_page(request: Request, uc: str, engine: str = "", error: str = ""):
     cases, load_error = load_cases_safe(uc)
-    jobs = {e: JOBS[(uc, e)] for e in config.ALL_ENGINES if (uc, e) in JOBS}
+    jobs = visible_jobs(uc)
     run_engines = config.settings().run_engines
     warnings = [runner().n8n_warning(uc, e) for e in ("n8n", "n8n-agent") if e in run_engines]
     return page(
@@ -680,7 +689,7 @@ async def run_start(request: Request, uc: str):
 @app.get("/uc/{uc}/run/progress", response_class=HTMLResponse)
 def run_progress(request: Request, uc: str):
     """htmx partial, polled every second while a run is going."""
-    jobs = {e: JOBS[(uc, e)] for e in config.ALL_ENGINES if (uc, e) in JOBS}
+    jobs = visible_jobs(uc)
     return templates.TemplateResponse(request, "_progress.html", {"uc": uc, "jobs": jobs})
 
 
