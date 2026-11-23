@@ -295,6 +295,25 @@ def test_docs_page(client):
     assert 'href="/docs?name=SETUP.md"' in client.get("/docs?name=README.md").text  # a link to another doc
 
 
+def test_docs_names_order_and_file_path(client, tmp_path, monkeypatch):
+    root = tmp_path / "repo"
+    (root / "docs").mkdir(parents=True)
+    for f in ["README.md", "SETUP.md", "docs/tutorial.md", "docs/contracts.md", "docs/zz-new.md"]:
+        (root / f).write_text(f"# {f}\n", encoding="utf-8")
+    for uc in ["travel", "marketing", "demo"]:
+        (config.USECASES_DIR / uc / "data").mkdir(parents=True, exist_ok=True)
+        (config.USECASES_DIR / uc / "BRIEF.md").write_text(f"# {uc}\n", encoding="utf-8")
+    monkeypatch.setattr(config, "ROOT", root)
+    html = client.get("/docs").text
+    names = ["Overview", "Setup", "Tutorial", "Marketing brief", "Travel brief", "Demo brief"]
+    names += ["Infra and architecture", "zz-new.md"]  # a doc not in the list is still there, at the end
+    spots = [html.index(f">{n}</a>") for n in names]
+    assert spots == sorted(spots)
+    assert '<a href="/docs/raw?name=README.md"><code>README.md</code></a>' in html  # /docs opens Overview
+    assert "<code>usecases/travel/BRIEF.md</code>" in client.get("/docs?name=travel/BRIEF.md").text
+    assert client.get("/docs/raw?name=docs/zz-new.md").text == "# docs/zz-new.md\n"
+
+
 def test_start_page_opens_the_last_used_use_case(client):
     (config.USECASES_DIR / "zeta").mkdir()
     (config.USECASES_DIR / "zeta" / "cases.jsonl").write_text("", encoding="utf-8")

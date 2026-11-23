@@ -16,7 +16,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markdown_it import MarkdownIt
@@ -689,13 +689,34 @@ def results_page(request: Request, run_id: str, vs: str = ""):
 # ---------- docs ----------
 
 
-def doc_files() -> dict[str, Path]:
-    """Readable docs: README, docs/*.md and each use case BRIEF.md."""
+DOCS_FIRST = {
+    "README.md": "Overview",
+    "SETUP.md": "Setup",
+    "docs/day-plan.md": "Day plan",
+    "docs/the-loop.md": "AI engineering loop",
+    "docs/tutorial.md": "Tutorial",
+}
+DOCS_AFTER_BRIEFS = {"docs/contracts.md": "Infra and architecture", "docs/data-pack.md": "Data pack"}
+KNOWN_USECASES = ["marketing", "travel"]
+
+
+def doc_files() -> dict[str, tuple[str, Path]]:
+    """Docs in sidebar order: name -> (title, path). The name is the `?name=` in the URL.
+    A use case gets "<Uc> brief"; a docs/*.md not in the lists goes last, with its file name."""
     root = config.ROOT
-    found = {"README.md": root / "README.md", "SETUP.md": root / "SETUP.md"}
-    found.update({f"docs/{p.name}": p for p in sorted((root / "docs").glob("*.md"))})
-    found.update({f"{uc}/BRIEF.md": config.USECASES_DIR / uc / "BRIEF.md" for uc in usecases()})
-    return {k: v for k, v in found.items() if v.is_file()}
+    ucs = sorted(usecases(), key=lambda uc: (uc not in KNOWN_USECASES, uc))
+    found = {k: (t, root / k) for k, t in DOCS_FIRST.items()}
+    found.update({f"{uc}/BRIEF.md": (f"{uc.capitalize()} brief", config.USECASES_DIR / uc / "BRIEF.md") for uc in ucs})
+    found.update({k: (t, root / k) for k, t in DOCS_AFTER_BRIEFS.items()})
+    for p in sorted((root / "docs").glob("*.md")):
+        found.setdefault(f"docs/{p.name}", (p.name, p))
+    return {k: v for k, v in found.items() if v[1].is_file()}
+
+
+def doc_path(path: Path) -> str:
+    """The file path to show, e.g. `docs/tutorial.md` or `usecases/travel/BRIEF.md`."""
+    base = config.ROOT if path.is_relative_to(config.ROOT) else config.USECASES_DIR.parent
+    return str(path.relative_to(base))
 
 
 MARKDOWN = MarkdownIt("commonmark", {"html": False}).enable("table")  # no raw HTML: participants edit BRIEF.md
@@ -703,7 +724,7 @@ MARKDOWN = MarkdownIt("commonmark", {"html": False}).enable("table")  # no raw H
 
 def render_doc(name: str, text: str, files: dict) -> Markup:
     """Markdown to HTML. A link to another doc (relative to this one) opens it on the Docs page."""
-    by_path = {p.resolve(): k for k, p in files.items()}
+    by_path = {p.resolve(): k for k, (_, p) in files.items()}
     tokens = MARKDOWN.parse(text)
     for tok in tokens:
         for t in tok.children or []:
@@ -711,7 +732,7 @@ def render_doc(name: str, text: str, files: dict) -> Markup:
             path, _, anchor = href.partition("#")
             if not path or ":" in path or path.startswith("/") or name not in files:
                 continue
-            target = by_path.get((files[name].parent / path).resolve())
+            target = by_path.get((files[name][1].parent / path).resolve())
             if target:
                 t.attrSet("href", f"/docs?name={quote(target)}" + (f"#{anchor}" if anchor else ""))
     return Markup(MARKDOWN.renderer.render(tokens, MARKDOWN.options, {}))
@@ -721,8 +742,19 @@ def render_doc(name: str, text: str, files: dict) -> Markup:
 def docs_page(request: Request, name: str = ""):
     files = doc_files()
     name = name if name in files else next(iter(files), "")
-    text = files[name].read_text(encoding="utf-8") if name else "No docs found."
-    return page(request, "docs.html", None, files=list(files), doc=name, html=render_doc(name, text, files))
+    text = files[name][1].read_text(encoding="utf-8") if name else "No docs found."
+    nav = [(k, t) for k, (t, _) in files.items()]
+    path = doc_path(files[name][1]) if name else ""
+    return page(request, "docs.html", None, nav=nav, doc=name, path=path, html=render_doc(name, text, files))
+
+
+@app.get("/docs/raw", response_class=PlainTextResponse)
+def doc_raw(name: str):
+    """The doc as plain text, as it is in the file."""
+    files = doc_files()
+    if name not in files:
+        raise HTTPException(404, "no such doc")
+    return files[name][1].read_text(encoding="utf-8")
 
 
 def serve() -> int:

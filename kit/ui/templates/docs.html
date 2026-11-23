@@ -3,8 +3,11 @@
 {% block main %}
 <div class="docs">
   <nav class="doc-list">
-    {% for f in files %}<a href="/docs?name={{ f }}" class="{{ 'on' if f == doc }}">{{ f }}</a>{% endfor %}
+    {% for f, title in nav %}<a href="/docs?name={{ f }}" class="{{ 'on' if f == doc }}">{{ title }}</a>{% endfor %}
   </nav>
-  <article><div class="muted small">{{ doc }}</div><div class="doc">{{ html }}</div></article>
+  <article>
+    {% if path %}<div class="muted small">File: <a href="/docs/raw?name={{ doc }}"><code>{{ path }}</code></a></div>{% endif %}
+    <div class="doc">{{ html }}</div>
+  </article>
 </div>
 {% endblock %}
