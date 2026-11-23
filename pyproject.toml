@@ -14,6 +14,7 @@ dependencies = [
   "langfuse>=3.0",
   "jsonschema>=4.23",
   "python-dotenv>=1.0",
+  "markdown-it-py>=4.3.0",
 ]
 
 [project.scripts]

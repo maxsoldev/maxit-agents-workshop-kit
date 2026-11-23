@@ -285,6 +285,14 @@ def test_checks_in_words():
 
 def test_docs_page(client):
     assert client.get("/docs").status_code == 200
+    brief = "# Demo brief\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n<script>alert(1)</script>\n\n"
+    brief += "[web](https://example.org)\n"
+    (config.USECASES_DIR / "demo" / "BRIEF.md").write_text(brief, encoding="utf-8")
+    html = client.get("/docs?name=demo/BRIEF.md").text
+    assert "<h1>Demo brief</h1>" in html and "<table>" in html
+    assert "<script>alert" not in html and "&lt;script&gt;" in html  # raw HTML is shown as text
+    assert 'href="https://example.org"' in html
+    assert 'href="/docs?name=SETUP.md"' in client.get("/docs?name=README.md").text  # a link to another doc
 
 
 def test_start_page_opens_the_last_used_use_case(client):

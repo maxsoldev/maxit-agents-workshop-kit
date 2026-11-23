@@ -19,6 +19,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from markdown_it import MarkdownIt
+from markupsafe import Markup
 
 from kit import config
 
@@ -696,12 +698,31 @@ def doc_files() -> dict[str, Path]:
     return {k: v for k, v in found.items() if v.is_file()}
 
 
+MARKDOWN = MarkdownIt("commonmark", {"html": False}).enable("table")  # no raw HTML: participants edit BRIEF.md
+
+
+def render_doc(name: str, text: str, files: dict) -> Markup:
+    """Markdown to HTML. A link to another doc (relative to this one) opens it on the Docs page."""
+    by_path = {p.resolve(): k for k, p in files.items()}
+    tokens = MARKDOWN.parse(text)
+    for tok in tokens:
+        for t in tok.children or []:
+            href = str(t.attrGet("href") or "") if t.type == "link_open" else ""
+            path, _, anchor = href.partition("#")
+            if not path or ":" in path or path.startswith("/") or name not in files:
+                continue
+            target = by_path.get((files[name].parent / path).resolve())
+            if target:
+                t.attrSet("href", f"/docs?name={quote(target)}" + (f"#{anchor}" if anchor else ""))
+    return Markup(MARKDOWN.renderer.render(tokens, MARKDOWN.options, {}))
+
+
 @app.get("/docs", response_class=HTMLResponse)
 def docs_page(request: Request, name: str = ""):
     files = doc_files()
     name = name if name in files else next(iter(files), "")
     text = files[name].read_text(encoding="utf-8") if name else "No docs found."
-    return page(request, "docs.html", None, files=list(files), doc=name, text=text)
+    return page(request, "docs.html", None, files=list(files), doc=name, html=render_doc(name, text, files))
 
 
 def serve() -> int:

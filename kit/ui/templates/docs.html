@@ -5,6 +5,6 @@
   <nav class="doc-list">
     {% for f in files %}<a href="/docs?name={{ f }}" class="{{ 'on' if f == doc }}">{{ f }}</a>{% endfor %}
   </nav>
-  <article><h1>{{ doc }}</h1><pre class="doc">{{ text }}</pre></article>
+  <article><div class="muted small">{{ doc }}</div><div class="doc">{{ html }}</div></article>
 </div>
 {% endblock %}

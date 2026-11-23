@@ -162,6 +162,19 @@ table.checks-res tr.fail { background: #fff8f7; }
 .docs { display: grid; grid-template-columns: 15rem 1fr; gap: 1.5rem; }
 .doc-list a { display: block; padding: 0.3rem 0.5rem; border-radius: 6px; }
 .doc-list a.on { background: var(--soft); font-weight: 600; }
-pre.doc { font-size: 0.95rem; max-height: none; background: #fff; }
+.doc { max-width: 52rem; }
+.doc h1, .doc h2, .doc h3 { line-height: 1.25; margin: 1.4rem 0 0.5rem; }
+.doc h1 { margin-top: 0.3rem; font-size: 1.7rem; }
+.doc h2 { font-size: 1.35rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--line); }
+.doc h3 { font-size: 1.1rem; }
+.doc p, .doc ul, .doc ol { margin: 0.5rem 0; }
+.doc li { margin: 0.15rem 0; }
+.doc :not(pre) > code { background: var(--soft); border: 1px solid var(--line); border-radius: 4px; padding: 0 0.25rem; }
+.doc pre { max-height: none; }
+.doc blockquote { margin: 0.6rem 0; padding: 0.1rem 0.9rem; color: var(--muted); border-left: 4px solid var(--line); }
+.doc table { border-collapse: collapse; margin: 0.6rem 0; }
+.doc th, .doc td { border: 1px solid var(--line); padding: 0.3rem 0.6rem; text-align: left; vertical-align: top; }
+.doc th { background: var(--soft); }
+.doc hr { border: 0; border-top: 1px solid var(--line); margin: 1.2rem 0; }
 
 @media (max-width: 1000px) { .cols, .cols3 { grid-template-columns: 1fr; } }
