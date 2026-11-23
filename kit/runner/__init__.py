@@ -154,8 +154,8 @@ def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=No
 
     Raises CaseError / ValueError if the run cannot start (bad cases file, unknown engine or case id).
     """
-    if engine not in config.ENGINES:
-        raise ValueError(f"unknown engine {engine!r}; use one of {', '.join(config.ENGINES)}")
+    if engine not in config.ALL_ENGINES:
+        raise ValueError(f"unknown engine {engine!r}; use one of {', '.join(config.ALL_ENGINES)}")
     if not usecase_dir(usecase).is_dir():
         raise ValueError(f"use case {usecase!r} not found in usecases/")
     cases = all_cases = load_cases(usecase)
@@ -182,7 +182,7 @@ def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=No
         "summary": summarize([]),
         "cases": [],
     }
-    if engine == "n8n" and (warning := n8n_unpublished(usecase)):
+    if engine in ("n8n", "n8n-agent") and (warning := n8n_unpublished(usecase, engine)):
         run["warning"] = warning  # the run used the published workflow, not the latest edits
     save_run(run)  # reserves the run id; ended_at = None means "still running"
     experiment = _start_experiment(usecase, all_cases, run)

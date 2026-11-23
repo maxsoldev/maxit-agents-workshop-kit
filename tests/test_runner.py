@@ -303,6 +303,26 @@ def test_n8n_tool_calls_from_execution():
     assert engines.n8n_tool_calls(None) == [] and engines.n8n_tool_calls({"data": {}}) == []
 
 
+def test_n8n_tool_calls_from_http_nodes():
+    """The workflows call the tools by plain HTTP; the answer repeats the input."""
+
+    def run(index, json_):
+        return {"executionIndex": index, "data": {"main": [[{"json": json_}]]}}
+
+    answer = {"tool": "contacts_lookup", "input": {"query": "a@b"}, "output": {"count": 0, "contacts": []}}
+    run_data = {
+        "Find sender": [run(3, answer)],
+        "Load rules": [run(1, {"tool": "rules_get", "input": {"name": "x"}, "output": {"text": "t"}})],
+        "Triage": [run(2, {"output": {"category": "spam"}})],  # not a tool
+    }
+    calls = engines.n8n_tool_calls({"data": {"resultData": {"runData": run_data}}})
+    assert [c["name"] for c in calls] == ["rules_get", "contacts_lookup"]
+    assert calls[1] == {"name": "contacts_lookup", "input": {"query": "a@b"}, "output": '{"count": 0, "contacts": []}'}
+    assert (
+        engines.n8n_hook("marketing") == "marketing" and engines.n8n_hook("marketing", "n8n-agent") == "marketing-agent"
+    )
+
+
 def test_judge_gets_tool_calls(monkeypatch):
     seen = {}
     monkeypatch.setattr(judge, "score", lambda value, rubric, inp, tools=None: seen.update(tools=tools) or (5, "ok"))

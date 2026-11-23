@@ -3,11 +3,13 @@
 Each tool is a plain function with a docstring; the docstring is the tool description the model sees.
 To add a tool, add a function with `@mcp.tool()`. Tools only read `usecases/*/data/` and send nothing.
 On bad input a tool returns {"error": ..., "hint": ...}; it does not raise.
+The same tools also answer plain HTTP: POST /mcp/call/<tool> with the arguments as JSON (the n8n workflows use it).
 """
 
 from __future__ import annotations
 
 import csv
+import inspect
 import socket
 import threading
 import time
@@ -16,6 +18,9 @@ from datetime import date, datetime
 import uvicorn
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
+from starlette.concurrency import run_in_threadpool
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from kit import config
 from kit.tools_lib import emails, events, trains
@@ -170,20 +175,26 @@ def rules_get(usecase: str, name: str = "") -> dict:
     """Read a rules or process document of a use case (Markdown).
 
     `usecase`: "marketing" or "travel". `name`: document name without ".md", e.g. "routing", "travel_rules".
+    Several documents at once: names with commas, e.g. "routing,reply_guidelines".
     With an empty or unknown name you get the list of names.
     """
-    uc, nm = (usecase or "").strip(), (name or "").strip().removesuffix(".md")
-    if any(bad in v for v in (uc, nm) for bad in ("/", "\\", "..")):
+    uc = (usecase or "").strip()
+    wanted = [n.strip().removesuffix(".md") for n in (name or "").split(",")]
+    if any(bad in v for v in [uc, *wanted] for bad in ("/", "\\", "..")):
         return _error("paths are not allowed", "Give only a use case and a document name, e.g. 'travel', 'team'.")
     known = sorted(p.parent.name for p in config.USECASES_DIR.glob("*/data"))
     if uc not in known:
         return _error(f"unknown use case: {uc!r}", f"Use one of: {', '.join(known)}.")
     names = sorted(p.stem for p in _data(uc).glob("*.md"))
-    if nm not in names:
-        return _error(
-            f"unknown document: {nm!r}" if nm else "no document name given", f"Use one of: {', '.join(names)}."
-        )
-    return {"usecase": uc, "name": nm, "text": (_data(uc) / f"{nm}.md").read_text(encoding="utf-8")}
+    for nm in wanted:
+        if nm not in names:
+            return _error(
+                f"unknown document: {nm!r}" if nm else "no document name given", f"Use one of: {', '.join(names)}."
+            )
+    if len(wanted) == 1:
+        return {"usecase": uc, "name": wanted[0], "text": (_data(uc) / f"{wanted[0]}.md").read_text(encoding="utf-8")}
+    texts = [f"=== {nm}.md ===\n{(_data(uc) / f'{nm}.md').read_text(encoding='utf-8')}" for nm in wanted]
+    return {"usecase": uc, "name": ",".join(wanted), "text": "\n\n".join(texts)}
 
 
 # ---------- try a tool by hand: kit tool <name> key=value ... ----------
@@ -193,7 +204,6 @@ def try_tool(name: str, args: list[str]) -> int:
     """`kit tool trains_search from_place="München Hbf" to_place="Berlin Hbf" date=2026-12-08 arrive_by=10:00`:
     call the tool function and print its JSON. Without a name: list the tools and their parameters."""
     import asyncio
-    import inspect
     import json
 
     names = [t.name for t in asyncio.run(mcp.list_tools())]
@@ -216,6 +226,29 @@ def try_tool(name: str, args: list[str]) -> int:
         return 1
     print(json.dumps(out, ensure_ascii=False, indent=2))
     return 0
+
+
+# ---------- plain HTTP: POST /mcp/call/<tool> (for n8n workflow nodes without an agent) ----------
+
+
+@mcp.custom_route("/mcp/call/{tool}", methods=["POST"])
+async def call_http(request: Request) -> JSONResponse:
+    """Call one tool with the JSON body as its arguments. Answer {"tool", "input", "output"}.
+    The answer repeats the input, so the runner sees each call in the n8n execution data."""
+    name = request.path_params["tool"]
+    if name not in [t.name for t in await mcp.list_tools()]:
+        return JSONResponse(_error(f"unknown tool: {name!r}", "See the tool list: uv run kit tool"), status_code=404)
+    try:
+        args = await request.json()
+    except ValueError:
+        args = None
+    if not isinstance(args, dict):
+        return JSONResponse(_error("the body must be a JSON object", 'Example: {"query": "Wollner"}'), 400)
+    try:
+        out = await run_in_threadpool(globals()[name], **args)
+    except TypeError as e:  # a missing or unknown argument
+        out = _error(str(e), f"Parameters: {name}{inspect.signature(globals()[name])}")
+    return JSONResponse({"tool": name, "input": args, "output": out})
 
 
 # ---------- server ----------

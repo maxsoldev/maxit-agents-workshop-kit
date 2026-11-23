@@ -21,7 +21,7 @@ import httpx
 from kit import config
 from kit.config import settings
 
-TIMEOUTS = {"n8n": 120, "claude": 300, "python": 300}
+TIMEOUTS = {"n8n": 120, "n8n-agent": 120, "claude": 300, "python": 300}
 GRACE_S = 10  # the hard deadline of a case = engine timeout + this
 CLAUDE_PROMPT = "Process this case. Answer with only the result JSON.\n\n"
 
@@ -65,13 +65,18 @@ def call_with_deadline(uc: str, engine: str, engine_input: dict, extra_env: dict
 
 def call(uc: str, engine: str, engine_input: dict, extra_env: dict | None = None):
     """Run `engine` on one case. `extra_env` adds env variables (tracing)."""
-    if engine == "n8n":
-        return call_n8n(uc, engine_input)
+    if engine in ("n8n", "n8n-agent"):
+        return call_n8n(n8n_hook(uc, engine), engine_input)
     if engine == "claude":
         return call_claude(uc, engine_input, extra_env or {})
     if engine == "python":
         return call_python(uc, engine_input, extra_env or {})
-    return None, f"unknown engine {engine!r}; use one of {', '.join(config.ENGINES)}", {}
+    return None, f"unknown engine {engine!r}; use one of {', '.join(config.ALL_ENGINES)}", {}
+
+
+def n8n_hook(uc: str, engine: str = "n8n") -> str:
+    """The webhook path: `<uc>` for the workflow (n8n), `<uc>-agent` for the agent example (n8n-agent)."""
+    return f"{uc}-agent" if engine == "n8n-agent" else uc
 
 
 def engine_env(extra: dict | None = None) -> dict:
@@ -144,21 +149,21 @@ def _tail(text: str, lines: int = 5) -> str:
     return "\n".join(text.strip().splitlines()[-lines:])
 
 
-def call_n8n(uc: str, engine_input: dict):
-    """POST the case to the webhook. meta["execution_url"] links to the n8n execution (if found);
+def call_n8n(hook: str, engine_input: dict):
+    """POST the case to the webhook path `hook`. meta["execution_url"] links to the n8n execution (if found);
     meta["tool_calls"] are read from that execution's data."""
     call_id = uuid.uuid4().hex
-    output, error, meta = _post_n8n(uc, engine_input, call_id)
+    output, error, meta = _post_n8n(hook, engine_input, call_id)
     if meta.get("status"):  # n8n answered, so there is an execution
         try:
-            meta["execution_url"], execution = n8n_execution(uc, call_id)
+            meta["execution_url"], execution = n8n_execution(hook, call_id)
             meta["tool_calls"] = n8n_tool_calls(execution)
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             meta["execution_url"] = None  # a link is nice to have; never fail the case for it
     return output, error, meta
 
 
-def n8n_execution(uc: str, call_id: str) -> tuple[str | None, dict | None]:
+def n8n_execution(hook: str, call_id: str) -> tuple[str | None, dict | None]:
     """Find our execution: the newest ones of the workflow, matched by our `x-kit-call` header.
     Return (its URL, the execution with data). Falls back to the workflow's Executions list and None.
     Needs N8N_API_KEY."""
@@ -166,7 +171,7 @@ def n8n_execution(uc: str, call_id: str) -> tuple[str | None, dict | None]:
     if not s.n8n_api_key:
         return None, None
     api = _n8n_api()
-    w = _n8n_workflow(api, uc)
+    w = _n8n_workflow(api, hook)
     if not w:
         return None, None
     wid = w["id"]
@@ -180,17 +185,30 @@ def n8n_execution(uc: str, call_id: str) -> tuple[str | None, dict | None]:
 
 
 def n8n_tool_calls(execution: dict | None, limit: int = 4000) -> list[dict]:
-    """Tool calls [{"name", "input", "output"}] from an n8n execution: every run of a tool node
-    (output `ai_tool`), in the order they ran. The MCP node names a tool `<node>__<tool>`: keep `<tool>`."""
+    """Tool calls [{"name", "input", "output"}] from an n8n execution, in the order they ran:
+    - every run of a node whose output is the answer of the plain HTTP tool call (`{"tool", "input", "output"}`,
+      kit/tools.py `POST .../mcp/call/<tool>`: the workflows);
+    - every run of a tool node (output `ai_tool`: the agent example).
+      The MCP node names a tool `<node>__<tool>`: keep `<tool>`."""
 
-    def first_json(part) -> dict | None:  # {"ai_tool": [[{"json": {...}}]]} -> {...}
-        items = ((part or {}).get("ai_tool") or [[]])[0] or [{}]
+    def first_json(part, kind: str = "ai_tool") -> dict | None:  # {"ai_tool": [[{"json": {...}}]]} -> {...}
+        items = ((part or {}).get(kind) or [[]])[0] or [{}]
         return items[0].get("json") if isinstance(items[0], dict) else None
 
     run_data = ((execution or {}).get("data") or {}).get("resultData", {}).get("runData", {})
     runs = []
     for node, node_runs in run_data.items():
         for r in node_runs:
+            http = first_json(r.get("data"), "main") or {}
+            if {"tool", "input", "output"} <= set(http):
+                out = (
+                    http["output"]
+                    if isinstance(http["output"], str)
+                    else json.dumps(http["output"], ensure_ascii=False)
+                )
+                call = {"name": str(http["tool"]), "input": http["input"], "output": out[:limit]}
+                runs.append((r.get("executionIndex", 0), call))
+                continue
             if "ai_tool" not in (r.get("data") or {}) and "ai_tool" not in (r.get("inputOverride") or {}):
                 continue
             args = dict(first_json(r.get("inputOverride")) or {})
@@ -213,25 +231,25 @@ def _n8n_api() -> httpx.Client:
     return httpx.Client(base_url=f"{s.n8n_url}/api/v1", headers={"X-N8N-API-KEY": s.n8n_api_key}, timeout=10)
 
 
-def _n8n_workflow(api: httpx.Client, uc: str) -> dict | None:
-    """The active workflow with the webhook path `uc` (the last one, if there are more)."""
+def _n8n_workflow(api: httpx.Client, hook: str) -> dict | None:
+    """The active workflow with the webhook path `hook` (the last one, if there are more)."""
     hit = None
     for w in api.get("/workflows", params={"active": "true", "limit": 100}).json().get("data", []):
         if any(
-            n.get("type") == "n8n-nodes-base.webhook" and n.get("parameters", {}).get("path") == uc
+            n.get("type") == "n8n-nodes-base.webhook" and n.get("parameters", {}).get("path") == hook
             for n in w.get("nodes", [])
         ):
             hit = w
     return hit
 
 
-def n8n_unpublished(uc: str) -> str | None:
-    """A warning if the n8n workflow of `uc` has edits that are not published, else None.
+def n8n_unpublished(uc: str, engine: str = "n8n") -> str | None:
+    """A warning if the n8n workflow of `uc` (engine n8n or n8n-agent) has edits that are not published, else None.
     n8n 2.x saves editor edits as a draft; the webhook (so the eval) runs the published version."""
     if not settings().n8n_api_key:
         return None
     try:
-        w = _n8n_workflow(_n8n_api(), uc)
+        w = _n8n_workflow(_n8n_api(), n8n_hook(uc, engine))
     except (httpx.HTTPError, ValueError):
         return None
     if w and w.get("activeVersionId") and w.get("versionId") != w["activeVersionId"]:
@@ -242,9 +260,9 @@ def n8n_unpublished(uc: str) -> str | None:
     return None
 
 
-def _post_n8n(uc: str, engine_input: dict, call_id: str):
+def _post_n8n(hook: str, engine_input: dict, call_id: str):
     s = settings()
-    url = f"{s.n8n_url}/webhook/{uc}"
+    url = f"{s.n8n_url}/webhook/{hook}"
     meta = {"url": url}
     try:
         # n8n sends nothing until the workflow ends, so the read timeout is the total time.
@@ -261,8 +279,8 @@ def _post_n8n(uc: str, engine_input: dict, call_id: str):
         return (
             None,
             (
-                f"n8n answered 404 for /webhook/{uc}: is the workflow active and is its webhook path "
-                f"'{uc}'? run `make setup`"
+                f"n8n answered 404 for /webhook/{hook}: is the workflow active and is its webhook path "
+                f"'{hook}'? run `make setup`"
             ),
             meta,
         )

@@ -429,10 +429,10 @@ def restart_n8n(n8n: N8n) -> bool:
 
 
 def import_workflows(n8n: N8n, cred_id: str, force: bool = False) -> bool:
-    """Create or update each usecases/*/n8n/workflow.json by name, then activate it.
+    """Create or update each usecases/*/n8n/*.json (workflow.json, agent.json) by name, then activate it.
     If the n8n copy has edits (it differs from what setup put there last), keep it, unless `force`.
     Before an update, the old n8n copy goes to runs/n8n-backup/."""
-    files = sorted(USECASES_DIR.glob("*/n8n/workflow.json"))
+    files = sorted(USECASES_DIR.glob("*/n8n/*.json"))
     if not files:
         warn("no usecases/*/n8n/workflow.json to import yet")
         return True
@@ -481,16 +481,23 @@ def import_workflows(n8n: N8n, cred_id: str, force: bool = False) -> bool:
                 remember_import(body["name"], body)
             elif not force and imported_hashes().get(body["name"]) != workflow_hash(full):
                 # n8n is not what setup put there last: someone edited it in the editor. Keep it.
+                newer = imported_hashes().get(body["name"]) not in (None, workflow_hash(body))
                 warn(
                     f"{body['name']}: n8n has edits that are not in {rel}. Kept the n8n version.\n"
-                    f"        Save them to the file: make n8n-export UC={uc_name}  (then commit {rel})\n"
+                    + (
+                        f"        The kit has a newer {rel} (git pull). To use it: make setup FORCE=1\n"
+                        "        (your n8n version goes to runs/n8n-backup/ first)\n"
+                        if newer
+                        else ""
+                    )
+                    + f"        Save your edits to the file: make n8n-export UC={uc_name}  (then commit {rel})\n"
                     f"        Or throw them away and load the file: make setup FORCE=1"
                 )
                 if full.get("active"):
                     continue
                 state = "kept (n8n edits)"
             else:
-                backup = RUNS_DIR / "n8n-backup" / f"{uc_name}-{datetime.now():%Y%m%d-%H%M%S}.json"
+                backup = RUNS_DIR / "n8n-backup" / f"{uc_name}-{f.stem}-{datetime.now():%Y%m%d-%H%M%S}.json"
                 backup.parent.mkdir(parents=True, exist_ok=True)
                 backup.write_text(json.dumps(full, indent=2))
                 if full.get("active"):
@@ -603,6 +610,7 @@ ANSWERS, ERROR, SKIP = "ANSWERS  ", "ERROR    ", "SKIP     "
 
 NEXT_STEP = {
     "n8n": "is n8n up (make up) and the workflow active (make setup)? Is the tools server on (make serve)?",
+    "n8n-agent": "is n8n up (make up) and the agent example active (make setup)? Is the tools server on (make serve)?",
     "claude": "run `claude` once and log in; is the tools server on (make serve)?",
     "python": "make run-case UC={uc} ENGINE=python CASE={case} shows the agent log",
 }
@@ -691,11 +699,13 @@ def check() -> int:
 def _check_before_run(uc: str, engine: str, first: str, s) -> str | None:
     """The SKIP / ERROR line for a pair that cannot run; None if it can run."""
     label = f"{uc}/{engine} ({first})"
-    if not (USECASES_DIR / uc / engine).exists():
-        return f"{SKIP}{label}: no usecases/{uc}/{engine}/ folder"
-    if engine == "n8n" and not s.n8n_api_key and s.n8n_mode == "local":
+    part = "n8n/agent.json" if engine == "n8n-agent" else engine
+    if not (USECASES_DIR / uc / part).exists():
+        return f"{SKIP}{label}: no usecases/{uc}/{part}"
+    n8n = engine in ("n8n", "n8n-agent")
+    if n8n and not s.n8n_api_key and s.n8n_mode == "local":
         return f"{ERROR}{label}: n8n is not set up. Next: make up, make setup"
-    if engine == "n8n" and not s.openai_api_key and s.n8n_mode == "local":
+    if n8n and not s.openai_api_key and s.n8n_mode == "local":
         return (
             f"{ERROR}{label}: no OPENAI_API_KEY, so the workflow is not active. "
             "Next: put the key in .env, then make setup"
@@ -736,9 +746,15 @@ def same_order(new, old):
     return new
 
 
+def n8n_hook(uc: str, path: Path) -> str:
+    """The webhook path of a workflow file: `<uc>` for workflow.json, `<uc>-agent` for agent.json."""
+    return uc if path.stem == "workflow" else f"{uc}-{path.stem}"
+
+
 def n8n_export(only_uc: str = "") -> int:
-    """Save the workflows from n8n to usecases/<uc>/n8n/workflow.json, with the placeholders back
-    ({{OPENAI_CREDENTIAL_ID}}, {{KIT_TOOLS_URL}}, {{KIT_MODEL}}), so the file works on every laptop."""
+    """Save the workflows from n8n to usecases/<uc>/n8n/*.json (workflow.json, agent.json), with the
+    placeholders back ({{OPENAI_CREDENTIAL_ID}}, {{KIT_TOOLS_URL}}, {{KIT_MODEL}}), so the file works on every
+    laptop."""
     s = settings()
     n8n = N8n(s.n8n_url)
     n8n.key = s.n8n_api_key
@@ -748,19 +764,23 @@ def n8n_export(only_uc: str = "") -> int:
     ucs = [only_uc] if only_uc else [uc for uc in usecases() if (USECASES_DIR / uc / "n8n").is_dir()]
     flows = n8n.workflows()
     bad = 0
+    pairs = []  # (uc, file)
     for uc in ucs:
-        path = USECASES_DIR / uc / "n8n" / "workflow.json"
+        folder = USECASES_DIR / uc / "n8n"
+        pairs += [(uc, p) for p in sorted(folder.glob("*.json"))] or [(uc, folder / "workflow.json")]
+    for uc, path in pairs:
         try:
             old = json.loads(path.read_text())
             name = old["name"]
         except (OSError, ValueError, KeyError):
             old, name = {}, ""
-        # The workflow with the same name, else the active one on the webhook path <uc>.
+        # The workflow with the same name, else the active one on the webhook path of this file.
+        hook = n8n_hook(uc, path)
         hit = next((w for w in flows if w["name"] == name), None) or next(
-            (w for w in flows if w.get("active") and uc in webhook_paths(w)), None
+            (w for w in flows if w.get("active") and hook in webhook_paths(w)), None
         )
         if hit is None:
-            print(f"FAIL  {uc}: no workflow '{name}' (or webhook path '{uc}') in n8n")
+            print(f"FAIL  {uc}: no workflow '{name}' (or webhook path '{hook}') in n8n")
             bad += 1
             continue
         full = n8n.api("GET", f"/workflows/{hit['id']}").json()

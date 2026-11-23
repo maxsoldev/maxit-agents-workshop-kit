@@ -2,7 +2,7 @@
 
 kit setup [--force]  first-time setup: n8n account + key + credential + workflows, Langfuse check (kit/setup.py)
 kit check            one case per use case and engine; prints OK or what to fix (kit/setup.py)
-kit n8n-export [UC]  save the n8n workflows (your editor changes) to usecases/<uc>/n8n/workflow.json
+kit n8n-export [UC]  save the n8n workflows (your editor changes) to usecases/<uc>/n8n/ (workflow.json, agent.json)
 kit serve            UI on :5700 and tools MCP on :5701 in one process (kit/ui, kit/tools.py)
 kit tools            only the tools MCP server (kit/tools.py)
 kit tool NAME k=v    try one tool by hand and print its JSON (no name: list the tools)
@@ -15,6 +15,8 @@ from __future__ import annotations
 import argparse
 import sys
 
+from kit.config import ALL_ENGINES
+
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="kit", description="MaxIT agent kit")
@@ -22,13 +24,13 @@ def main(argv: list[str] | None = None) -> int:
     st = sub.add_parser("setup", help="first-time setup of n8n and Langfuse")
     st.add_argument("--force", action="store_true", help="load workflow.json into n8n even if n8n has edits")
     sub.add_parser("check", help="smoke check: one case per use case and engine")
-    ex = sub.add_parser("n8n-export", help="save the n8n workflows to usecases/<uc>/n8n/workflow.json")
+    ex = sub.add_parser("n8n-export", help="save the n8n workflows to usecases/<uc>/n8n/*.json")
     ex.add_argument("usecase", nargs="?", default="", help="one use case (default: all)")
     sub.add_parser("serve", help="UI and tools server")
     sub.add_parser("tools", help="only the tools MCP server")
     ev = sub.add_parser("eval", help="run an eval")
     ev.add_argument("usecase")
-    ev.add_argument("engine", choices=["n8n", "claude", "python"])
+    ev.add_argument("engine", choices=ALL_ENGINES)
     ev.add_argument("--cases", default="", help="comma-separated case ids (default: all)")
     ev.add_argument("--name", default="", help="run name (default: timestamp)")
     ev.add_argument("--holdout", action="store_true", help='also run the cases with "holdout": true')
@@ -37,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     tl.add_argument("args", nargs="*", help="key=value")
     rc = sub.add_parser("run-case", help="run one case; print the engine input, output, log and checks")
     rc.add_argument("usecase")
-    rc.add_argument("engine", choices=["n8n", "claude", "python"])
+    rc.add_argument("engine", choices=ALL_ENGINES)
     rc.add_argument("case_id")
     a = p.parse_args(argv)
 

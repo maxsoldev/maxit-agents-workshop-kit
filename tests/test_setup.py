@@ -200,5 +200,6 @@ def test_kit_engines_limits_profiles_and_engines():
 
     assert parse_engines("") == ("n8n", "claude", "python")
     assert parse_engines("python, Claude") == ("claude", "python")
+    assert parse_engines("n8n-agent,n8n") == ("n8n", "n8n-agent")  # the example only when listed
     assert compose_profiles({"KIT_ENGINES": "claude,python"}) == ["langfuse"]
     assert compose_profiles({"KIT_ENGINES": "n8n"}) == ["n8n", "langfuse"]

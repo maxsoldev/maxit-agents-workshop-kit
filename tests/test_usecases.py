@@ -88,9 +88,14 @@ def test_cases_are_valid(uc):
 
 
 @pytest.mark.parametrize("uc", UCS)
-def test_n8n_workflow_shape(uc):
-    wf = json.loads((USECASES / uc / "n8n" / "workflow.json").read_text())
-    assert wf["name"] == f"Kit: {uc} agent"
+@pytest.mark.parametrize(
+    "file,name,hook", [("workflow", "Kit: {uc} workflow", "{uc}"), ("agent", "Kit: {uc} agent (example)", "{uc}-agent")]
+)
+def test_n8n_workflow_shape(uc, file, name, hook):
+    wf = json.loads((USECASES / uc / "n8n" / f"{file}.json").read_text())
+    assert wf["name"] == name.format(uc=uc)
     hooks = [n for n in wf["nodes"] if n["type"] == "n8n-nodes-base.webhook"]
-    assert len(hooks) == 1 and hooks[0]["parameters"]["path"] == uc
+    assert len(hooks) == 1 and hooks[0]["parameters"]["path"] == hook.format(uc=uc)
     assert any(n["type"] == "n8n-nodes-base.respondToWebhook" for n in wf["nodes"])
+    agent = any(n["type"] == "@n8n/n8n-nodes-langchain.agent" for n in wf["nodes"])
+    assert agent == (file == "agent")  # the workflow has no AI Agent node: code decides the path

@@ -84,8 +84,33 @@ def test_rules_get():
     assert tools.rules_get("marketing", "routing.md")["name"] == "routing"
     assert "routing" in tools.rules_get("marketing", "nope")["hint"]
     assert "error" in tools.rules_get("sales", "x")
-    for bad in [("travel", "../marketing/data/routing"), ("../travel", "team"), ("travel", "a/b")]:
+    for bad in [
+        ("travel", "../marketing/data/routing"),
+        ("../travel", "team"),
+        ("travel", "a/b"),
+        ("travel", "team,../x"),
+    ]:
         assert tools.rules_get(*bad)["error"] == "paths are not allowed"
+    both = tools.rules_get("travel", "team, priorities.md")
+    assert both["name"] == "team,priorities" and both["text"].index("=== team.md") < both["text"].index(
+        "=== priorities"
+    )
+    assert "nope" in tools.rules_get("travel", "team,nope")["error"]
+
+
+def test_plain_http_call():
+    from mcp.server.transport_security import TransportSecuritySettings
+    from starlette.testclient import TestClient
+
+    security = TransportSecuritySettings(allowed_hosts=["testserver"])
+    app = tools.mcp.streamable_http_app(streamable_http_path="/mcp", transport_security=security)
+    with TestClient(app) as c:
+        r = c.post("/mcp/call/contacts_lookup", json={"query": "Wollner"})
+        assert r.status_code == 200 and r.json()["tool"] == "contacts_lookup"
+        assert r.json()["input"] == {"query": "Wollner"} and r.json()["output"]["count"] == 1
+        assert "unexpected keyword" in c.post("/mcp/call/contacts_lookup", json={"q": "x"}).json()["output"]["error"]
+        assert c.post("/mcp/call/nope", json={}).status_code == 404
+        assert c.post("/mcp/call/contacts_lookup", json=[1]).status_code == 400
 
 
 # ---------- trains, with a fake MOTIS ----------
