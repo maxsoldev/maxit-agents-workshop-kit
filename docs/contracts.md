@@ -73,7 +73,7 @@ Engine output: one JSON object that must validate against `output_schema`. The s
 | Engine | How the runner calls it | Timeout |
 |---|---|---|
 | `n8n` | `POST {N8N_URL}/webhook/<uc>`, body = engine input; the response body is the result (workflow ends with Respond to Webhook) | 120 s |
-| `claude` | in `usecases/<uc>/claude/`: `claude -p <prompt> --output-format json --mcp-config .mcp.json --strict-mcp-config --permission-mode dontAsk --allowedTools mcp__kit` + `--setting-sources project`; prompt = "Process this case. Answer with only the result JSON.\n\n" + engine input. The result is the JSON in the final `result` text (a fenced ```json block, or the whole text) | 300 s |
+| `claude` | in `usecases/<uc>/claude/`: `claude -p <prompt> --output-format stream-json --verbose --mcp-config .mcp.json --strict-mcp-config --permission-mode dontAsk --allowedTools mcp__kit` + `--setting-sources project`; prompt = "Process this case. Answer with only the result JSON.\n\n" + engine input. The result is the JSON in the `result` text of the last `result` event (a fenced ```json block, or the whole text) | 300 s |
 | `python` | in `usecases/<uc>/python/`: `uv run --project <repo root> python agent.py`, engine input on stdin, result JSON on stdout (stderr = logs) | 300 s |
 
 Timeouts are wall-clock time. Each case has a hard deadline of engine timeout + 10 s: then the runner stops
@@ -118,6 +118,11 @@ session id = `run_id`), input = engine input, output = result, one score per che
 Claude gets `CLAUDE_CODE_ENABLE_TELEMETRY=1`, `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`, `OTEL_TRACES_EXPORTER=otlp`,
 `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT={LANGFUSE_HOST}/api/public/otel/v1/traces`, basic auth header, and
 `TRACEPARENT=00-<trace_id>-<span_id>-01` of the case trace, so its spans nest under it. If off: no traces, no links.
+Claude also gets `OTEL_LOG_TOOL_DETAILS=1`, `OTEL_LOG_TOOL_CONTENT=1`, `OTEL_LOG_USER_PROMPTS=1`,
+`OTEL_LOG_ASSISTANT_RESPONSES=1`. Claude Code 2.1 still sends no tool input in its spans (the tool output is only
+a span event, which Langfuse does not show). So the runner reads the tool calls from Claude's stream-json and
+writes one TOOL span per call, `tool:<name>`, with input and output, under the case trace. The run file has
+them too (`meta.tool_calls`, output cut to 4000 characters); the results page lists them.
 
 ## 7. Tools (MCP server `kit/tools.py`, server name `kit`)
 

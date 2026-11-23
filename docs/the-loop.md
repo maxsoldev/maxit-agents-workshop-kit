@@ -20,7 +20,8 @@ then measure every change.**
 
 - **One change at a time.** With two changes you do not know which one helped.
 - **Read the trace, not only the score.** The trace shows which tools the agent called, what it read and
-  where it went wrong. Claude: Langfuse. n8n: Executions. Python: the `tool ...` lines it logs on stderr (run
+  where it went wrong. Claude: Langfuse (the `tool:<name>` spans have the input and output; the results page
+  lists the same tool calls). n8n: Executions (the results page links to each one). Python: the `tool ...` lines it logs on stderr (run
   `agent.py` by hand to see them; the error of a failed run shows the last lines).
 - **Do not fit the cases.** A rule like "if the sender is Lara Venn, say unverified" makes the case pass and
   the agent worse. Write rules that hold for the next email too.

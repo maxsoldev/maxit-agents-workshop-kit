@@ -55,6 +55,13 @@
         {% if c.trace_url and langfuse_link %}<a href="{{ c.trace_url }}" target="_blank">Langfuse trace ↗</a>{% endif %}
         {% if c.n8n_execution_url %}<a href="{{ c.n8n_execution_url }}" target="_blank">n8n execution ↗</a>{% endif %}
       </div>
+      {% if (c.meta or {}).tool_calls %}
+      <details class="tool-calls"><summary>Tool calls ({{ c.meta.tool_calls|length }})</summary>
+        {% for t in c.meta.tool_calls %}
+        <div><b>{{ t.name }}</b> <code>{{ t.input|compact }}</code><pre>{{ (t.output or '')[:1500] }}</pre></div>
+        {% endfor %}
+      </details>
+      {% endif %}
       <div class="cols3">
         <div><h3>Input</h3><pre>{{ c.input|pretty }}</pre>{% with previews = c._files %}{% include "_previews.html" %}{% endwith %}</div>
         <div><h3>Expected</h3><pre>{{ c.expected|pretty }}</pre></div>

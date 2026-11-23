@@ -32,6 +32,9 @@ class NoTrace:
     def finish(self, output, error, checks, passed) -> None:
         pass
 
+    def tool_calls(self, calls: list[dict]) -> None:
+        pass
+
 
 class CaseTrace(NoTrace):
     def __init__(self, lf, span, uc: str):
@@ -50,6 +53,11 @@ class CaseTrace(NoTrace):
         return {
             "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
             "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA": "1",
+            # content in the spans: tool input (DETAILS) and output (CONTENT), the prompt and the answers
+            "OTEL_LOG_TOOL_DETAILS": "1",
+            "OTEL_LOG_TOOL_CONTENT": "1",
+            "OTEL_LOG_USER_PROMPTS": "1",
+            "OTEL_LOG_ASSISTANT_RESPONSES": "1",
             "OTEL_TRACES_EXPORTER": "otlp",
             "OTEL_METRICS_EXPORTER": "none",
             "OTEL_LOGS_EXPORTER": "none",
@@ -59,6 +67,16 @@ class CaseTrace(NoTrace):
             "OTEL_RESOURCE_ATTRIBUTES": f"service.name=claude-code-{self.uc}",
             "TRACEPARENT": f"00-{self.span.trace_id}-{self.span.id}-01",
         }
+
+    def tool_calls(self, calls: list[dict]) -> None:
+        """One TOOL span per tool call (name, input, output), read from Claude's stream-json.
+        Claude's own OTel tool spans have no input, so these are the ones to read."""
+        try:
+            for c in calls:
+                self.span.start_observation(name=f"tool:{c['name']}", as_type="tool", input=c.get("input"),
+                                            output=c.get("output")).end()
+        except Exception:
+            pass  # tracing must never break a run
 
     def finish(self, output, error, checks, passed) -> None:
         """Write the output and one score per check (1/0) plus `passed`."""

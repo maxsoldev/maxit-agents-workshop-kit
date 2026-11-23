@@ -168,6 +168,19 @@ def test_schema_check():
     assert not bad["passed"] and bad["field"] == "category"
 
 
+def test_read_claude_stream():
+    lines = [{"type": "system", "subtype": "init"},
+             {"type": "assistant", "message": {"content": [
+                 {"type": "tool_use", "id": "t0", "name": "ToolSearch", "input": {"query": "x"}},
+                 {"type": "tool_use", "id": "t1", "name": "mcp__kit__rules_get", "input": {"name": "routing"}}]}},
+             {"type": "user", "message": {"content": [
+                 {"type": "tool_result", "tool_use_id": "t1", "content": [{"type": "text", "text": "# Routing"}]}]}},
+             {"type": "result", "result": "{}", "num_turns": 2}]
+    result, calls = engines.read_stream("\n".join(json.dumps(x) for x in lines) + "\nnot json\n")
+    assert result["num_turns"] == 2
+    assert calls == [{"name": "rules_get", "input": {"name": "routing"}, "output": "# Routing"}]
+
+
 def test_parse_json_text():
     assert engines.parse_json_text('x\n```json\n{"a": 1}\n```\nthen\n```json\n{"a": 2}\n```') == {"a": 2}
     assert engines.parse_json_text(' {"a": 3} ') == {"a": 3}

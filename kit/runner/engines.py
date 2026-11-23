@@ -187,6 +187,33 @@ def _post_n8n(uc: str, engine_input: dict, call_id: str):
     return output, error, meta
 
 
+def read_stream(out: str, limit: int = 4000):
+    """Read `claude -p --output-format stream-json` lines. Return (the final result event or None,
+    tool calls [{"name", "input", "output"}]). Tool outputs are cut to `limit` characters."""
+    result, calls, by_id = None, [], {}
+    for line in out.splitlines():
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(ev, dict):
+            continue
+        if ev.get("type") == "result":
+            result = ev
+        content = (ev.get("message") or {}).get("content") if ev.get("type") in ("assistant", "user") else None
+        for c in content if isinstance(content, list) else []:
+            if c.get("type") == "tool_use" and c.get("name") != "ToolSearch":
+                by_id[c.get("id")] = {"name": c.get("name", "").removeprefix("mcp__kit__"), "input": c.get("input"),
+                                      "output": None}
+                calls.append(by_id[c.get("id")])
+            elif c.get("type") == "tool_result" and c.get("tool_use_id") in by_id:
+                parts = c.get("content")
+                text = parts if isinstance(parts, str) else "\n".join(
+                    p.get("text", "") for p in parts or [] if isinstance(p, dict))
+                by_id[c["tool_use_id"]]["output"] = text[:limit]
+    return result, calls
+
+
 def call_claude(uc: str, engine_input: dict, extra_env: dict):
     folder = config.USECASES_DIR / uc / "claude"
     if not shutil.which("claude"):
@@ -194,19 +221,19 @@ def call_claude(uc: str, engine_input: dict, extra_env: dict):
     if not (folder / ".mcp.json").exists():
         return None, f"usecases/{uc}/claude/.mcp.json not found: the Claude agent folder needs it", {}
     prompt = CLAUDE_PROMPT + json.dumps(engine_input, ensure_ascii=False)
-    cmd = ["claude", "-p", prompt, "--output-format", "json",
+    cmd = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose",
            "--mcp-config", ".mcp.json", "--strict-mcp-config",
            "--permission-mode", "dontAsk", "--allowedTools", "mcp__kit",
            "--setting-sources", "project", "--no-session-persistence"]
     code, out, err = _run(cmd, folder, "", engine_env(extra_env), TIMEOUTS["claude"])
     if code is None:
         return None, f"Claude did not finish in {TIMEOUTS['claude']} s: make the task smaller or check the tools", {}
-    try:
-        data = json.loads(out)
-    except ValueError:
+    data, tool_calls = read_stream(out)
+    if data is None:
         return None, f"claude exit {code}, no JSON answer: {_tail(err or out)} (is Claude logged in? run `claude`)", {}
     meta = {"cost_usd": data.get("total_cost_usd"), "turns": data.get("num_turns"),
-            "duration_ms": data.get("duration_ms"), "models": list(data.get("modelUsage", {}))}
+            "duration_ms": data.get("duration_ms"), "models": list(data.get("modelUsage", {})),
+            "tool_calls": tool_calls}
     text = data.get("result") or ""
     if data.get("is_error") or code != 0:
         return None, f"Claude failed ({data.get('subtype', f'exit {code}')}): {text[:300] or _tail(err)}", meta
