@@ -6,7 +6,7 @@ the place of the prompt is different:
 
 | Engine | The prompt is in | How to save a change |
 |---|---|---|
-| Python | `usecases/marketing/python/agent.py`, the text `PROMPT = """..."""` | save the file |
+| Python | `usecases/marketing/python/prompt.md` (kit UI: **Rules**, engine python) | save the file |
 | Claude | `usecases/marketing/claude/CLAUDE.md`, parts "Steps" and "Answer" | save the file |
 | n8n | n8n editor (http://localhost:5702, login `N8N_OWNER_EMAIL` / `N8N_OWNER_PASSWORD` from `.env`), workflow `Kit: marketing workflow`, node **Decide and draft** → Chat Messages → **Message**; or the file `usecases/marketing/n8n/prompts/decide_and_draft.md` | editor: click **Publish** (top right; the eval runs only the published version). File: `make n8n-push UC=marketing` |
 
@@ -82,7 +82,7 @@ the email (here `tech_team`, see the rules file `routing.md`). The scaffold has 
    then **Publish** or `make n8n-push UC=marketing`; the schema needs no edit in n8n):
 
    ```text
-   6. Write route_to: who must handle the email, a route from the "Route to" table of the routing rules.
+   6. Write route_to: who must handle the email, a route from the "Route to" list of the routing rules.
       When we reply ourselves, write "route_to": "". Never leave the field out.
    ```
 

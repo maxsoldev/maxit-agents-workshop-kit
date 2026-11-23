@@ -28,10 +28,11 @@ The scaffold does the same small job on each engine, so you can compare them.
 |---|---|
 | **n8n** (:5702) | the workflow `Kit: <uc> workflow` in the n8n editor (click **Publish**), or its files `n8n/prompts/*.md`, `n8n/workflow.json` (then `make n8n-push`). The eval saves n8n edits to the files |
 | **Claude Code** (your login) | `claude/CLAUDE.md`, skills in `claude/.claude/skills/` |
-| **Python** (OpenAI SDK) | `python/agent.py` |
+| **Python** (OpenAI SDK) | `python/prompt.md`, the code in `python/agent.py` |
 
-Each engine also has its own copy of the owner's rules, `<engine>/rules/*.md` (kit UI: **Rules**), and reads
-all of it on every case. Your team picks one engine and changes only its folder.
+Each engine also has its own copy of the owner's rules, `<engine>/rules/*.md` (kit UI: **Rules**, as lists,
+no tables), and gets all of it on every case, in its own way: n8n by its node *Read the rules* (tool `rules_get`), Claude by a line `@rules/<file>` per file in
+`CLAUDE.md`, Python by `agent.py` (it reads the folder). Your team picks one engine and changes only its folder.
 
 All three use the same tools (`kit/tools.py`, :5701). No tool sends or books anything: the agent only
 proposes, a person decides.

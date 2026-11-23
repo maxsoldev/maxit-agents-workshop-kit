@@ -17,24 +17,20 @@
 
 ## Task status words
 
-| Status | Meaning |
-|---|---|
-| `open` | We know about it, but nobody has checked it yet. |
-| `needs_info` | We asked the traveller something and wait for the answer. |
-| `waiting_for_request` | No travel number yet: do not book. |
-| `ready_to_book` | Travel number present (DRA). We can prepare options; a person books. |
-| `cancelled` | It does not happen. Stop all work on it. |
-| `done` | Booked or finished. |
+- `open`: We know about it, but nobody has checked it yet.
+- `needs_info`: We asked the traveller something and wait for the answer.
+- `waiting_for_request`: No travel number yet: do not book.
+- `ready_to_book`: Travel number present (DRA). We can prepare options; a person books.
+- `cancelled`: It does not happen. Stop all work on it.
+- `done`: Booked or finished.
 
 ## Task kinds
 
-| Kind | Meaning |
-|---|---|
-| `trip` | A business trip. |
-| `leave` | Someone is on leave (dates only). |
-| `estimate` | Only a cost estimate is needed, there is no travel request yet. |
-| `reminder` | Something to remember (e.g. a paper request), nothing to book. |
-| `open_question` | A question somebody must decide (e.g. who goes to an event). |
+- `trip`: A business trip.
+- `leave`: Someone is on leave (dates only).
+- `estimate`: Only a cost estimate is needed, there is no travel request yet.
+- `reminder`: Something to remember (e.g. a paper request), nothing to book.
+- `open_question`: A question somebody must decide (e.g. who goes to an event).
 
 ## Leave
 

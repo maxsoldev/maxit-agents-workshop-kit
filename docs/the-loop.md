@@ -18,7 +18,7 @@ then measure every change.**
 ## Rules that save time
 
 - **One change at a time.** A new output field is one change: the field in `output.schema.json` plus one line
-  in the prompt of each engine you use (`claude/CLAUDE.md`, the n8n prompt, `python/agent.py`).
+  in the prompt of each engine you use (`claude/CLAUDE.md`, the n8n prompt, `python/prompt.md`).
 - **Read the trace, not only the score.** The results page lists the tool calls for all engines. More detail:
   Langfuse (link on the results page), for n8n also **n8n execution ↗**, for Python the **Engine log**.
 - **Look at one case closely:** `make run-case UC=marketing ENGINE=python CASE=m14` prints the input, output,
@@ -31,7 +31,7 @@ then measure every change.**
 - **Run it twice** before you trust a small change, also for `judge` checks. Trust a result only when it is the
   same twice.
 - **A flaky case is a finding.** It often means the agent skips a step on some runs. Compare the tool calls of
-  both runs, make that step explicit in the prompt ("Step 1: call `rules_get` for `routing`"), run twice again.
+  both runs, make that step explicit in the prompt ("Step 2: call `inbox_history` for the sender"), run twice again.
 - **Keep 3 to 5 cases aside** as **holdout** (tick in the case form). The eval skips them; run them at the end
   (the tick on the Run page, or `make eval ... HOLDOUT=1`).
 - **Read the score per field** (results page, "Per field"): it shows the weak part of the result.
@@ -40,8 +40,8 @@ then measure every change.**
 ## How to read a trace (Langfuse)
 
 Open the case trace from the results page. Read the `tool:<name>` lines from top to bottom: each one is one
-thing the agent looked up, with what it got back (`tool:rules_get` with `"name": "priorities"` = "it read your
-priorities"). Skip the technical lines (`claude_code.llm_request`, `ToolSearch`, `blocked_on_user`).
+thing the agent looked up, with what it got back (`tool:inbox_history` with `"sender": "Wollner"` = "it read her
+earlier emails"). Skip the technical lines (`claude_code.llm_request`, `ToolSearch`, `blocked_on_user`).
 An n8n trace has one line per node, in run order; open the model line under an AI node to see its prompt and
 answer.
 
@@ -77,8 +77,10 @@ counts only if the score stays the same.
 
 ## How business people change the rules (in the UI)
 
-Open **Rules** and pick your engine: the owner's files `<engine>/rules/*.md` (categories, routing, reply
-guidelines, priorities, templates). Each engine has its own copy and reads all of it on every case. Change a
+Open **Rules** and pick your engine. **Instructions** are the engine's own files (the n8n prompts, `CLAUDE.md`
+and the skills, `python/prompt.md`). **Owner's rules** are `<engine>/rules/*.md` (categories, routing, reply
+guidelines, priorities, templates), written as lists, not tables. Each engine has its own copy and gets all of it
+on every case. Change a
 rule, **Save** (Ctrl+S), then run the eval on that engine and compare ("agent files changed"). The categories,
 flags, routes and status words live only in these files: add one there, with no change to the code or the schema. The page and the
 file stay in sync: an edit on disk (by a developer or Claude Code) shows in the page, and the page never

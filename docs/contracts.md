@@ -27,11 +27,13 @@ usecases/<uc>/
   n8n/workflow.json     n8n workflow `Kit: <uc> workflow` (nodes; no AI Agent node), webhook path = <uc>
   n8n/prompts/*.md      the prompts of the n8n workflow (§5, n8n sync)
   claude/               Claude Code agent folder: CLAUDE.md, .mcp.json, .claude/settings.json
-  python/agent.py       Python agent: stdin → stdout
-  <engine>/rules/*.md   the owner's rules of that engine (n8n/, claude/, python/ each have a copy): read by
-                        `rules_get` (§7), edited on the Rules page. Each engine reads all its files on every
-                        case: n8n (node Read the rules) and Python (`owner_rules`) by code, Claude in step 1
-                        of CLAUDE.md. They are part of `agent_version` (§5): a rule change is an agent change
+  python/agent.py       Python agent: stdin → stdout; its prompt is python/prompt.md
+  <engine>/rules/*.md   the owner's rules of that engine (n8n/, claude/, python/ each have a copy), as lists, no
+                        tables. Each engine gets all its files on every case, by code: n8n by the node Read
+                        the rules (`rules_get`, §7), Claude by a line `@rules/<file>` per file in CLAUDE.md,
+                        Python by agent.py (reads the folder). Edited on the Rules page, with the engine's
+                        instructions (n8n prompts, CLAUDE.md and skills, python/prompt.md). They are part of
+                        `agent_version` (§5): a rule change is an agent change
 ```
 
 ## 3. Case (one JSON object per line in `cases.jsonl`)

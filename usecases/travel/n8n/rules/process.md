@@ -16,12 +16,10 @@ The team travels to conferences, partner meetings and Max Planck institutes. Off
 The agent does not start from a predefined process. It starts from what office management already receives and gives one overview. The use-case owner then shapes the steps with her feedback on the day.
 
 ## Inputs in the data pack
-| Source | File |
-|---|---|
-| Emails to office management: trip notes, forwarded DRA emails, SAP leave approvals | `data/emails/` (8 .eml) |
-| Mattermost direct messages, copied from the chat window | `data/mattermost_messages.txt` |
-| Annual event overview (in reality a PowerPoint slide) | `data/events.csv` (tool `events_list`) |
-| Example rules | `travel_rules.md`, `priorities.md`, `team.md`, `message_templates.md` in the engine folder `<engine>/rules/` (tool `rules_get`) |
+- Emails to office management: trip notes, forwarded DRA emails, SAP leave approvals: `data/emails/` (8 .eml).
+- Mattermost direct messages, copied from the chat window: `data/mattermost_messages.txt`.
+- Annual event overview (in reality a PowerPoint slide): `data/events.csv` (tool `events_list`).
+- Example rules: `travel_rules.md`, `priorities.md`, `team.md`, `message_templates.md` in the engine folder `<engine>/rules/` (tool `rules_get`).
 
 ## Suggested agent steps (human in the loop)
 1. **Intake and overview:** read all sources and build one task list: who, where, when, travel number (yes/no), hotel and transport status, open questions. Merge duplicates (the same trip in an email and on Mattermost) and apply updates (a cancelled trip).

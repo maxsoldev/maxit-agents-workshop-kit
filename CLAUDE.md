@@ -10,10 +10,11 @@ agent files, run the evals, and report what changed in the score. The team decid
 |---|---|---|
 | n8n | `usecases/<uc>/n8n/prompts/*.md`, `n8n/workflow.json` | `make n8n-push UC=<uc>` |
 | Claude | `usecases/<uc>/claude/CLAUDE.md`, `claude/.claude/skills/` (the agent's own files) | nothing |
-| Python | `usecases/<uc>/python/agent.py` (`PROMPT`) | nothing |
+| Python | `usecases/<uc>/python/prompt.md`, `python/agent.py` (the code) | nothing |
 
 All engines share `usecases/<uc>/data/` (the inputs), `output.schema.json` and `cases.jsonl`. The owner's rules
-are per engine: `usecases/<uc>/<engine>/rules/*.md` (each engine reads all of its own, on every case).
+are per engine: `usecases/<uc>/<engine>/rules/*.md`, lists, no tables. Each engine gets all of its own on every case:
+n8n by the node Read the rules, Claude by `@rules/<file>` lines in `CLAUDE.md`, Python by `agent.py`.
 Skills: `eval-loop` (run, read, compare, add cases: every engine), `n8n-workflow` (the n8n files and the sync).
 
 ## Commands (the team sees the same runs and cases in the kit UI, http://localhost:5700)

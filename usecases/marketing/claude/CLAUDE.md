@@ -6,20 +6,28 @@ changes the draft if needed, and sends it. You never send anything.
 
 ## Steps
 
-1. Call `rules_get(usecase="marketing", engine="claude", name="*")`: all the owner's rules, always, first.
-   Then read the email. Find the sender, what they want, the language and any deadline.
-2. Pick **one category** from the category table of the rules. Use only the words in that table.
-3. Add **flags** from the flag table if they apply (else `[]`).
+1. Read the email. Find the sender, what they want, the language and any deadline.
+2. Pick **one category** from the category list of the rules. Use only the words in that list.
+3. Add **flags** from the flag list if they apply (else `[]`).
 4. Write a **reply** draft in the sender's language, or `""` when the rules say that we do not reply.
 5. Write **reasons**: 1 to 3 short sentences that explain your decision to the reviewer.
 
 ## Tools (MCP server `kit`)
 
-- `rules_get(usecase="marketing", engine="claude", name="*")`: all the owner's rules (the files in
-  `claude/rules/`). One file: its name without `.md`, e.g. `name="routing"`.
 - `contacts_lookup(query)`: the contact sheet (name, organisation, status, notes).
 - `inbox_history(sender, before)`: earlier emails from the same sender. Always pass `before` = the case's
   `today` (YYYY-MM-DD): else you also see emails that came later.
+
+## The owner's rules
+
+The owner keeps these rules in `rules/` (one file per topic). Follow them: they say which
+categories, words and steps are right.
+
+@rules/categories.md
+@rules/contact_rules.md
+@rules/process.md
+@rules/reply_guidelines.md
+@rules/routing.md
 
 ## Safety
 

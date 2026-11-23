@@ -791,16 +791,53 @@ def rule_engine(uc: str, engine: str) -> str:
     return engine if engine in config.settings().engines else default_engine(uc)
 
 
-def rule_files(uc: str, engine: str) -> list[str]:
-    """The owner's rule files of one engine: <engine>/rules/*.md (what that engine reads with rules_get)."""
-    uc_dir(uc)
-    return sorted(p.name for p in config.rules_dir(uc, engine).glob("*.md"))
+# The files a person can edit, per engine, in the engine folder: (group, path relative to usecases/<uc>/<engine>/).
+INSTRUCTION_FILES = {
+    "n8n": ["prompts/*.md"],
+    "claude": ["CLAUDE.md", ".claude/skills/*/SKILL.md"],
+    "python": ["prompt.md"],
+}
+
+
+def rule_files(uc: str, engine: str) -> list[tuple[str, str]]:
+    """The engine's own text files: its instructions (prompts, CLAUDE.md, skills) and the owner's rules (rules/*.md).
+    Not n8n's `*.input.md`: they wire the nodes together (n8n expressions), a developer's job."""
+    folder = uc_dir(uc) / engine
+    found = [
+        ("Instructions", p)
+        for pat in INSTRUCTION_FILES.get(engine, [])
+        for p in sorted(folder.glob(pat))
+        if not p.name.endswith(".input.md")
+    ]
+    found += [("Owner's rules", p) for p in sorted(config.rules_dir(uc, engine).glob("*.md"))]
+    return [(group, str(p.relative_to(folder))) for group, p in found if p.is_file()]
 
 
 def rule_path(uc: str, engine: str, name: str) -> Path:
-    if engine not in config.ENGINES or name not in rule_files(uc, engine):
-        raise HTTPException(404, f"No rule file '{name}' in usecases/{uc}/{engine}/rules/")
-    return config.rules_dir(uc, engine) / name
+    if engine not in config.ENGINES or name not in [rel for _, rel in rule_files(uc, engine)]:
+        raise HTTPException(404, f"No file '{name}' in usecases/{uc}/{engine}/")
+    return uc_dir(uc) / engine / name
+
+
+def claude_not_loaded(uc: str) -> list[str]:
+    """Claude rule files that CLAUDE.md does not import (`@rules/<file>`): Claude does not see them."""
+    md = uc_dir(uc) / "claude" / "CLAUDE.md"
+    text = md.read_text(encoding="utf-8") if md.exists() else ""
+    return [p.name for p in sorted(config.rules_dir(uc, "claude").glob("*.md")) if f"@rules/{p.name}" not in text]
+
+
+def n8n_push_text(uc: str) -> str:
+    """Push the n8n files of `uc` (after a prompt edit) and return what `make n8n-push` would print."""
+    import contextlib
+    import io
+
+    from kit import setup
+
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        code = setup.n8n_push(uc)
+    lines = [x.strip() for x in out.getvalue().splitlines() if x.strip().startswith(("OK", "FAIL", "STOP"))]
+    return ("Pushed to n8n. " if code == 0 else "Not in n8n yet: ") + " ".join(lines)[:400]
 
 
 def text_version(path: Path) -> str:
@@ -812,7 +849,8 @@ def text_version(path: Path) -> str:
 def rules_page(request: Request, uc: str, engine: str = "", name: str = ""):
     engine = rule_engine(uc, engine)
     files = rule_files(uc, engine)
-    name = name if name in files else (files[0] if files else "")
+    names = [rel for _, rel in files]
+    name = name if name in names else next((r for g, r in files if g == "Owner's rules"), names[0] if names else "")
     path = rule_path(uc, engine, name) if name else None
     return page(
         request,
@@ -821,6 +859,7 @@ def rules_page(request: Request, uc: str, engine: str = "", name: str = ""):
         engine=engine,
         run_engines=config.settings().engines,
         files=files,
+        not_loaded=claude_not_loaded(uc) if engine == "claude" else [],
         rule=name,
         text=path.read_text(encoding="utf-8") if path else "",
         version=text_version(path) if path else "",
@@ -849,7 +888,10 @@ async def rules_save(request: Request, uc: str):
     tmp = path.with_name(f".{path.name}.saving")
     tmp.write_text(text, encoding="utf-8")
     os.replace(tmp, path)
-    return {"ok": True, "version": text_version(path)}
+    answer = {"ok": True, "version": text_version(path)}
+    if str(f.get("engine")) == "n8n" and str(f.get("name", "")).startswith("prompts/"):  # n8n runs its own copy
+        answer["note"] = await asyncio.to_thread(n8n_push_text, uc)
+    return answer
 
 
 @app.post("/uc/{uc}/rules/preview", response_class=HTMLResponse)

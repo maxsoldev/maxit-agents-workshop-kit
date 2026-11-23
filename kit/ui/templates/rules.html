@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Rules · {{ uc|uc_name }}{% endblock %}
 {% block main %}
-<h1>The owner's rules <span class="muted">· {{ uc|uc_name }}</span></h1>
+<h1>Rules and instructions <span class="muted">· {{ uc|uc_name }}</span></h1>
 <form class="row3" method="get" action="/uc/{{ uc }}/rules">
   <label>Engine <select name="engine" onchange="this.form.submit()">
     {% for e in run_engines %}<option value="{{ e }}" {{ 'selected' if e == engine }}>{{ e }}</option>{% endfor %}
@@ -9,19 +9,26 @@
   <input type="hidden" name="name" value="{{ rule }}">{# the same file in the other engine, if it has it #}
   <noscript><button class="btn">Show</button></noscript>
 </form>
-<p class="muted">Each engine has its own copy of the rules. The <b>{{ engine }}</b> agent reads all the files below
-  on every case (tool <code>rules_get</code>); the other engines do not see them. Change a rule here, save, then
-  <a href="/uc/{{ uc }}/run?engine={{ engine }}">run the eval</a> on {{ engine }} and compare: the score shows if
-  the agent follows the new rule. The categories, flags, routes and status words live only here, so you can add
-  one with no code change.</p>
-{% if not files %}<div class="alert">No rule files: <code>usecases/{{ uc }}/{{ engine }}/rules/*.md</code> is empty.</div>{% else %}
+<p class="muted">The plain-text files of the <b>{{ engine }}</b> agent, in <code>usecases/{{ uc }}/{{ engine }}/</code>.
+  <b>Instructions</b>: how the agent works, step by step
+  {%- if engine == 'n8n' %} (the prompts of the AI nodes; a save also pushes them to n8n){% elif engine == 'claude' %}
+  (<code>CLAUDE.md</code> and the skills){% else %} (<code>prompt.md</code>){% endif %}.
+  <b>Owner's rules</b>: categories, routes, priorities, templates. The agent gets all of them on every case
+  {%- if engine == 'n8n' %} (node <i>Read the rules</i>){% elif engine == 'claude' %} (<code>CLAUDE.md</code> loads each
+  file with a line <code>@rules/&lt;file&gt;</code>){% else %} (<code>agent.py</code> reads them from disk){% endif %}.
+  The other engines have their own files. Change one thing, save, then
+  <a href="/uc/{{ uc }}/run?engine={{ engine }}">run the eval</a> on {{ engine }} and compare.</p>
+{% if not_loaded %}<div class="banner">Claude does not see {{ not_loaded|join(', ') }}: add a line
+  {% for f in not_loaded %}<code>@rules/{{ f }}</code> {% endfor %}to <code>CLAUDE.md</code>, part "The owner's rules".</div>{% endif %}
+{% if not files %}<div class="alert">No files in <code>usecases/{{ uc }}/{{ engine }}/</code>.</div>{% else %}
 <div class="rules">
   <nav class="rule-files">
-    {% for f in files %}<a href="/uc/{{ uc }}/rules?engine={{ engine }}&name={{ f|urlencode }}" class="{{ 'on' if f == rule }}">{{ f }}</a>{% endfor %}
+    {% for group, f in files %}{% if loop.first or files[loop.index0 - 1][0] != group %}<h3>{{ group }}</h3>{% endif %}
+    <a href="/uc/{{ uc }}/rules?engine={{ engine }}&name={{ f|urlencode }}" class="{{ 'on' if f == rule }}">{{ f.removeprefix('rules/').removeprefix('.claude/skills/') }}</a>{% endfor %}
   </nav>
   <div class="rule-edit">
     <div class="rule-bar">
-      <code>usecases/{{ uc }}/{{ engine }}/rules/{{ rule }}</code>
+      <code>usecases/{{ uc }}/{{ engine }}/{{ rule }}</code>
       <span id="rule-state" class="muted small">In sync with the file</span>
       <span class="grow"></span>
       <button type="button" class="btn" id="rule-view" onclick="togglePreview()">Preview</button>
@@ -34,8 +41,8 @@
     </div>
     <textarea id="rule-text" spellcheck="true" aria-label="{{ rule }}">{{ text }}</textarea>
     <div id="rule-preview" class="doc" hidden></div>
-    <p class="muted small">Markdown: <code>#</code> a heading, <code>**bold**</code>, <code>- </code> a list item,
-      <code>| a | b |</code> a table row. Ctrl+S (⌘S) saves. Edits in the file on disk (by a developer or Claude Code)
+    <p class="muted small">Markdown: <code>#</code> a heading, <code>**bold**</code>, <code>- </code> a list item.
+      Write rules as lists, one item per line (<code>- `word`: what it means</code>), not as tables. Ctrl+S (⌘S) saves. Edits in the file on disk (by a developer or Claude Code)
       show here within 2 s.</p>
   </div>
 </div>
@@ -65,7 +72,7 @@ async function saveRule(force) {
   const j = await r.json();
   if (j.ok) {
     version = j.version; saved = box.value; disk = null;
-    conflict(""); refresh(); state("Saved " + now());
+    conflict(""); refresh(); state("Saved " + now() + (j.note ? ". " + j.note : ""));
   } else {
     conflict(j.error + " Load it, or save yours over it.");
   }

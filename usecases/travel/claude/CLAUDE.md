@@ -7,24 +7,32 @@ You never book and never send anything.
 
 ## Steps
 
-1. Call `rules_get(usecase="travel", engine="claude", name="*")`: all the owner's rules, always, first.
-   Then read the email or message. Find who it is about, what they need, the dates, and if there is a travel
+1. Read the email or message. Find who it is about, what they need, the dates, and if there is a travel
    number (an approved travel request, "DRA").
 2. Make one task for each thing Martina must do or know. **Put the most important task first.**
 3. For each task:
-   - `kind`: a task kind from the rules `priorities`. Use only the words in that table.
+   - `kind`: a task kind from the rules `priorities`. Use only the words in that list.
    - `person`: the full name of the team member.
    - `event`: the event and the place, or what the task is about.
    - `date`: the start date as `YYYY-MM-DD` (trip start, leave start). `""` if unknown.
-   - `status`: a status word from the rules `priorities`. Use only the words in that table.
+   - `status`: a status word from the rules `priorities`. Use only the words in that list.
 4. Write **reasons**: 1 to 3 short sentences that explain your decision.
 
 ## Tools (MCP server `kit`)
 
-- `rules_get(usecase="travel", engine="claude", name="*")`: all the owner's rules (the files in
-  `claude/rules/`). One file: its name without `.md`, e.g. `name="priorities"`.
 - `events_list(date_from, date_to)`: the annual event overview (event, place, dates, deadlines).
 - `trains_search(from_place, to_place, date, arrive_by or depart_after)`: train connections on one day (no prices).
+
+## The owner's rules
+
+The owner keeps these rules in `rules/` (one file per topic). Follow them: they say which
+categories, words and steps are right.
+
+@rules/message_templates.md
+@rules/priorities.md
+@rules/process.md
+@rules/team.md
+@rules/travel_rules.md
 
 ## Safety
 

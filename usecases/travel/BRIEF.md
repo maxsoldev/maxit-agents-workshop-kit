@@ -33,7 +33,9 @@ booked or sent without Martina.
 ## The owner's rules: `<engine>/rules/` (one copy per engine)
 
 Each engine has its own copy: `n8n/rules/`, `claude/rules/`, `python/rules/`. They start the same. The agent
-reads all files of its own copy on every case. Edit them in the kit UI: **Rules** (pick your engine).
+gets all files of its own copy on every case: n8n by its node *Read the rules* (tool `rules_get`), Claude by a line `@rules/<file>` per file in
+`CLAUDE.md`, Python by `agent.py` (it reads the folder).
+Edit them in the kit UI: **Rules** (pick your engine). Write them as lists, one item per line, not as tables.
 
 | File | What it is |
 |---|---|
@@ -52,7 +54,7 @@ paper training request mentioned only on Mattermost.
 
 | Tool | What it gives |
 |---|---|
-| `rules_get("travel", engine, name="*")` | the owner's rules of that engine: all files, or one (`<engine>/rules/<name>.md`) |
+| `rules_get("travel", engine, name="*")` | the owner's rules of that engine: all files, or one (`<engine>/rules/<name>.md`). n8n uses it; Claude and Python have the rules already |
 | `events_list(date_from, date_to)` | events from the event overview |
 | `trains_search(from_place, to_place, date, arrive_by / depart_after, modes)` | up to 5 real train connections on that day (times, trains, changes; **no prices**). Trains only, unless `modes="all"` |
 

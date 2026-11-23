@@ -230,4 +230,7 @@ html.gp-open .guide-panel { display: flex; }
 .rule-edit textarea { width: 100%; min-height: 65vh; font: 0.92rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
   padding: 0.6rem 0.8rem; border: 1px solid var(--line); border-radius: 6px; }
 .rule-edit .banner { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
+.rule-edit [hidden] { display: none; } /* else display: flex above wins over the hidden attribute */
 #rule-preview { min-height: 65vh; border: 1px solid var(--line); border-radius: 6px; padding: 0.4rem 1rem; max-width: none; }
+.rule-files h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 0.9rem 0 0.2rem 0.5rem; }
+.rule-files h3:first-child { margin-top: 0; }

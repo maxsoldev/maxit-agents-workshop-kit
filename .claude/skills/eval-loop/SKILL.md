@@ -14,10 +14,11 @@ evidence; the score counts only if the cases are honest. Method and check guide:
 |---|---|
 | `n8n` | `usecases/<uc>/n8n/prompts/*.md` and `n8n/workflow.json`, then `make n8n-push UC=<uc>` (skill `n8n-workflow`) |
 | `claude` | `usecases/<uc>/claude/CLAUDE.md` and its skills in `usecases/<uc>/claude/.claude/skills/` (the agent's own, not this session's) |
-| `python` | `usecases/<uc>/python/agent.py`: the `PROMPT` text, the tools list, the loop |
+| `python` | `usecases/<uc>/python/prompt.md` (the prompt); `python/agent.py`: the tools list, the loop |
 
-Per engine: `usecases/<uc>/<engine>/rules/*.md` (the owner's rules; the agent reads all of them through `rules_get`
-on every case; a rule change is an agent change in Compare). Shared by all engines: `data/` (the inputs),
+Per engine: `usecases/<uc>/<engine>/rules/*.md` (the owner's rules, as lists; the agent gets all of them on every
+case: n8n node Read the rules, Claude `@rules/<file>` in CLAUDE.md, Python agent.py; a new file for Claude needs
+its `@rules/` line; a rule change is an agent change in Compare). Shared by all engines: `data/` (the inputs),
 `output.schema.json` (the result shape; every engine gets it with each case), `cases.jsonl`.
 
 ## 1. Run

@@ -163,19 +163,17 @@ ENGINES = ("n8n", "claude", "python")
 
 
 def owner_lists(uc: str, engine: str) -> dict[str, set[str]]:
-    """The word lists the owner keeps in <engine>/rules/*.md: tables whose first column is a `word`
-    (categories, flags, task kinds, status words, routes). Key: "<file>: <table head>"."""
+    """The word lists the owner keeps in <engine>/rules/*.md: list items that start with a `word`
+    (categories, flags, task kinds, status words, routes). Key: "<file>: <heading>"."""
     lists: dict[str, set[str]] = {}
     for f in sorted((USECASES / uc / engine / "rules").glob("*.md")):
         head = ""
         for line in f.read_text(encoding="utf-8").splitlines():
-            m = re.match(r"\|\s*`([a-z_]+)`\s*\|", line)
-            if m:
+            m = re.match(r"- `([a-z_]+)`:", line)
+            if line.startswith("#"):
+                head = line
+            elif m:
                 lists.setdefault(f"{engine}/rules/{f.name}: {head}", set()).add(m[1])
-            elif line.startswith("|"):
-                head = head or line
-            else:
-                head = ""
     return lists
 
 
@@ -190,11 +188,9 @@ def agent_files(uc: str, engine: str) -> list[Path]:
     folder = USECASES / uc / engine
     if engine == "n8n":
         return sorted((folder / "prompts").glob("*.md"))
-    return (
-        [folder / "CLAUDE.md", *sorted((folder / ".claude").rglob("SKILL.md"))]
-        if engine == "claude"
-        else [folder / "agent.py"]
-    )
+    if engine == "claude":
+        return [folder / "CLAUDE.md", *sorted((folder / ".claude").rglob("SKILL.md"))]
+    return [folder / "prompt.md", folder / "agent.py"]
 
 
 @pytest.mark.parametrize("uc", UCS)
@@ -203,7 +199,7 @@ def test_owner_lists_live_only_in_the_rules(uc, engine):
     """Lu's wish: the owner adds a category or a status word in the rules of their engine, with no code change.
     So no schema enum and no agent prompt repeats a list from the rules (one example word is fine)."""
     lists = owner_lists(uc, engine)
-    assert lists, f"{uc}: no word tables in {engine}/rules/*.md"
+    assert lists, f"{uc}: no word lists in {engine}/rules/*.md"
     schemas = [json.loads((USECASES / uc / "output.schema.json").read_text())]
     for n in json.loads((USECASES / uc / "n8n" / "workflow.json").read_text())["nodes"]:  # n8n model schemas
         fmt = n["parameters"].get("options", {}).get("textFormat", {}).get("textOptions") or {}
@@ -219,8 +215,8 @@ def test_owner_lists_live_only_in_the_rules(uc, engine):
 
 @pytest.mark.parametrize("uc", UCS)
 def test_each_engine_reads_all_its_own_rules(uc):
-    """Each engine has its own rules (<engine>/rules/*.md) and reads all of them on every case:
-    n8n and Python by code, Claude in step 1 of CLAUDE.md. data/ has the inputs only, no rules."""
+    """Each engine has its own rules (<engine>/rules/*.md) and gets all of them on every case, by code:
+    n8n (node Read the rules), Python (agent.py reads the folder), Claude (CLAUDE.md imports each file)."""
     assert not list((USECASES / uc / "data").glob("*.md")), f"{uc}: rules belong in <engine>/rules/, not data/"
     for engine in ENGINES:
         assert list((USECASES / uc / engine / "rules").glob("*.md")), f"{uc}: no {engine}/rules/*.md"
@@ -228,6 +224,17 @@ def test_each_engine_reads_all_its_own_rules(uc):
     body = {p["name"]: p["value"] for p in nodes["Read the rules"]["parameters"]["bodyParameters"]["parameters"]}
     assert body == {"usecase": uc, "engine": "n8n", "name": "*"}
     agent = (USECASES / uc / "python" / "agent.py").read_text()
-    assert '"engine": "python", "name": "*"' in agent and "await owner_rules(client)" in agent
+    assert 'RULES_DIR = HERE / "rules"' in agent and 'PROMPT_FILE = HERE / "prompt.md"' in agent
     claude = (USECASES / uc / "claude" / "CLAUDE.md").read_text()
-    assert f'1. Call `rules_get(usecase="{uc}", engine="claude", name="*")`' in claude
+    for f in sorted((USECASES / uc / "claude" / "rules").glob("*.md")):
+        assert f"\n@rules/{f.name}\n" in claude, f"{uc}: CLAUDE.md does not load rules/{f.name}"
+
+
+@pytest.mark.parametrize("uc", UCS)
+@pytest.mark.parametrize("engine", ENGINES)
+def test_rules_have_no_tables(uc, engine):
+    """A person edits the rules: lists, one item per line, are easy; Markdown tables break easily."""
+    for f in sorted((USECASES / uc / engine / "rules").glob("*.md")):
+        lines = f.read_text(encoding="utf-8").splitlines()
+        rows = [n for n, line in enumerate(lines, 1) if line.lstrip().startswith("|")]
+        assert not rows, f"{uc}/{engine}/rules/{f.name}: a table at line {rows[0]}; write it as a list"

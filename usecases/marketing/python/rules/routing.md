@@ -2,19 +2,15 @@
 
 ## Actions
 
-| Action | When |
-|---|---|
-| `reply` | We answer the sender ourselves (marketing & communication). |
-| `forward` | Someone else in the department must handle it. Write who in "route to". |
-| `no_reply` | Newsletters, spam, phishing, and service offers we do not need. Log them and stop. |
+- `reply`: We answer the sender ourselves (marketing & communication).
+- `forward`: Someone else in the department must handle it. Write who in "route to".
+- `no_reply`: Newsletters, spam, phishing, and service offers we do not need. Log them and stop.
 
 ## Route to
 
-| Route | What goes there |
-|---|---|
-| `tech_team` | Technical problems and support (e.g. errors with certificates, the verification page or nodes). Always high priority. If the sender writes again, mark it as urgent. |
-| `membership_owner` | Questions about joining the bloxberg consortium, membership conditions, running a member node. **Always** route these to the membership owner, also when we reply ourselves. |
-| `head` | Use only when the head of department must handle the email, not only approve our reply. |
+- `tech_team`: Technical problems and support (e.g. errors with certificates, the verification page or nodes). Always high priority. If the sender writes again, mark it as urgent.
+- `membership_owner`: Questions about joining the bloxberg consortium, membership conditions, running a member node. **Always** route these to the membership owner, also when we reply ourselves.
+- `head`: Use only when the head of department must handle the email, not only approve our reply.
 
 Leave "route to" empty when we reply ourselves, except for membership requests (see above).
 
@@ -32,10 +28,8 @@ No approval needed for: simple information, a demo date offer to an interested i
 
 First ask: what does the sender want?
 
-| The sender wants to … | Category | What we do |
-|---|---|---|
-| **sell us** a service (marketing, SEO, crypto marketing, exchange listings, hosting, consulting) | `service_offer` | No reply (see below). |
-| **buy from us, fund us or partner with us**, with big claims (large budgets, investment, long-term deals), and we cannot verify them | `unverified_outreach` | Flag `unverified`. Reply with a polite request for details (organisation, imprint, references, the concrete idea). No call, no meeting. This also applies when the offer mentions tokens or crypto. |
+- The sender wants to **sell us** a service (marketing, SEO, crypto marketing, exchange listings, hosting, consulting): category `service_offer`. What we do: No reply (see below).
+- The sender wants to **buy from us, fund us or partner with us**, with big claims (large budgets, investment, long-term deals), and we cannot verify them: category `unverified_outreach`. What we do: Flag `unverified`. Reply with a polite request for details (organisation, imprint, references, the concrete idea). No call, no meeting. This also applies when the offer mentions tokens or crypto.
 
 ## Service offers
 
