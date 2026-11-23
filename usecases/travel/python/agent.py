@@ -46,6 +46,13 @@ def log(*args) -> None:
     print(*args, file=sys.stderr, flush=True)
 
 
+def log_usage(answer) -> None:
+    """One line per model call: the runner reads the tokens from it (cost per case)."""
+    u = getattr(answer, "usage", None)
+    if u:
+        log(f"model {MODEL} {json.dumps({'input_tokens': u.input_tokens, 'output_tokens': u.output_tokens})}")
+
+
 def to_openai_tool(tool) -> dict:
     """An MCP tool description in the format of the OpenAI Responses API.
     strict=False: MCP schemas do not follow the strict rules (the Responses API default is strict)."""
@@ -100,6 +107,7 @@ async def run(case: dict, client: Client | None) -> dict:
     # When the model stops calling tools, one last call WITH the result format gives the result JSON.
     for _ in range(MAX_STEPS):
         answer = llm.responses.create(model=MODEL, instructions=PROMPT, input=items, **with_tools)
+        log_usage(answer)
         items += answer.output  # reasoning, messages and function calls go back as they came
         calls = [item for item in answer.output if item.type == "function_call"]
         if not calls:
@@ -125,6 +133,7 @@ async def run(case: dict, client: Client | None) -> dict:
         **with_tools,
         text={"format": result_format(schema)},
     )
+    log_usage(final)
     return json.loads(final.output_text)
 
 

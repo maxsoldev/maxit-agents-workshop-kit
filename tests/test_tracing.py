@@ -120,7 +120,8 @@ class FakeSpan:
         self.end_time = end_time
 
 
-def test_n8n_nodes_are_observations_with_execution_times():
+def test_n8n_nodes_are_observations_with_execution_times(monkeypatch):
+    monkeypatch.setenv("KIT_PRICES", "fast=1/2")
     log = []
     root = FakeSpan(log)
     root.trace_id = "t"
@@ -142,6 +143,7 @@ def test_n8n_nodes_are_observations_with_execution_times():
     agent, m = log  # the parent is made first
     assert (agent["name"], agent["parent"], agent["type"], agent["level"]) == ("Agent", "root", "agent", "ERROR")
     assert (m["parent"], m["type"], m["model"], m["usage_details"]) == ("Agent", "generation", "fast", {"input": 3})
+    assert m["cost_details"] == {"total": 3e-6}  # from KIT_PRICES, so Langfuse has the run file's cost
     assert agent["child"]._otel_span._start_time == 1_000_000 and m["child"].end_time == 3_000_000
     trace.n8n_nodes([{"broken": True}])  # never raises
 

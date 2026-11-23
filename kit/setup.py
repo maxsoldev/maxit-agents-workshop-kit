@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -666,7 +667,46 @@ def setup_langfuse() -> bool:
         return False
     names = ", ".join(p.get("name", "?") for p in r.json().get("data", []))
     ok(f"keys work (project: {names})")
+    try:
+        register_prices(s.langfuse_host, (s.langfuse_public_key, s.langfuse_secret_key), s.prices)
+    except (httpx.HTTPError, ValueError, KeyError) as e:
+        warn(f"model prices not copied to Langfuse ({type(e).__name__}: {e}); the run files still have the cost")
     return True
+
+
+def price_model(name: str, price: tuple[float, float]) -> dict:
+    """A Langfuse model for one KIT_PRICES row (USD per token). It also matches `openai/<name>` and dated
+    snapshots (`<name>-2026-10-01`)."""
+    pattern = f"(?i)^(openai/)?({re.escape(name)})(-\\d{{4}}-\\d{{2}}-\\d{{2}})?$"
+    return {"modelName": name, "matchPattern": pattern, "unit": "TOKENS"} | {
+        "inputPrice": price[0] / 1e6,
+        "outputPrice": price[1] / 1e6,
+    }
+
+
+def register_prices(host: str, auth: tuple[str, str], prices: dict[str, tuple[float, float]]) -> None:
+    """Copy KIT_PRICES to Langfuse as project models (they win over Langfuse's own prices), so a generation
+    without a cost gets the same price as in the run files. A model with other prices is made again."""
+    url, api = f"{host}/api/public/models", httpx.Client(auth=auth, timeout=10)
+    mine, page = {}, 1
+    while True:
+        r = api.get(url, params={"page": page, "limit": 100})
+        r.raise_for_status()
+        mine |= {m["modelName"]: m for m in r.json()["data"] if not m.get("isLangfuseManaged")}
+        if page >= r.json()["meta"]["totalPages"]:
+            break
+        page += 1
+    changed = []
+    for name, price in prices.items():
+        want, old = price_model(name, price), mine.get(name)
+        same = old and old.get("matchPattern") == want["matchPattern"] and old.get("unit") == want["unit"]
+        if same and all(abs((old.get(k) or 0) - want[k]) < 1e-12 for k in ("inputPrice", "outputPrice")):
+            continue
+        if old:
+            api.delete(f"{url}/{old['id']}").raise_for_status()
+        api.post(url, json=want).raise_for_status()
+        changed.append(name)
+    ok(f"model prices in Langfuse: {', '.join(changed) or 'no change'} ({len(prices)} in KIT_PRICES)")
 
 
 def summary() -> None:

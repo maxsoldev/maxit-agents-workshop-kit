@@ -6,6 +6,7 @@ import json
 import re
 
 from kit.config import settings
+from kit.runner import usage
 
 SYSTEM = (
     "You grade one field of the result of an AI agent. Read the rubric, the case input and the field value. "
@@ -41,8 +42,9 @@ def parse_answer(content: str) -> dict:
         return json.loads(found[-1])
 
 
-def score(value, rubric: str, case_input: dict, tool_calls: list[dict] | None = None) -> tuple[int, str]:
-    """Return (score 1-5, reason). Raise an error with a clear message if the judge cannot run.
+def score(value, rubric: str, case_input: dict, tool_calls: list[dict] | None = None) -> tuple[int, str, dict | None]:
+    """Return (score 1-5, reason, model call with tokens and cost, or None). Raise an error with a clear message if
+    the judge cannot run.
     `tool_calls` ([{"name", "input", "output"}], when the engine gives them): facts from them are allowed."""
     s = settings()
     if not s.openai_api_key:
@@ -70,4 +72,6 @@ def score(value, rubric: str, case_input: dict, tool_calls: list[dict] | None = 
             raise
         r = client.chat.completions.create(**args)  # some models (reasoning models) allow only the default
     data = parse_answer(r.choices[0].message.content or "")
-    return max(1, min(5, int(data.get("score", 1)))), str(data.get("reason", "")).strip()
+    u = getattr(r, "usage", None)
+    call = usage.call(s.judge_model, u.prompt_tokens or 0, u.completion_tokens or 0) if u else None
+    return max(1, min(5, int(data.get("score", 1)))), str(data.get("reason", "")).strip(), call

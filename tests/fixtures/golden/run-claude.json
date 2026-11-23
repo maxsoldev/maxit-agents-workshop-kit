@@ -41,12 +41,19 @@
       "type": "judge"
      },
      "field": "reply",
+     "model_call": {
+      "cost_usd": 0.00024,
+      "model": "j-test",
+      "tokens_in": 100,
+      "tokens_out": 10
+     },
      "passed": true,
      "reason": "score 5/5 (min 4): r5",
      "score": 5,
      "type": "judge"
     }
    ],
+   "cost_usd": 0.02,
    "error": null,
    "expected": {
     "category": "a"
@@ -58,9 +65,23 @@
     "note_file": "data/note.txt",
     "want": "a"
    },
+   "judge": {
+    "cost_usd": 0.00024,
+    "seconds": "<s>",
+    "tokens_in": 100,
+    "tokens_out": 10
+   },
    "meta": {
     "cost_usd": 0.02,
     "duration_ms": 7,
+    "model_calls": [
+     {
+      "cost_usd": 0.02,
+      "model": "claude-x",
+      "tokens_in": 100,
+      "tokens_out": 5
+     }
+    ],
     "models": [
      "claude-x"
     ],
@@ -88,6 +109,8 @@
    "seconds": "<s>",
    "title": "Good",
    "today": "2026-11-04",
+   "tokens_in": 100,
+   "tokens_out": 5,
    "trace_url": null
   },
   {
@@ -116,12 +139,19 @@
       "type": "judge"
      },
      "field": "reply",
+     "model_call": {
+      "cost_usd": 0.00024,
+      "model": "j-test",
+      "tokens_in": 100,
+      "tokens_out": 10
+     },
      "passed": false,
      "reason": "score 2/5 (min 4): r2",
      "score": 2,
      "type": "judge"
     }
    ],
+   "cost_usd": 0.02,
    "error": null,
    "expected": {
     "category": "a"
@@ -131,9 +161,23 @@
     "mode": "ok",
     "want": "b"
    },
+   "judge": {
+    "cost_usd": 0.00024,
+    "seconds": "<s>",
+    "tokens_in": 100,
+    "tokens_out": 10
+   },
    "meta": {
     "cost_usd": 0.02,
     "duration_ms": 7,
+    "model_calls": [
+     {
+      "cost_usd": 0.02,
+      "model": "claude-x",
+      "tokens_in": 100,
+      "tokens_out": 5
+     }
+    ],
     "models": [
      "claude-x"
     ],
@@ -161,6 +205,8 @@
    "seconds": "<s>",
    "title": "Wrong",
    "today": null,
+   "tokens_in": 100,
+   "tokens_out": 5,
    "trace_url": null
   },
   {
@@ -173,15 +219,25 @@
      "type": "schema"
     }
    ],
+   "cost_usd": 0.02,
    "error": null,
    "expected": {},
    "id": "s03",
    "input": {
     "mode": "bad"
    },
+   "judge": null,
    "meta": {
     "cost_usd": 0.02,
     "duration_ms": 7,
+    "model_calls": [
+     {
+      "cost_usd": 0.02,
+      "model": "claude-x",
+      "tokens_in": 100,
+      "tokens_out": 5
+     }
+    ],
     "models": [
      "claude-x"
     ],
@@ -205,6 +261,8 @@
    "seconds": "<s>",
    "title": "Bad schema",
    "today": null,
+   "tokens_in": 100,
+   "tokens_out": 5,
    "trace_url": null
   }
  ],
@@ -254,7 +312,19 @@
   },
   "cases": 3,
   "passed": 1,
-  "skipped": {}
+  "skipped": {},
+  "totals": {
+   "avg_cost_usd": 0.02,
+   "avg_seconds": "<s>",
+   "avg_tokens_in": 100.0,
+   "avg_tokens_out": 5.0,
+   "cost_cases": 3,
+   "cost_usd": 0.06,
+   "judge_cost_usd": 0.00048,
+   "seconds": "<s>",
+   "tokens_in": 300,
+   "tokens_out": 15
+  }
  },
  "usecase": "seam"
 }

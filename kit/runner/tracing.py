@@ -8,9 +8,11 @@ import json
 import subprocess
 import sys
 import threading
+import time
 from contextlib import contextmanager, nullcontext
 
 from kit.config import ROOT, settings
+from kit.runner import usage
 from kit.runner.deadline import Deadline, with_deadline
 
 _client = None
@@ -46,10 +48,30 @@ class NoTrace:
     def n8n_nodes(self, nodes: list[dict]) -> None:
         pass
 
+    def agent_done(self) -> None:
+        pass
+
+    def model_calls(self, calls: list[dict], name: str) -> None:
+        pass
+
+    def end(self) -> None:
+        pass
+
+
+def _cost(model: str | None, tokens: dict | None) -> dict:
+    """`cost_details` for a generation from the kit's price table ({} if unknown), so Langfuse shows the
+    same cost as the run file. Langfuse prefers a sent cost to its own price table."""
+    p = usage.price(model)
+    if not p or not tokens:
+        return {}
+    cost = ((tokens.get("input") or 0) * p[0] + (tokens.get("output") or 0) * p[1]) / 1e6
+    return {"cost_details": {"total": cost}}
+
 
 class CaseTrace(NoTrace):
     def __init__(self, lf, span, uc: str):
         self.lf, self.span, self.uc = lf, span, uc
+        self.agent_end_ns: int | None = None
         try:
             self.url = lf.get_trace_url(trace_id=span.trace_id)
         except Exception:
@@ -97,7 +119,10 @@ class CaseTrace(NoTrace):
             if i not in made:
                 n = nodes[i]
                 parent = self.span if n["parent"] is None else make(n["parent"])
-                extra = {"model": n["model"], "usage_details": n["usage"]} if n["kind"] == "generation" else {}
+                gen = n["kind"] == "generation"
+                extra = (
+                    {"model": n["model"], "usage_details": n["usage"]} | _cost(n["model"], n["usage"]) if gen else {}
+                )
                 meta = {"n8n_node_type": n["node_type"]} | ({"branch": n["branch"]} if n["branch"] is not None else {})
                 o = parent.start_observation(
                     name=n["name"], as_type=n["kind"], input=n["input"], output=n["output"], metadata=meta,
@@ -114,6 +139,30 @@ class CaseTrace(NoTrace):
                 o.end(end_time=int(nodes[i]["end"] * 1e6))
         except Exception:
             pass  # tracing must never break a run
+
+    def agent_done(self) -> None:
+        """The agent ended now: the case trace ends at this time (the checks and the judge come after)."""
+        self.agent_end_ns = time.time_ns()
+
+    def model_calls(self, calls: list[dict], name: str) -> None:
+        """One GENERATION per model call (python, claude: one per model, the judge), with tokens and cost.
+        The Langfuse experiment sums the cost of these (Claude Code's own spans are not in the experiment)."""
+        try:
+            for i, c in enumerate(calls, 1):
+                cost = {"cost_details": {"total": c["cost_usd"]}} if c.get("cost_usd") is not None else {}
+                self.span.start_observation(
+                    name=f"{name} {i}: {c.get('model')}", as_type="generation", model=c.get("model"),
+                    usage_details={"input": c.get("tokens_in") or 0, "output": c.get("tokens_out") or 0}, **cost,
+                ).end()  # fmt: skip
+        except Exception:
+            pass  # tracing must never break a run
+
+    def end(self) -> None:
+        """End the case trace at the end of the agent (its latency in the experiment), else now."""
+        try:
+            self.span.end(end_time=self.agent_end_ns)
+        except Exception:
+            pass
 
     def finish(self, output, error, checks, passed) -> None:
         """Write the output and one score per check plus `passed` (1/0). A judge check is its 1-5 score
@@ -229,14 +278,18 @@ def case_trace(uc: str, engine: str, run_id: str, run_name: str, case: dict, eng
 
     lf = client()
     name = f"{uc}/{case['id']}"
-    with lf.start_as_current_observation(name=name, input=engine_input) as span:
-        with propagate_attributes(trace_name=name, session_id=run_id, tags=[uc, engine, run_name]):
-            try:
-                ctx = _in_experiment(experiment, span, uc, case)
-            except Exception:
-                ctx = nullcontext()  # tracing must never break a run
-            with ctx:
-                yield CaseTrace(lf, span, uc)
+    with lf.start_as_current_observation(name=name, input=engine_input, end_on_exit=False) as span:
+        trace = CaseTrace(lf, span, uc)
+        try:
+            with propagate_attributes(trace_name=name, session_id=run_id, tags=[uc, engine, run_name]):
+                try:
+                    ctx = _in_experiment(experiment, span, uc, case)
+                except Exception:
+                    ctx = nullcontext()  # tracing must never break a run
+                with ctx:
+                    yield trace
+        finally:
+            trace.end()
 
 
 def experiment_for_run(uc: str, cases: list[dict], run: dict) -> dict | None:

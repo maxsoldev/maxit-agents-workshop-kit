@@ -1,10 +1,12 @@
-"""Engine `python`: `usecases/<uc>/python/agent.py`, engine input on stdin, result JSON on stdout (contracts §4)."""
+"""Engine `python`: `usecases/<uc>/python/agent.py`, engine input on stdin, result JSON on stdout (contracts §4).
+The runner reads the tool calls and the model calls (tokens) from the agent's stderr lines."""
 
 from __future__ import annotations
 
 import json
 
 from kit import config
+from kit.runner import usage
 from kit.runner.engines.common import TIMEOUTS, Answer, as_result, engine_env, run_process, tail
 
 
@@ -24,6 +26,22 @@ def read_tool_log(err: str, limit: int = 4000) -> list[dict]:
     return calls
 
 
+def read_model_log(err: str) -> list[dict]:
+    """Model calls from the stderr lines of agent.py: `model <name> {"input_tokens": N, "output_tokens": M}`
+    (the `usage` of a Responses API answer). Lines in another form are skipped."""
+    calls = []
+    for line in err.splitlines():
+        parts = line.split(" ", 2)
+        if len(parts) < 3 or parts[0] != "model":
+            continue
+        try:
+            u = json.loads(parts[2])
+            calls.append(usage.call(parts[1], int(u.get("input_tokens") or 0), int(u.get("output_tokens") or 0)))
+        except (ValueError, TypeError, AttributeError):
+            continue
+    return calls
+
+
 def call(uc: str, engine_input: dict, extra_env: dict) -> Answer:
     folder = config.USECASES_DIR / uc / "python"
     if not (folder / "agent.py").exists():
@@ -35,6 +53,7 @@ def call(uc: str, engine_input: dict, extra_env: dict) -> Answer:
     )
     # The last log lines of agent.py (long lines cut), and its tool calls for the results page and the judge.
     meta = {"stderr": "\n".join(line[:300] for line in tail(err, 40).splitlines()), "tool_calls": read_tool_log(err)}
+    meta["model_calls"] = read_model_log(err)
     if code is None:
         return None, f"agent.py did not finish in {timeout} s", meta
     if code != 0:

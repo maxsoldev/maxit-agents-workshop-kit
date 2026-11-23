@@ -1,7 +1,7 @@
 {
  "agent_version": {
   "git": null,
-  "hash": "c8ded6d8b8d2d822"
+  "hash": "2144dcbbfd80dcae"
  },
  "cases": [
   {
@@ -41,12 +41,19 @@
       "type": "judge"
      },
      "field": "reply",
+     "model_call": {
+      "cost_usd": 0.00024,
+      "model": "j-test",
+      "tokens_in": 100,
+      "tokens_out": 10
+     },
      "passed": true,
      "reason": "score 5/5 (min 4): r5",
      "score": 5,
      "type": "judge"
     }
    ],
+   "cost_usd": 0.0014,
    "error": null,
    "expected": {
     "category": "a"
@@ -58,8 +65,22 @@
     "note_file": "data/note.txt",
     "want": "a"
    },
+   "judge": {
+    "cost_usd": 0.00024,
+    "seconds": "<s>",
+    "tokens_in": 100,
+    "tokens_out": 10
+   },
    "meta": {
-    "stderr": "log line one\ntool rules_get {\"name\": \"routing\"} -> \"# Routing\\nok\"",
+    "model_calls": [
+     {
+      "cost_usd": 0.0014,
+      "model": "m-test",
+      "tokens_in": 1000,
+      "tokens_out": 200
+     }
+    ],
+    "stderr": "log line one\ntool rules_get {\"name\": \"routing\"} -> \"# Routing\\nok\"\nmodel m-test {\"input_tokens\": 1000, \"output_tokens\": 200}",
     "tool_calls": [
      {
       "input": {
@@ -86,6 +107,8 @@
    "seconds": "<s>",
    "title": "Good",
    "today": "2026-11-04",
+   "tokens_in": 1000,
+   "tokens_out": 200,
    "trace_url": null
   },
   {
@@ -114,12 +137,19 @@
       "type": "judge"
      },
      "field": "reply",
+     "model_call": {
+      "cost_usd": 0.00024,
+      "model": "j-test",
+      "tokens_in": 100,
+      "tokens_out": 10
+     },
      "passed": false,
      "reason": "score 2/5 (min 4): r2",
      "score": 2,
      "type": "judge"
     }
    ],
+   "cost_usd": 0.0014,
    "error": null,
    "expected": {
     "category": "a"
@@ -129,8 +159,22 @@
     "mode": "ok",
     "want": "b"
    },
+   "judge": {
+    "cost_usd": 0.00024,
+    "seconds": "<s>",
+    "tokens_in": 100,
+    "tokens_out": 10
+   },
    "meta": {
-    "stderr": "log line one\ntool rules_get {\"name\": \"routing\"} -> \"# Routing\\nok\"",
+    "model_calls": [
+     {
+      "cost_usd": 0.0014,
+      "model": "m-test",
+      "tokens_in": 1000,
+      "tokens_out": 200
+     }
+    ],
+    "stderr": "log line one\ntool rules_get {\"name\": \"routing\"} -> \"# Routing\\nok\"\nmodel m-test {\"input_tokens\": 1000, \"output_tokens\": 200}",
     "tool_calls": [
      {
       "input": {
@@ -157,6 +201,8 @@
    "seconds": "<s>",
    "title": "Wrong",
    "today": null,
+   "tokens_in": 1000,
+   "tokens_out": 200,
    "trace_url": null
   },
   {
@@ -169,14 +215,24 @@
      "type": "schema"
     }
    ],
+   "cost_usd": 0.0014,
    "error": null,
    "expected": {},
    "id": "s03",
    "input": {
     "mode": "bad"
    },
+   "judge": null,
    "meta": {
-    "stderr": "log line one\ntool rules_get {\"name\": \"routing\"} -> \"# Routing\\nok\"",
+    "model_calls": [
+     {
+      "cost_usd": 0.0014,
+      "model": "m-test",
+      "tokens_in": 1000,
+      "tokens_out": 200
+     }
+    ],
+    "stderr": "log line one\ntool rules_get {\"name\": \"routing\"} -> \"# Routing\\nok\"\nmodel m-test {\"input_tokens\": 1000, \"output_tokens\": 200}",
     "tool_calls": [
      {
       "input": {
@@ -195,6 +251,8 @@
    "seconds": "<s>",
    "title": "Bad schema",
    "today": null,
+   "tokens_in": 1000,
+   "tokens_out": 200,
    "trace_url": null
   }
  ],
@@ -244,7 +302,19 @@
   },
   "cases": 3,
   "passed": 1,
-  "skipped": {}
+  "skipped": {},
+  "totals": {
+   "avg_cost_usd": 0.0014,
+   "avg_seconds": "<s>",
+   "avg_tokens_in": 1000.0,
+   "avg_tokens_out": 200.0,
+   "cost_cases": 3,
+   "cost_usd": 0.0042,
+   "judge_cost_usd": 0.00048,
+   "seconds": "<s>",
+   "tokens_in": 3000,
+   "tokens_out": 600
+  }
  },
  "usecase": "seam"
 }

@@ -14,6 +14,10 @@ def _label(check: dict) -> str:
     return f"{check['type']}{where}: {check['reason']}"
 
 
+def _usd(v) -> str:
+    return "–" if v is None else f"${v:.4f}"
+
+
 def main(
     usecase: str, engine: str, case_ids: list[str] | None = None, name: str | None = None, holdout: bool = False
 ) -> int:
@@ -37,7 +41,7 @@ def main(
     print()
     for c in run["cases"]:
         mark = "✓" if c["passed"] else "✗"
-        line = f"{mark} {c['id']:<8} {c['title'][:50]:<50} {c['seconds']:>6.1f}s"
+        line = f"{mark} {c['id']:<8} {c['title'][:50]:<50} {c['seconds']:>6.1f}s {_usd(c.get('cost_usd')):>8}"
         if not c["passed"]:
             first = c["error"] or next((_label(k) for k in c["checks"] if k["passed"] is False), "")
             line += "  " + " ".join(first.split())[:140]
@@ -51,6 +55,13 @@ def main(
     by_field = s.get("by_field") or {}
     if by_field:
         print("Per field: " + "  ".join(f"{k} {p}/{n}" for k, (p, n) in by_field.items() if k != "schema"))
+    t = s.get("totals") or {}
+    if t:
+        judge = f", judge {_usd(t['judge_cost_usd'])}" if t.get("judge_cost_usd") is not None else ""
+        print(
+            f"Agent per case: {t['avg_seconds'] or 0:.1f} s, {_usd(t['avg_cost_usd'])}"
+            f"   Total: {_usd(t['cost_usd'])} ({t['cost_cases']} of {s['cases']} cases have a cost){judge}"
+        )
     for c in run["cases"]:  # say once why the judge was skipped (for example: no key)
         why = next((k["reason"] for k in c["checks"] if k.get("skipped")), None)
         if why:
@@ -80,7 +91,12 @@ def compare_cli(run_a: str, run_b: str) -> int:
         return 1
     for side in ("a", "b"):
         s = d[side]["summary"] or {}
-        print(f"{side.upper()}: {d[side]['run_id']} ({d[side]['engine']}) {s.get('passed')}/{s.get('cases')} passed")
+        t = s.get("totals") or {}
+        per_case = f"   per case {t.get('avg_seconds')} s, {_usd(t.get('avg_cost_usd'))}" if t else ""
+        print(
+            f"{side.upper()}: {d[side]['run_id']} ({d[side]['engine']}) {s.get('passed')}/{s.get('cases')} passed"
+            + per_case
+        )
     if d["agent_changed"]:
         print("workflow changed" if d["b"]["engine"].startswith("n8n") else "agent files changed")
     marks = {"better": "▲", "worse": "▼", "same": " ", "new": "+", "removed": "-"}
@@ -132,7 +148,7 @@ def run_one(usecase: str, engine: str, case_id: str) -> int:
         mark = "–" if c.get("skipped") else ("✓" if c["passed"] else "✗")
         print(f"{mark} {_label(c)}")
     print(
-        f"\n{'PASS' if res['passed'] else 'FAIL'}  {res['seconds']} s"
+        f"\n{'PASS' if res['passed'] else 'FAIL'}  {res['seconds']} s  {_usd(res.get('cost_usd'))}"
         + (f"  trace: {res['trace_url']}" if res.get("trace_url") else "")
     )
     return 0

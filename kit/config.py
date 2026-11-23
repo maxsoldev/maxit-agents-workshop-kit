@@ -15,6 +15,8 @@ ROOT = Path(__file__).resolve().parent.parent
 USECASES_DIR = ROOT / "usecases"
 RUNS_DIR = ROOT / "runs"
 ENGINES = ("n8n", "claude", "python")  # setup, check, the Run page and the default KIT_ENGINES
+# USD per 1M input / output tokens, OpenAI Standard tier (developers.openai.com/api/docs/pricing, 23 Nov 2026).
+DEFAULT_PRICES = "gpt-6-luna=0.10/0.50,gpt-6.1-terra=1.00/5.00"
 
 
 def _read_env_file() -> dict[str, str]:
@@ -60,6 +62,7 @@ class Settings:
     trains_fallback_url: str
     engines: tuple[str, ...]  # KIT_ENGINES: the engines this team uses (default all); setup and check skip the rest
     parallel: int  # KIT_PARALLEL: cases at the same time in one eval (claude: at most 4, it uses a subscription)
+    prices: dict[str, tuple[float, float]]  # KIT_PRICES: model -> USD per 1M (input, output) tokens
 
     @property
     def tools_url(self) -> str:
@@ -110,7 +113,23 @@ def settings() -> Settings:
         trains_fallback_url=_env("TRAINS_FALLBACK_URL", "https://api.transitous.org").rstrip("/"),
         engines=parse_engines(_env("KIT_ENGINES")),
         parallel=max(1, int(_env("KIT_PARALLEL", "8") or "8")),
+        prices=parse_prices(DEFAULT_PRICES) | parse_prices(_env("KIT_PRICES")),  # KIT_PRICES adds or overrides
     )
+
+
+def parse_prices(text: str) -> dict[str, tuple[float, float]]:
+    """`gpt-6-luna=0.10/0.50,fast=0.1/0.4` -> {"gpt-6-luna": (0.1, 0.5), ...}: USD per 1M input / output
+    tokens. A part in another form is skipped."""
+    out = {}
+    for part in text.split(","):
+        name, _, pair = part.partition("=")
+        try:
+            tokens_in, tokens_out = (float(x) for x in pair.split("/"))
+        except ValueError:
+            continue
+        if name.strip():
+            out[name.strip()] = (tokens_in, tokens_out)
+    return out
 
 
 def parse_engines(text: str) -> tuple[str, ...]:

@@ -1,8 +1,9 @@
 """Engine `n8n`: POST the case to the n8n webhook; the response body is the result (contracts §4).
 
 After the answer, the runner reads the execution (found by our `x-kit-call` header, needs N8N_API_KEY) for the
-link, the tool calls, the node spans of the trace, and where a failed run broke. Before a run: the schema must be
-OpenAI-strict, and the n8n workflow and the files must be in sync (kit/setup.py owns the sync).
+link, the tool calls, the node spans of the trace, the model calls (tokens), and where a failed run broke.
+Before a run: the schema must be OpenAI-strict, and the n8n workflow and the files must be in sync
+(kit/setup.py owns the sync).
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import httpx
 
 from kit import n8n_files
 from kit.config import settings
+from kit.runner import usage
 from kit.runner.engines import n8n_execution
 from kit.runner.engines.common import TIMEOUTS, Answer, as_result
 
@@ -38,6 +40,11 @@ def call(uc: str, engine_input: dict, extra_env: dict | None = None) -> Answer:
         error = f"{failure} (open the n8n execution: {meta['execution_url']})"
     try:
         meta["n8n_nodes"] = n8n_execution.nodes(execution)
+        meta["model_calls"] = [
+            usage.call(n["model"], (n["usage"] or {}).get("input", 0), (n["usage"] or {}).get("output", 0))
+            for n in meta["n8n_nodes"]
+            if n["kind"] == "generation" and n["usage"]
+        ]
     except Exception:
         pass  # the node spans are nice to have; never fail the case for them
     return output, error, meta

@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 
 from kit import config
+from kit.runner import usage
 from kit.runner.engines.common import (
     TIMEOUTS,
     Answer,
@@ -53,6 +54,22 @@ def read_stream(out: str, limit: int = 4000):
                 )
                 by_id[c["tool_use_id"]]["output"] = text[:limit]
     return result, calls
+
+
+def model_calls(result: dict) -> list[dict]:
+    """One model call per model from the `result` event (`modelUsage`), with Claude Code's own cost.
+    tokens_in counts the cache reads and writes too (Claude sends most input from its cache)."""
+    calls = []
+    for model, u in (result.get("modelUsage") or {}).items():
+        tokens_in = sum(u.get(k) or 0 for k in ("inputTokens", "cacheReadInputTokens", "cacheCreationInputTokens"))
+        calls.append(usage.call(model, tokens_in, u.get("outputTokens") or 0, u.get("costUSD")))
+    if not calls and result.get("total_cost_usd") is not None:  # an older Claude Code: only the totals
+        u = result.get("usage") or {}
+        tokens_in = sum(
+            u.get(k) or 0 for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+        )
+        calls.append(usage.call("claude", tokens_in, u.get("output_tokens") or 0, result["total_cost_usd"]))
+    return calls
 
 
 def builder_excludes(folder) -> dict:
@@ -122,6 +139,7 @@ def call(uc: str, engine_input: dict, extra_env: dict) -> Answer:
         "turns": data.get("num_turns"),
         "duration_ms": data.get("duration_ms"),
         "models": list(data.get("modelUsage", {})),
+        "model_calls": model_calls(data),
         "tool_calls": tool_calls,
         "stderr": tail(err, 20),
     }

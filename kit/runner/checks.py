@@ -157,12 +157,13 @@ def _judge(check: dict, got, ctx: Ctx):
     """passed None = skipped (no key, API error, timeout): the judge did not run, so it neither passes nor fails."""
     minimum = check.get("min", 4)
     try:
-        score, reason = with_deadline(
+        score, reason, *call = with_deadline(
             lambda: judge.score(got, check.get("rubric", ""), ctx.case_input, ctx.tool_calls), JUDGE_DEADLINE_S
         )
     except Exception as e:
         return None, f"judge skipped: {e}"
-    return score >= minimum, f"score {score}/5 (min {minimum}): {reason}", {"score": score}
+    extra = {"score": score} | ({"model_call": call[0]} if call and call[0] else {})  # tokens and cost
+    return score >= minimum, f"score {score}/5 (min {minimum}): {reason}", extra
 
 
 @dataclass(frozen=True)

@@ -71,6 +71,7 @@ case = json.load(sys.stdin)
 inp = case["input"]
 print("log line one", file=sys.stderr)
 print('tool rules_get {"name": "routing"} -> "# Routing\\nok"', file=sys.stderr)
+print('model m-test {"input_tokens": 1000, "output_tokens": 200}', file=sys.stderr)
 mode = inp.get("mode")
 if mode == "crash":
     sys.exit("crashed on purpose")
@@ -124,7 +125,8 @@ if mode == "env":
     answer["env"] = {k: os.environ.get(k) for k in keys}
     answer["env"]["argv"] = [a for a in args[1:] if a != prompt]
 ev = {"type": "result", "subtype": "success", "is_error": False, "num_turns": 3, "total_cost_usd": 0.02,
-      "duration_ms": 7, "modelUsage": {"claude-x": {}}}
+      "duration_ms": 7, "modelUsage": {"claude-x": {"inputTokens": 10, "cacheReadInputTokens": 90,
+                                                    "outputTokens": 5, "costUSD": 0.02}}}
 if mode == "text":
     ev["result"] = "Sure:\n```json\n" + json.dumps(answer) + "\n```"
 elif mode == "badtext":
@@ -169,6 +171,7 @@ def uc(tmp_path, monkeypatch):
         "KIT_TOOLS_PORT": "5799",
         "N8N_API_KEY": "",
         "KIT_PARALLEL": "4",
+        "KIT_PRICES": "m-test=1/2,j-test=2/4",
     }.items():
         monkeypatch.setenv(k, v)
     return root
@@ -202,7 +205,7 @@ class FakeOpenAI:
             if "TEXTY" in user
             else json.dumps({"score": score, "reason": f"r{score}"})
         )
-        return NS(choices=[NS(message=NS(content=content))])
+        return NS(choices=[NS(message=NS(content=content))], usage=NS(prompt_tokens=100, completion_tokens=10))
 
 
 @pytest.fixture
@@ -331,7 +334,8 @@ class FakeObs:
         return child
 
     def end(self, end_time=None):
-        pass
+        if self.parent is None:  # the case trace: it ends at the end of the agent
+            self.log.append(("end", self.name, "at agent end" if end_time else "now"))
 
     def update(self, **kw):
         self.log.append(("update", self.name, json.dumps(kw, sort_keys=True, default=str)))
@@ -348,7 +352,7 @@ class FakeLangfuse:
         self.flushed = 0
 
     @contextmanager
-    def start_as_current_observation(self, name, input):
+    def start_as_current_observation(self, name, input, end_on_exit=True):
         self.log.append(("trace", name, sorted(input)))
         yield FakeObs(self.log, name, trace_id=f"trace-{name}", id_=f"span-{name}")
 
@@ -398,6 +402,10 @@ def normal(run: dict, n8n_url: str = "") -> dict:
     for c in out["cases"]:
         assert isinstance(c["seconds"], float)
         c["seconds"] = "<s>"
+        if c.get("judge"):
+            c["judge"]["seconds"] = "<s>"
+    totals = out["summary"]["totals"]
+    totals["seconds"] = totals["avg_seconds"] = "<s>"
     return out
 
 
@@ -474,7 +482,8 @@ def one_case(uc_root: Path, engine: str, case: dict) -> dict:
     [
         (
             "crash",
-            'agent.py exit 1: log line one\ntool rules_get {"name": "routing"} -> "# Routing\\nok"\ncrashed on purpose',
+            'agent.py exit 1: tool rules_get {"name": "routing"} -> "# Routing\\nok"\n'
+            'model m-test {"input_tokens": 1000, "output_tokens": 200}\ncrashed on purpose',
         ),
         ("text", "agent.py stdout is not JSON: 'not json\\n'. Print only the result; write logs to stderr"),
         ("number", "the result must be one JSON object, got int"),
@@ -726,6 +735,8 @@ def test_judge_check(uc, fake_openai):
         "passed": True,
         "reason": "score 5/5 (min 4): r5",
         "score": 5,
+        # the judge's own model call: KIT_JUDGE_MODEL j-test at 2/4 USD per 1M tokens
+        "model_call": {"model": "j-test", "tokens_in": 100, "tokens_out": 10, "cost_usd": 0.00024},
     }
     assert run("No.", min=2)["passed"] and not run("No.")["passed"]
     user = fake_openai.calls[-1]["messages"][1]["content"]
@@ -774,8 +785,15 @@ def test_traces_scores_and_tool_spans(uc, langfuse, fake_openai):
         "passed",
         0,
     ) in langfuse.log
-    tools = [x for x in log if x[0] == "obs"]
-    assert [(x[2], x[3]) for x in tools] == [("tool:rules_get", "tool")]
+    obs = [x for x in log if x[0] == "obs"]
+    assert [(x[2], x[3]) for x in obs] == [
+        ("model 1: m-test", "generation"),  # agent.py's model line, with tokens and cost
+        ("tool:rules_get", "tool"),
+        ("judge 1: j-test", "generation"),
+    ]
+    model = json.loads(obs[0][4])
+    assert model["usage_details"] == {"input": 1000, "output": 200} and model["cost_details"] == {"total": 0.0014}
+    assert ("end", "seam/s01", "at agent end") in langfuse.log  # latency = the agent's time, not the judge's
     attrs = [x[2] for x in langfuse.log if x[0] == "attr" and x[1] == "seam/s01"]
     assert len(attrs) == 1  # the experiment's expected output, on the case root span
     assert langfuse.flushed >= 1
