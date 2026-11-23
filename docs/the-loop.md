@@ -18,11 +18,14 @@ then measure every change.**
 
 ## Rules that save time
 
-- **One change at a time.** With two changes you do not know which one helped.
+- **One change at a time.** With two changes you do not know which one helped. A new output field is one
+  change, also if it touches several files: the field in `output.schema.json`, plus one line about it in the
+  prompt of each engine you use (`claude/CLAUDE.md`, the n8n system message, `python/agent.py`). The n8n
+  **Result shape** node needs no edit: it reads the schema from the case.
 - **Read the trace, not only the score.** The trace shows which tools the agent called, what it read and
   where it went wrong. Claude: Langfuse (the `tool:<name>` spans have the input and output; the results page
-  lists the same tool calls). n8n: Executions (the results page links to each one). Python: the `tool ...` lines it logs on stderr (run
-  `agent.py` by hand to see them; the error of a failed run shows the last lines).
+  lists the same tool calls). n8n: Executions (the results page links to each one). Python: the `tool ...`
+  lines it logs on stderr (run `agent.py` by hand to see them; the error of a failed run shows the last lines).
 - **Do not fit the cases.** A rule like "if the sender is Lara Venn, say unverified" makes the case pass and
   the agent worse. Write rules that hold for the next email too.
 - **Run it twice** before you trust a small change. Models are not fully deterministic.
@@ -47,6 +50,11 @@ there. Say in the prompt what the new field means, if its name and description a
 
 Prefer simple checks: they are fast, free and never wrong. Use `judge` for quality only, and write the rubric
 like an instruction to a colleague: what must be in it, what must not.
+
+**Tone and form → `judge`, not `contains`.** `contains` is a plain substring test. "The reply uses the Sie
+form" is not the same as "the reply has the word Sie": a polite German reply can pass on one run and fail on
+the next. Use `contains` only for a fact that must be there word for word (a date, a number, a name).
+A judge that cannot run (no key, API error) is **skipped**: the case passes or fails on its other checks.
 
 ## How business people write cases (in the UI)
 
