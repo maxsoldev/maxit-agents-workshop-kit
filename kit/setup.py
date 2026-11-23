@@ -275,7 +275,8 @@ def setup_n8n() -> bool:
         ok("API key created and written to .env (N8N_API_KEY)")
 
     cred_id = setup_credential(n8n)
-    if not cred_id:
+    if not cred_id:  # import anyway, so you can look at the workflows; activate them later
+        import_workflows(n8n, "")
         return False
     return import_workflows(n8n, cred_id)
 
@@ -289,7 +290,7 @@ def setup_credential(n8n: N8n) -> str:
     """The OpenAI credential, made from OPENAI_API_KEY. Kept if it exists; its key is updated if it changed."""
     s = settings()
     if not s.openai_api_key:
-        fail("no OpenAI credential: OPENAI_API_KEY is empty")
+        warn("no OpenAI credential yet: OPENAI_API_KEY is empty")
         return ""
     data = {"apiKey": s.openai_api_key, "url": s.openai_base_url_docker, "header": False}
     fingerprint = key_fingerprint(s.openai_api_key + "|" + data["url"])
@@ -360,6 +361,20 @@ def import_workflows(n8n: N8n, cred_id: str) -> bool:
             good = False
             continue
         old = by_name.get(body["name"])
+        if not cred_id:  # no model key yet: import without the credential, do not activate
+            if old is not None:
+                warn(f"{body['name']}: kept as it is in n8n. Activate after the key is set: make setup")
+                continue
+            for node in body["nodes"]:
+                node.pop("credentials", None)
+            r = n8n.api("POST", "/workflows", body)
+            if r.status_code >= 300:
+                fail(f"{rel}: import failed ({r.status_code}): {r.text[:200]}")
+                good = False
+            else:
+                warn(f"{body['name']}: imported, not active (no OpenAI credential). Activate after the key "
+                     "is set: put OPENAI_API_KEY in .env, then make setup")
+            continue
         if old is None:
             r = n8n.api("POST", "/workflows", body)
             if r.status_code >= 300:
@@ -508,6 +523,11 @@ def check() -> int:
                 continue
             if engine == "n8n" and not s.n8n_api_key and s.n8n_mode == "local":
                 print(f"FAIL  {label}: n8n is not set up. Next: make up, make setup")
+                bad += 1
+                continue
+            if engine == "n8n" and not s.openai_api_key and s.n8n_mode == "local":
+                print(f"FAIL  {label}: no OPENAI_API_KEY, so the workflow is not active. "
+                      "Next: put the key in .env, then make setup")
                 bad += 1
                 continue
             try:

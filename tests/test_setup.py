@@ -27,6 +27,7 @@ def test_check_with_a_fake_runner(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(setup, "usecases", lambda: ["demo"])
     monkeypatch.setattr(setup, "_port_open", lambda port: True)
     monkeypatch.setenv("N8N_API_KEY", "x")
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
     assert setup.check() == 1
     out = capsys.readouterr().out
     assert calls == [("demo", "n8n", ["d1"]), ("demo", "python", ["d1"])]

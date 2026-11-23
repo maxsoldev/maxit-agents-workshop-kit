@@ -90,7 +90,8 @@ make setup
 
 This tests your model key with one cheap call (`GET /models` on OpenAI or on `OPENAI_BASE_URL`), creates the
 n8n login, an API key, the OpenAI credential, and imports the workflows `Kit: marketing agent` and
-`Kit: travel agent`. It is safe to run again.
+`Kit: travel agent`. It is safe to run again. No key yet? Setup still imports the workflows (inactive, without
+the credential), so you can look at them; it activates them when you run it again with the key.
 
 - **Check:** the summary at the end says OK for n8n and Langfuse and prints the logins. Log in to n8n
   (:5702) and Langfuse (:5703) with them.
