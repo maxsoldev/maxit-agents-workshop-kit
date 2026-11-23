@@ -60,7 +60,7 @@
       save();
     }
 
-    toggle.addEventListener("click", () => show(!state.open));
+    toggle.addEventListener("click", (e) => { e.preventDefault(); show(!state.open); });
     panel.querySelector(".gp-close").addEventListener("click", () => show(false));
     full.addEventListener("click", () => { state.open = false; save(); });
     pick.addEventListener("change", () => load(pick.value, 0));

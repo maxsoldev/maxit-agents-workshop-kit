@@ -330,6 +330,8 @@ def test_side_panel_markup(client):
     assert '<script src="/static/guide.js?v=' in html  # versioned: no stale copy after git pull
     assert 'href="/static/style.css?v=' in html
     assert 'id="gp-toggle"' in header(html) and 'id="guide-panel"' in html
+    assert '<a href="/docs" class="" id="gp-toggle"' in header(html)  # Guide itself opens the panel
+    assert "Side panel" not in header(html)
     panel = html.split('id="guide-panel"', 1)[1].split("</aside>", 1)[0]
     assert '<option value="docs/tutorial.md">Tutorial</option>' in panel
     assert 'id="gp-full"' in panel and 'class="gp-close"' in panel

@@ -188,11 +188,7 @@ table.checks-res .rubric { max-width: 40rem; }
 .doc-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 
 /* Guide side panel (static/guide.js). Wide screen: the page gets narrower. Below 1000 px: it covers the page. */
-.top .pages a:first-child:has(+ .gp-toggle) { margin-right: 0; }
-.top .gp-toggle { margin-right: 0.75rem; padding: 0.25rem 0.6rem; border: 1px solid #57606a; border-radius: 6px;
-  background: none; color: #d0d7de; font-size: 1rem; cursor: pointer; }
-.top .gp-toggle:hover { color: #fff; background: #3a414a; }
-.top .gp-toggle[aria-pressed=true] { color: #fff; background: #0b5cad; border-color: #0b5cad; }
+.top #gp-toggle[aria-pressed=true] { color: #fff; background: #0b5cad; }
 .guide-panel { display: none; position: fixed; top: 0; right: 0; bottom: 0; width: var(--gp-w, 560px); z-index: 200;
   flex-direction: column; background: var(--bg); border-left: 1px solid var(--line); box-shadow: -2px 0 8px #0001; }
 html.gp-open .guide-panel { display: flex; }
