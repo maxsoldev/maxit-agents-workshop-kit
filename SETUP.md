@@ -110,9 +110,10 @@ make setup
 ```
 
 This tests your model key with one cheap call (`GET /models` on OpenAI or on `OPENAI_BASE_URL`), creates the
-n8n login, an API key, the OpenAI credential, and imports the workflows `Kit: marketing agent` and
-`Kit: travel agent`. It is safe to run again: if you changed a workflow in the n8n editor, setup keeps your
-version and says so. Save your edits to git with `make n8n-export` (all use cases, or `UC=travel`); load the
+n8n login, an API key, the OpenAI credential, and imports the workflows `Kit: marketing workflow` and
+`Kit: travel workflow` (the scaffolds), and the examples `Kit: marketing agent (example)` and
+`Kit: travel agent (example)`. It is safe to run again: if you changed a workflow in the n8n editor, setup keeps
+your version and says so (and says when the kit has a newer file: then `make setup FORCE=1` loads it). Save your edits to git with `make n8n-export` (all use cases, or `UC=travel`); load the
 file over them with `make setup FORCE=1` (the old n8n copy goes to `runs/n8n-backup/`). No key yet? Setup still imports the workflows (inactive, without
 the credential), so you can look at them; it activates them when you run it again with the key.
 

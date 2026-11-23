@@ -24,7 +24,8 @@ usecases/<uc>/
   data/                 files the tools and the cases read
   cases.jsonl           the eval cases (§3)
   output.schema.json    JSON Schema of the result (§4)
-  n8n/workflow.json     n8n workflow, webhook path = <uc>
+  n8n/workflow.json     n8n workflow `Kit: <uc> workflow` (nodes; no AI Agent node), webhook path = <uc>
+  n8n/agent.json        example: the same job as one AI Agent node, `Kit: <uc> agent (example)`, path = <uc>-agent
   claude/               Claude Code agent folder: CLAUDE.md, .mcp.json, .claude/settings.json
   python/agent.py       Python agent: stdin → stdout
 ```
@@ -78,7 +79,8 @@ Engine output: one JSON object that must validate against `output_schema`. The s
 
 | Engine | How the runner calls it | Timeout |
 |---|---|---|
-| `n8n` | `POST {N8N_URL}/webhook/<uc>`, body = engine input; the response body is the result (workflow ends with Respond to Webhook) | 120 s |
+| `n8n` | `POST {N8N_URL}/webhook/<uc>`, body = engine input; the response body is the result (workflow ends with Respond to Webhook). The scaffold `n8n/workflow.json` is a chain of nodes (code decides the path, the model fills in the steps): marketing Load rules → Triage (AI) → Junk? (IF; yes: **Result: no reply**, code) → Find sender, Earlier emails (tools) → Decide and draft (AI, with **Result shape**) → Result out; travel Load rules → Read message (AI) → Events (tool) → Find tasks (AI, with **Result shape**) → Result out. Tool nodes are HTTP Request nodes on `{KIT_TOOLS_URL}/call/<tool>` (§7) | 120 s |
+| `n8n-agent` | example engine, not in the default `KIT_ENGINES` (so not in `make check` unless listed; the Run page offers it when `n8n` is used): as `n8n`, but `POST {N8N_URL}/webhook/<uc>-agent`, the workflow `n8n/agent.json` (one AI Agent node with the kit MCP tools) | 120 s |
 | `claude` | in `usecases/<uc>/claude/`: `claude -p <prompt> --output-format stream-json --verbose --mcp-config .mcp.json --strict-mcp-config --permission-mode dontAsk --allowedTools mcp__kit` + `--setting-sources project` + `--json-schema <output_schema without "$schema">`; prompt = "Process this case. Answer with only the result JSON.\n\n" + engine input. The result is `structured_output` of the last `result` event (Claude Code checks it against the schema); without it, the JSON in the `result` text (a fenced ```json block, or the whole text) | 300 s |
 | `python` | in `usecases/<uc>/python/`: `uv run --project <repo root> python agent.py`, engine input on stdin, result JSON on stdout (stderr = logs). The scaffold uses the OpenAI Responses API (`/v1/responses`; new models allow function tools only there), also through `OPENAI_BASE_URL` | 300 s |
 
@@ -98,7 +100,8 @@ run = run_eval(usecase, engine, case_ids=None, name=None, on_progress=None, hold
 list_runs(usecase=None) -> list[dict]   # newest first; summary fields and the sorted `case_ids`
 load_run(run_id) -> dict
 compare(run_id_a, run_id_b) -> dict     # per case: better / worse / same
-n8n_unpublished(usecase) -> str | None  # a warning if the n8n workflow has edits that are not published
+n8n_unpublished(usecase, engine="n8n") -> str | None  # a warning if that n8n workflow (n8n or n8n-agent)
+                                        # has edits that are not published
 ```
 
 The n8n webhook runs the published workflow version, not the editor draft. `make eval`, `make n8n-export`, the
@@ -135,7 +138,9 @@ Each case result also has `today` (the agent's date) and, for claude and python,
 of the engine's stderr; the results page shows it as "Engine log"). `meta.tool_calls` (`[{"name", "input",
 "output"}]`): claude from its stream-json, python from the `tool <name> <args JSON> -> <result JSON string>` lines
 that `agent.py` writes to stderr; n8n from the execution data (found by the `x-kit-call` header, needs
-`N8N_API_KEY`): every run of a tool node (output `ai_tool`), name without the `<node>__` prefix. `kit run-case <uc> <engine> <case_id>` runs
+`N8N_API_KEY`): every run of a node whose output is a plain HTTP tool answer `{"tool", "input", "output"}` (§7;
+the workflows), and every run of a tool node (output `ai_tool`, the agent example), name without the `<node>__`
+prefix. `kit run-case <uc> <engine> <case_id>` runs
 one case without a run file and prints the engine input, output, tool calls, stderr and checks.
 
 `case_hash` (each case result): a short hash of the case's `today`, `input`, `expected` and `checks`. Compare
@@ -180,10 +185,15 @@ FastMCP, streamable HTTP on `:5701/mcp`. Each tool is a plain function with a do
 adding a function. `kit/tools.py` exposes `serve()` (blocking) and `start_background()` (daemon thread, used by
 `kit serve`). Tools read only `usecases/*/data/`. No tool sends anything.
 
+The same tools also answer **plain HTTP** (for n8n nodes without an agent): `POST :5701/mcp/call/<tool>`, body =
+the arguments as a JSON object; answer `{"tool": <name>, "input": <the body>, "output": <the tool result>}`.
+The answer repeats the input, so the runner finds each call in the n8n execution data (§5). Unknown tool: 404;
+body not an object: 400; a wrong argument: 200 with `output = {"error", "hint"}`. A new tool function works here too.
+
 | Tool | Returns |
 |---|---|
 | `contacts_lookup(query)` | matching contacts from `usecases/marketing/data/contacts.csv` |
 | `inbox_history(sender, before=None)` | earlier emails of that sender, newest first (file, from, date, subject, first 500 chars). `before` (YYYY-MM-DD): only emails sent before that day. The scaffolds pass `before=<today>` of the case; without it you also get emails sent after the case's "today" |
 | `events_list(date_from=None, date_to=None)` | events from `usecases/travel/data/events.csv` that overlap the span (both optional, YYYY-MM-DD); events without a date are in `undated` |
 | `trains_search(from_place, to_place, date, arrive_by=None, depart_after=None, modes="rail")` | up to 5 connections on that day, no prices (MOTIS plan API: `TRAINS_URL`, fallback `TRAINS_FALLBACK_URL`). `arrive_by`: the last ones that arrive before the time, latest first; `depart_after`: from that time on (default 06:00). `modes`: `rail` (trains and S-Bahn, no buses) or `all` |
-| `rules_get(usecase, name="")` | the text of `usecases/<uc>/data/<name>.md`; an empty or unknown name gives the list of names |
+| `rules_get(usecase, name="")` | the text of `usecases/<uc>/data/<name>.md`; an empty or unknown name gives the list of names. Several names with commas (`"routing,reply_guidelines"`): one text, each part starts with `=== <name>.md ===` |

@@ -43,12 +43,18 @@ The scaffold does the same small job on each engine, so you can compare them fai
 
 | Engine | What you change | How the kit calls it |
 |---|---|---|
-| **n8n** (Docker, :5702) | the workflow `Kit: <uc> agent` in the n8n editor; `make n8n-export` saves it to `n8n/workflow.json` (commit it) | `POST /webhook/<uc>` |
+| **n8n** (Docker, :5702) | the workflow `Kit: <uc> workflow` in the n8n editor: a chain of nodes, where code decides the path and the model fills in the steps (for example Triage → Junk? → Context → Decide and draft). Click **Publish**, then `make n8n-export` saves it to `n8n/workflow.json` (commit it) | `POST /webhook/<uc>` |
 | **Claude Code** (your login) | `claude/CLAUDE.md`, skills in `claude/.claude/skills/` | `claude -p` in `usecases/<uc>/claude/` |
 | **Python** (OpenAI SDK, Responses API) | `python/agent.py` | `uv run python agent.py`, JSON in on stdin, JSON out on stdout |
 
-All three use the same tools through the kit MCP server (`kit/tools.py`, :5701). No tool sends or books
-anything: the agent only proposes, a person decides.
+All three use the same tools through the kit tools server (`kit/tools.py`, :5701): Claude and Python over
+MCP, the n8n workflow by plain HTTP (`POST .../mcp/call/<tool>`). No tool sends or books anything: the agent
+only proposes, a person decides.
+
+**An extra example to compare:** `Kit: <uc> agent (example)` in n8n (`n8n/agent.json`) is the same job as one
+AI Agent node: the model picks the tools. Run it as engine `n8n-agent` on the Run page
+(`make eval ENGINE=n8n-agent`; webhook `/webhook/<uc>-agent`). It is not part of `make check` unless
+`KIT_ENGINES` lists `n8n-agent`.
 
 ## Repo map
 
@@ -64,7 +70,7 @@ usecases/<uc>/             YOUR TEAM OWNS THIS FOLDER
   data/                    emails, contacts, events, the owner's rules (.md)
   cases.jsonl              the eval cases (edit them in the UI or by hand)
   output.schema.json       the shape of the result
-  n8n/workflow.json        n8n scaffold
+  n8n/workflow.json        n8n scaffold (a node workflow); n8n/agent.json: the agent example
   claude/                  Claude Code scaffold: CLAUDE.md, .mcp.json, .claude/
   python/agent.py          Python scaffold
 kit/                       the shared kit: UI, runner, tools, setup (keep it simple)

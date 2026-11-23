@@ -62,6 +62,12 @@ reasons (for example it does not look at the event overview). One gap is on purp
 `draft`, a field the scaffold schema does not have yet. It fails with "missing" until you add the field
 (schema and prompt). **A high first score means your cases are too easy: add harder ones.**
 
+The n8n scaffold (`Kit: travel workflow`) is a **workflow**: code decides the path, the model fills in the
+steps. Case in → **Load rules** (tool) → **Read message** (AI: what, who, which days) → **Events** (tool:
+the event overview for those days) → **Find tasks** (AI: the result; the main prompt) → Result out. It does not
+search trains yet: add a step. `Kit: travel agent (example)` is the same job as one AI Agent node (the model
+picks the tools): engine `n8n-agent`, to compare.
+
 ## Ideas for your service
 
 Pick one, or make your own. Each one is a different output, so change `output.schema.json` and the cases.

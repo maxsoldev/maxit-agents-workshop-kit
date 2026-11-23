@@ -12,7 +12,7 @@ its own service (the design block).
 |---|---|---|
 | Python | `usecases/marketing/python/agent.py`, the text `PROMPT = """..."""` | save the file |
 | Claude | `usecases/marketing/claude/CLAUDE.md`, parts "Steps" and "Answer" | save the file |
-| n8n | n8n editor (http://localhost:5702, log in with `N8N_OWNER_EMAIL` and `N8N_OWNER_PASSWORD` from `.env`), workflow `Kit: marketing agent`, node **Agent**, Options → **System Message** | n8n saves your edit as a draft. Click **Publish** (top right): the eval runs only the published version. Then `make n8n-export UC=marketing` |
+| n8n | n8n editor (http://localhost:5702, log in with `N8N_OWNER_EMAIL` and `N8N_OWNER_PASSWORD` from `.env`), workflow `Kit: marketing workflow`, node **Decide and draft** (the last AI step) → Chat Messages → **Message** (the steps). The node **Triage** has its own, smaller prompt | n8n saves your edit as a draft. Click **Publish** (top right): the eval runs only the published version. Then `make n8n-export UC=marketing` |
 
 You need `make serve` running and the kit UI open: http://localhost:5700 → **marketing**.
 
@@ -78,8 +78,11 @@ This gap is on purpose (`usecases/marketing/BRIEF.md`).
    ```
 
    All 3 engines get the schema with each case and must answer in its shape, so the line is enough.
-   n8n: the schema needs no edit in n8n (the node **Result shape** reads it from the case). Only change the
-   System Message, click **Publish**, and run `make n8n-export UC=marketing`.
+   n8n: the schema needs no edit in n8n (the node **Result shape** reads it from the case). Open the node
+   **Decide and draft**, Chat Messages → **Message**, and put the line after step 5 (`5. Write reasons: ...`).
+   Close the node, click **Publish** (top right; the Run page of the kit warns while an edit is not
+   published), and run `make n8n-export UC=marketing`. Junk emails do not reach this node: the code node
+   **Result: no reply** fills `route_to` with `""` by itself.
 3. Run again, run name `route`. On the Results page, check **Compare with**: it shows your `scaffold` run (pick
    it if not).
 

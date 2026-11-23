@@ -62,6 +62,14 @@ on purpose: case `m14` checks `route_to`, a field the scaffold schema does not h
 "missing" until you add the field (schema and prompt). **A high first score means your cases are too easy:
 add harder ones.**
 
+The n8n scaffold (`Kit: marketing workflow`) is a **workflow**, like the slides: code decides the path, the
+model fills in the steps. Case in → **Load rules** (tool) → **Triage** (AI: category, flags, sender) →
+**Junk?** (code: spam, newsletter, phishing or off_target → **Result: no reply**, no more model calls) →
+**Find sender** and **Earlier emails** (tools, plain HTTP) → **Decide and draft** (AI: the result; the main
+prompt) → Result out. Next steps from the slides: a Contact change step, a check before the result.
+`Kit: marketing agent (example)` is the same job as one AI Agent node (the model picks the tools): engine
+`n8n-agent`, to compare.
+
 ## Ideas for your service
 
 Pick one, or make your own. Each one is a different output, so change `output.schema.json` and the cases.
