@@ -250,6 +250,7 @@ def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=No
             print(f"NOTE  {synced}", file=sys.stderr, flush=True)
         if warning := n8n_warning(usecase, engine):
             run["warning"] = warning  # e.g. edits in n8n that are not published: the run used the published one
+            print(f"WARN  {warning}", file=sys.stderr, flush=True)
     run["agent_version"] = agent_version(usecase, engine)
     save_run(run)  # reserves the run id; ended_at = None means "still running"
     experiment = _start_experiment(usecase, all_cases, run)

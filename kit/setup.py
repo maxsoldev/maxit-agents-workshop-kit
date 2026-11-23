@@ -494,6 +494,9 @@ def restart_n8n(n8n: N8n) -> bool:
     return False
 
 
+KEPT: list[str] = []  # workflows the last push kept as they are in n8n (the guard stopped it)
+
+
 def import_workflows(n8n: N8n, cred_id: str, force: bool = False, only_uc: str = "") -> bool:
     """Push: create or update each usecases/*/n8n/*.json (workflow.json, agent.json, with the prompts from
     n8n/prompts/) by name, then activate (publish) it. If the published n8n copy changed since the last sync,
@@ -550,6 +553,7 @@ def import_workflows(n8n: N8n, cred_id: str, force: bool = False, only_uc: str =
             elif sync in ("n8n", "both", "unknown") and not force:
                 # the published n8n copy changed since the last sync (an edit in the editor): keep it
                 warn(f"{body['name']}: kept the n8n version. {sync_advice(sync, uc_name, rel, body['name'])}")
+                KEPT.append(body["name"])
                 if full.get("active"):
                     continue
                 state = "kept (n8n edits)"
@@ -911,6 +915,9 @@ def pull_one(uc: str, path: Path, full: dict, force: bool = False) -> tuple[bool
     state = sync_state(files_hash(path), workflow_hash(pub), imported_hashes().get(full["name"])) if exists else "n8n"
     if state in ("files", "both", "unknown") and not force:
         return False, sync_advice(state, uc, rel, full["name"])
+    if state == "same" and not force:  # what the workflow does is the same: keep the files as they are
+        remember_import(full["name"], pub)
+        return True, f"{rel} already has it"
     note = ""
     if force and exists and state != "same":
         note = f" Your files before: {backup_files(uc, path).relative_to(ROOT)}"
@@ -955,7 +962,8 @@ def n8n_push(only_uc: str = "", force: bool = False) -> int:
         print("FAIL  no N8N_OPENAI_CREDENTIAL_ID in .env. Run make setup first")
         return 1
     print(f"n8n ({settings().n8n_url})")
-    return 0 if import_workflows(n8n, cred, force, only_uc) else 1
+    KEPT.clear()
+    return 0 if import_workflows(n8n, cred, force, only_uc) and not KEPT else 1
 
 
 def n8n_status(uc: str, engine: str = "n8n") -> dict | None:
