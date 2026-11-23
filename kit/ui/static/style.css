@@ -187,10 +187,10 @@ table.checks-res .rubric { max-width: 40rem; }
 
 .doc-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 
-/* Guide side panel (static/guide.js). Wide screen: the page gets narrower. Below 1000 px: it covers the page. */
+/* Guide side panel (static/guide.js), on the left. Wide screen: the page gets narrower. Below 1000 px: it covers the page. */
 .top #gp-toggle[aria-pressed=true] { color: #fff; background: #0b5cad; }
-.guide-panel { display: none; position: fixed; top: 0; right: 0; bottom: 0; width: var(--gp-w, 560px); z-index: 200;
-  flex-direction: column; background: var(--bg); border-left: 1px solid var(--line); box-shadow: -2px 0 8px #0001; }
+.guide-panel { display: none; position: fixed; top: 0; left: 0; bottom: 0; width: var(--gp-w, 560px); z-index: 200;
+  flex-direction: column; background: var(--bg); border-right: 1px solid var(--line); box-shadow: 2px 0 8px #0001; }
 html.gp-open .guide-panel { display: flex; }
 .gp-bar { display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.7rem; background: #24292f; }
 .gp-bar select { flex: 1; min-width: 0; font-weight: 700; padding: 0.25rem 0.5rem; cursor: pointer; }
@@ -202,11 +202,11 @@ html.gp-open .guide-panel { display: flex; }
 .gp-body { flex: 1; overflow: auto; padding: 0.4rem 1.1rem 3rem; }
 .gp-body .doc { max-width: none; font-size: 0.95rem; }
 .gp-body [id] { scroll-margin-top: 0.5rem; }
-.gp-resize { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 1; }
-@media (min-width: 1001px) { html.gp-open body { margin-right: var(--gp-w, 560px); } }
+.gp-resize { position: absolute; right: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 1; }
+@media (min-width: 1001px) { html.gp-open body { margin-left: var(--gp-w, 560px); } }
 
 @media (max-width: 1000px) {
   .cols, .cols3 { grid-template-columns: 1fr; }
-  .guide-panel { width: min(92vw, 40rem); box-shadow: -6px 0 24px #0004; }
+  .guide-panel { width: min(92vw, 40rem); box-shadow: 6px 0 24px #0004; }
   .gp-resize { display: none; }
 }

@@ -80,7 +80,7 @@
     // Drag the left edge to change the width (wide screens only).
     panel.querySelector(".gp-resize").addEventListener("pointerdown", (ev) => {
       ev.preventDefault();
-      const move = (e) => { state.width = clampWidth(window.innerWidth - e.clientX); setWidth(state.width); };
+      const move = (e) => { state.width = clampWidth(e.clientX); setWidth(state.width); };
       const up = () => { removeEventListener("pointermove", move); removeEventListener("pointerup", up); save(); };
       addEventListener("pointermove", move);
       addEventListener("pointerup", up);
