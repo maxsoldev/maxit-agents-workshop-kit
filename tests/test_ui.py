@@ -124,7 +124,7 @@ def test_count_and_any_from_the_form(client):
         {"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "Riga"}},
     ]
     page = client.get("/uc/demo/cases/m07/edit").text
-    assert 'value="2"' in page and "Riga" in page
+    assert 'class="autogrow" spellcheck="false">2</textarea>' in page and "Riga" in page  # check text: a growing box
 
 
 def test_add_edit_delete_round_trip(client):

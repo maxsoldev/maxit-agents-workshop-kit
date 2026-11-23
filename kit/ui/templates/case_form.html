@@ -82,6 +82,10 @@ function addCheck() {
   const row = document.getElementById("check-row").content.cloneNode(true);
   document.querySelector("#checks tbody").appendChild(row);
 }
+// The check text box grows with its text, so a long rubric is fully visible.
+function grow(el) { el.style.height = "auto"; el.style.height = el.scrollHeight + 2 + "px"; }
+document.addEventListener("input", (e) => { if (e.target.matches("textarea.autogrow")) grow(e.target); });
+document.querySelectorAll("textarea.autogrow").forEach(grow);
 const PICKS = {{ picks|tojson }};
 
 function inputObj() {
