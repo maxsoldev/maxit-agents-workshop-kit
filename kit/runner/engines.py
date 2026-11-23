@@ -15,6 +15,7 @@ import subprocess
 import threading
 import time
 import uuid
+from pathlib import Path
 
 import httpx
 
@@ -436,16 +437,15 @@ def read_stream(out: str, limit: int = 4000):
 
 
 def builder_excludes(folder) -> dict:
-    """Settings that keep the builder's files out of the engine. Claude Code also loads the CLAUDE.md files
-    and the .claude/skills of the parent folders (the repo root: for your Claude Code session, not the agent)."""
-    mds, skills, d = [], {}, folder.parent
-    while True:
+    """Settings that keep other instructions out of the engine. Claude Code also loads the CLAUDE.md files
+    of the parent folders and of ~/.claude, and the .claude/skills of the parent folders (the repo root: for
+    your Claude Code session, not the agent). The agent gets only its own folder."""
+    mds = [str(Path.home() / ".claude" / "CLAUDE.md")]
+    skills = {}
+    for d in [folder.parent, *folder.parent.parents]:
         for p in {d, d.resolve()}:
             mds += [str(p / "CLAUDE.md"), str(p / "CLAUDE.local.md")]
         skills.update({s.name: "off" for s in (d / ".claude" / "skills").glob("*/") if s.is_dir()})
-        if d == config.ROOT or d.parent == d or not d.is_relative_to(config.ROOT):
-            break
-        d = d.parent
     for own in (folder / ".claude" / "skills").glob("*/"):  # a skill of the agent with the same name stays on
         skills.pop(own.name, None)
     return {"claudeMdExcludes": sorted(set(mds)), "skillOverrides": skills}
