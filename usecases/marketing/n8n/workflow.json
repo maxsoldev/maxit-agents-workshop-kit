@@ -344,7 +344,7 @@
         "color": 7,
         "width": 620,
         "height": 840,
-        "content": "## 1 The email comes in\nWhen you run an eval, the kit sends each test email (a **case**) to **Case in**. The email text is in `input.email`. **Read the rules** loads the owner's rules (`data/*.md`: categories, routing, reply_guidelines, contact_rules).\n\n**See the data of one eval case:** in the kit, open the results page, click the case, then **n8n execution ↗**. It opens the execution of that case (each workflow has its own Executions: marketing cases are under Kit: marketing workflow). Double-click a node: you see its input and output in that run (read only). To load the run into the editor: top right **Copy to editor** (a run that worked) or **Debug in editor** (a failed run). n8n asks once for the free *Registered Community Edition* (your email; Settings > Usage and plan)."
+        "content": "## 1 The email comes in\nWhen you run an eval, the kit sends each test email (a **case**) to **Case in**. The email text is in `input.email`. **Read the rules** loads the owner's rules (`data/*.md`: categories, routing, reply_guidelines, contact_rules).\n\n**See the data of one eval case:** kit results → the case → **n8n execution ↗** → double-click a node."
       }
     },
     {
@@ -392,7 +392,7 @@
         "color": 7,
         "width": 540,
         "height": 840,
-        "content": "## 4 Look things up (no AI)\nWho is the sender? Did they write before?\nThe tool nodes ask the kit's **tools server** on your laptop: `{{KIT_TOOLS_URL}}/call/<tool>` (seen from n8n, your laptop is `host.docker.internal`). It reads the files in `data/`. The answer has the tool name, its input and its output.\nMore context: copy a node, change the tool in the URL and the fields."
+        "content": "## 4 Look things up (no AI)\nWho is the sender? Did they write before?\nThe tool nodes ask the kit's **tools server** on your laptop (`/call/<tool>`). It reads the files in `data/`.\nMore context: copy a node, change the tool in the URL and the fields."
       }
     },
     {

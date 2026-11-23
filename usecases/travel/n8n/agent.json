@@ -129,7 +129,7 @@
         "color": 7,
         "width": 300,
         "height": 940,
-        "content": "## 1 Case in\nThe kit sends one test case here: `{case_id, today, input, output_schema}`.\n\n**See one eval case here:** in the kit, open the results page, click the case, then **n8n execution ↗**. It opens the execution of that case (each workflow has its own Executions: travel cases are under Kit: travel agent (example)). Double-click a node: you see its input and output in that run (read only). To load the run into the editor: top right **Copy to editor** (a run that worked) or **Debug in editor** (a failed run). n8n asks once for the free *Registered Community Edition* (your email; Settings > Usage and plan)."
+        "content": "## 1 Case in\nThe kit sends one test case here: `{case_id, today, input, output_schema}`.\n\n**See the data of one eval case:** kit results → the case → **n8n execution ↗** → double-click a node."
       }
     },
     {
