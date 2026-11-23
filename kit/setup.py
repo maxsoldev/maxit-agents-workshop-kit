@@ -501,14 +501,18 @@ def check() -> int:
         print("SKIP  the runner (kit/runner) is not there yet: nothing to check.")
         return 0
     s = settings()
-    if not _port_open(s.tools_port):
+    if _port_open(s.tools_port):
+        print(f"Using the tools server that already runs on :{s.tools_port}.")
+    else:
+        from kit import tools
         try:
-            from kit import tools
             tools.start_background()
-            wait_for(lambda: _port_open(s.tools_port), 15)
-            print(f"Started the tools server on :{s.tools_port} for this check.")
-        except ImportError:
-            print(f"WARN  the tools server is not on :{s.tools_port}; tool calls will fail. Run make serve")
+            print(f"Started the tools server on :{s.tools_port} for this check (it stops when the check ends).")
+        except RuntimeError:
+            if _port_open(s.tools_port):  # another process (make serve) took the port a moment ago
+                print(f"Using the tools server that already runs on :{s.tools_port}.")
+            else:
+                print(f"WARN  the tools server did not start on :{s.tools_port}; tool calls will fail. Run make serve")
     bad = 0
     for uc in usecases():
         lines = (USECASES_DIR / uc / "cases.jsonl").read_text().splitlines()

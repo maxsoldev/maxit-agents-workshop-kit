@@ -107,7 +107,7 @@ make serve
 ```
 
 - **Check:** http://localhost:5700 shows the kit UI with both use cases. The tools server runs on :5701.
-- **If it goes wrong:** "address already in use": another `make serve` still runs. Stop it (Ctrl+C) or close
+- **If it goes wrong:** "port ... is taken": another `make serve` (or a `make check`) still runs. Stop it (Ctrl+C) or close
   that terminal.
 
 ### Step 5. Smoke check

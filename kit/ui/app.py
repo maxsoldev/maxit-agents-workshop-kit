@@ -382,16 +382,26 @@ def docs_page(request: Request, name: str = ""):
 
 def serve() -> int:
     """`kit serve`: start the tools MCP server (if part B is there), then the UI."""
+    import socket
+
     import uvicorn
 
+    from kit import tools
+
+    s = config.settings()
+    for port, what in ((s.ui_port, "UI"), (s.tools_port, "tools server")):
+        with socket.socket() as sock:
+            sock.settimeout(1)
+            if sock.connect_ex(("127.0.0.1", port)) == 0:
+                print(f"ERROR: port {port} ({what}) is taken. Is another `make serve`, `make check` or `kit tools` "
+                      f"running? Stop it, then run make serve again.")
+                return 1
     try:
-        from kit import tools
         tools.start_background()
-    except (ImportError, AttributeError):
-        print("warning: kit.tools.start_background not found; the tools MCP server is not started")
     except Exception as e:
-        print(f"warning: the tools MCP server did not start: {e}")
-    port = config.settings().ui_port
+        print(f"ERROR: the tools MCP server did not start: {e}. Stop the other process, then run make serve again.")
+        return 1
+    port = s.ui_port
     print(f"Kit UI: http://localhost:{port}")
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
     return 0
