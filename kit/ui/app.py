@@ -249,12 +249,23 @@ templates.env.filters["field_words"] = field_words
 templates.env.globals["check_words"] = check_words
 
 
+def nav_usecase(request: Request, uc: str | None, ucs: list[str]) -> str | None:
+    """The use case for Cases / Run / Runs in the header: this page's, else `?uc=`, else the last used
+    (cookie), else the first one. So the header is the same on every page, also on the Guide."""
+    for pick in (uc, request.query_params.get("uc"), request.cookies.get(LAST_UC_COOKIE)):
+        if pick in ucs:
+            return pick
+    return ucs[0] if ucs else None
+
+
 def page(request: Request, name: str, uc: str | None = None, status: int = 200, **ctx) -> HTMLResponse:
     s = config.settings()
+    ucs = usecases()
     ctx.update(
         request=request,
         uc=uc,
-        usecases=usecases(),
+        nav_uc=nav_usecase(request, uc, ucs),
+        usecases=ucs,
         engines=config.ENGINES,
         settings=s,
         langfuse_link=s.langfuse_mode != "off",

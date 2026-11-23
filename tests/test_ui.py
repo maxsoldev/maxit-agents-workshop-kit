@@ -320,6 +320,17 @@ def test_guide_is_the_first_header_item(client):
     assert "<title>Guide ·" in client.get("/docs").text
 
 
+def test_guide_keeps_cases_run_runs(client):
+    """On the Guide, Cases / Run / Runs and the use case tabs stay: last used use case, else ?uc=, else first."""
+    (config.USECASES_DIR / "zeta").mkdir()
+    (config.USECASES_DIR / "zeta" / "cases.jsonl").write_text("", encoding="utf-8")
+    page = client.get("/docs").text
+    assert 'href="/uc/demo/run"' in page and 'href="/uc/demo/runs"' in page and 'href="/uc/zeta/cases"' in page
+    assert 'href="/uc/zeta/run"' in client.get("/docs?uc=zeta").text
+    client.get("/uc/zeta/cases")  # sets the cookie
+    assert 'href="/uc/zeta/runs"' in client.get("/docs").text
+
+
 def test_docs_names_order_and_file_path(client, tmp_path, monkeypatch):
     root = tmp_path / "repo"
     (root / "docs").mkdir(parents=True)

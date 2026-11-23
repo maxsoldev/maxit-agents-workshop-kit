@@ -14,12 +14,12 @@
   <nav class="ucs">
     {% for u in usecases %}<a href="/uc/{{ u }}/cases" class="{{ 'on' if u == uc }}">{{ u }}</a>{% endfor %}
   </nav>
-  {% if uc %}
+  {% if nav_uc %}
   <nav class="pages">
-    {% set path = request.url.path %}
-    <a href="/uc/{{ uc }}/cases" class="{{ 'on' if '/cases' in path }}">Cases</a>
-    <a href="/uc/{{ uc }}/run" class="{{ 'on' if path.endswith('/run') }}">Run</a>
-    <a href="/uc/{{ uc }}/runs" class="{{ 'on' if '/runs' in path }}">Runs</a>
+    {% set here = request.url.path %}{# not `path`: the Guide page uses that name #}
+    <a href="/uc/{{ nav_uc }}/cases" class="{{ 'on' if '/cases' in here }}">Cases</a>
+    <a href="/uc/{{ nav_uc }}/run" class="{{ 'on' if here.endswith('/run') }}">Run</a>
+    <a href="/uc/{{ nav_uc }}/runs" class="{{ 'on' if '/runs' in here }}">Runs</a>
   </nav>
   {% endif %}
   <nav class="ext">
