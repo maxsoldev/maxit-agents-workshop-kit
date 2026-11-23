@@ -99,3 +99,15 @@ def test_model_key_check_names_the_error(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "bad")
     works, text = setup.model_key_works()
     assert not works and "401" in text and "Incorrect API key" in text
+
+
+def test_settings_read_env_file_each_time(tmp_path, monkeypatch):
+    from kit import config
+    monkeypatch.delenv("KIT_JUDGE_MODEL", raising=False)
+    monkeypatch.setattr(config, "ROOT", tmp_path)
+    (tmp_path / ".env").write_text("KIT_JUDGE_MODEL=first\n")
+    assert config.settings().judge_model == "first"
+    (tmp_path / ".env").write_text("KIT_JUDGE_MODEL=second\n")  # changed while the kit runs
+    assert config.settings().judge_model == "second"
+    monkeypatch.setenv("KIT_JUDGE_MODEL", "shell")  # the shell env wins
+    assert config.settings().judge_model == "shell"

@@ -11,7 +11,8 @@ Every part of the kit builds against these. Change them only together with all p
 | n8n (compose profile `n8n`) | Docker | 5702 |
 | Langfuse web (compose profile `langfuse`) | Docker | 5703 |
 
-Settings come only from `kit/config.py` (`settings()`), which reads `.env`. Modes: `N8N=local|hosted`,
+Settings come only from `kit/config.py` (`settings()`), which reads `.env` again on each call (so a new key
+works without a restart of `make serve`; a variable set in the shell wins over `.env`). Modes: `N8N=local|hosted`,
 `LANGFUSE=local|hosted|off`. Compose project name: `maxit-kit`.
 
 ## 2. Use case folder
