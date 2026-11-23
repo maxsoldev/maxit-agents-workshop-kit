@@ -138,3 +138,25 @@ def test_n8n_ai_steps_need_no_parser(uc):
         assert model["parameters"]["responsesApiEnabled"] and fmt["type"] == "json_schema", model["name"]
         reader = by[links[chain["name"]]["main"][0][0]["node"]]
         assert reader["type"] == "n8n-nodes-base.code" and "JSON.parse" in reader["parameters"]["jsCode"]
+
+
+def _strict_ok(schema: dict, where: str) -> None:
+    """OpenAI strict schema: each object requires all its properties and has additionalProperties false."""
+    if schema.get("type") == "object":
+        assert schema.get("additionalProperties") is False, f"{where}: additionalProperties must be false"
+        assert sorted(schema.get("required", [])) == sorted(schema.get("properties", {})), f"{where}: all required"
+    for key, sub in (schema.get("properties") or {}).items():
+        _strict_ok(sub, f"{where}.{key}")
+    if isinstance(schema.get("items"), dict):
+        _strict_ok(schema["items"], f"{where}[]")
+
+
+@pytest.mark.parametrize("uc", UCS)
+def test_schemas_are_openai_strict(uc):
+    """Real OpenAI rejects a non-strict schema in n8n's JSON Schema format (400 Bad request; a gateway may not)."""
+    _strict_ok(json.loads((USECASES / uc / "output.schema.json").read_text()), f"{uc}/output.schema.json")
+    for f in (USECASES / uc / "n8n").glob("*.json"):
+        for n in json.loads(f.read_text())["nodes"]:
+            opts = n["parameters"].get("options", {}).get("textFormat", {}).get("textOptions") or {}
+            if opts.get("schema") and not opts["schema"].startswith("="):
+                _strict_ok(json.loads(opts["schema"]), f"{f.name}:{n['name']}")
