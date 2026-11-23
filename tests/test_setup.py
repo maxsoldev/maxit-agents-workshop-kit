@@ -211,12 +211,15 @@ def test_push_deletes_only_the_old_agent_examples(tmp_path, monkeypatch, capsys)
 
     def api(method, path, body=None):
         calls.append((method, path))
+        if (method, path) == ("DELETE", "/workflows/a1") and calls.count((method, path)) == 1:
+            return httpx.Response(409, json={"message": "Workflow is still being unpublished."})
         wid = path.split("/")[2] if path.count("/") >= 2 else ""
         return httpx.Response(200, json=next((w for w in flows if w["id"] == wid), {}))
 
+    monkeypatch.setattr(setup.time, "sleep", lambda s: None)
     fake = types.SimpleNamespace(workflows=lambda: flows, api=api)
     assert setup.import_workflows(fake, "cred")
-    assert [p for m, p in calls if m == "DELETE"] == ["/workflows/a1", "/workflows/a2"]
+    assert [p for m, p in calls if m == "DELETE"] == ["/workflows/a1"] * 2 + ["/workflows/a2"]  # a 409, then again
     assert ("POST", "/workflows/a1/deactivate") in calls and ("POST", "/workflows/a2/deactivate") not in calls
     backups = sorted(p.name for p in (tmp_path / "runs/n8n-backup").iterdir())
     assert [b.rsplit("-", 2)[0] for b in backups] == ["deleted-kit_x_agent", "deleted-kit_x_agent_example"]

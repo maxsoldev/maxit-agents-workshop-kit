@@ -521,7 +521,11 @@ def remove_old_workflows(n8n: N8n, flows: list[dict], ucs: list[str]) -> list[di
         backup.write_text(json.dumps(n8n.api("GET", f"/workflows/{w['id']}").json(), indent=2))
         if w.get("active"):
             n8n.api("POST", f"/workflows/{w['id']}/deactivate")
-        r = n8n.api("DELETE", f"/workflows/{w['id']}")
+        for _ in range(15):  # 409 "still being unpublished" for a few seconds after a deactivate
+            r = n8n.api("DELETE", f"/workflows/{w['id']}")
+            if r.status_code != 409:
+                break
+            time.sleep(1)
         if r.status_code >= 300:
             warn(f"{w['name']}: old example, could not delete it ({r.status_code}): delete it in n8n")
             left.append(w)
