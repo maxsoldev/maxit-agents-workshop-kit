@@ -6,7 +6,7 @@ Times are timeboxes: at the end of a block, stop and show what you have. Each te
 |---|---|---|
 | 09:30 | **Kick-off and theory** | an idea of agents, tools, evals and the human in the loop |
 | 11:00 | **Setup** (`SETUP.md`, "On the day") | `make check` runs on every laptop that builds. The trainer checks each team |
-| 11:30 | **Tutorial** (30 min, `docs/tutorial.md`) | each person played the loop once on the travel scaffold: read a failure, fixed `t03` with one change, ran it twice, wrote one case from a failure |
+| 11:30 | **Tutorial** (30 min, `docs/tutorial.md`) | each person played the loop once on the marketing scaffold: read a failure, fixed `m14` with one change, ran it twice, wrote one case from a failure |
 | 12:00 | **Design** (30 min, hard stop) | the service written in `BRIEF.md`: who uses it, input, output, what "good" means, what a person always does. `output.schema.json` changed to fit. The business people say it, a developer types it (the UI has no editor for these files) |
 | 12:30 | **Cases first** (30 min) | at least 5 cases in `cases.jsonl` with expected answers and checks, written by the business people. A new schema breaks the starter cases: change them to the new fields, or delete them. A first eval run on the scaffold (it fails: good) |
 | 13:00 | Lunch | |

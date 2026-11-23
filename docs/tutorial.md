@@ -1,36 +1,40 @@
-# Tutorial (30 min): the loop once, on the travel scaffold
+# Tutorial (30 min): the loop once, on the marketing scaffold
 
-Like a game: first the tutorial, then the open world. You play the loop once on the **travel** use case, with
-small and safe steps. After this, your team designs its own service (the design block).
+Like a game: first the tutorial, then the open world. You play the loop once on the **marketing** use case
+(the bloxberg info inbox, the example in the slides), with small and safe steps. After this, your team designs
+its own service (the design block).
 
-- **Everyone does it**, on their own laptop, also if your team works on marketing.
+- **Everyone does it**, on their own laptop, also if your team works on travel.
 - **Pick one engine** (n8n, Claude or Python). The steps are the same for all three. Only the place of the prompt
   is different:
 
 | Engine | The prompt is in | How to save a change |
 |---|---|---|
-| Python | `usecases/travel/python/agent.py`, the text `PROMPT = """..."""` | save the file |
-| Claude | `usecases/travel/claude/CLAUDE.md`, part "Steps" | save the file |
-| n8n | n8n editor (http://localhost:5702), workflow `Kit: travel agent`, node **Agent**, Options → **System Message** | **Save** in n8n, then `make n8n-export UC=travel` |
+| Python | `usecases/marketing/python/agent.py`, the text `PROMPT = """..."""` | save the file |
+| Claude | `usecases/marketing/claude/CLAUDE.md`, parts "Steps" and "Answer" | save the file |
+| n8n | n8n editor (http://localhost:5702, log in with `N8N_OWNER_EMAIL` and `N8N_OWNER_PASSWORD` from `.env`), workflow `Kit: marketing agent`, node **Agent**, Options → **System Message** | n8n saves your edit as a draft. Click **Publish** (top right): the eval runs only the published version. Then `make n8n-export UC=marketing` |
 
-You need `make serve` running and the kit UI open: http://localhost:5700 → **travel**.
+You need `make serve` running and the kit UI open: http://localhost:5700 → **marketing**.
 
 ## Level 1. Read a failure (about 8 min)
 
 **What you do**
 
-1. Open **Run**. Pick your engine, pick all cases, run name `scaffold`. Click **Run eval**.
-   The same from the terminal: `make eval UC=travel ENGINE=python NAME=scaffold` (or `ENGINE=claude`, `ENGINE=n8n`).
+1. Open **Run**. Pick your engine. Tick no case (no tick = all cases). Run name `scaffold`. Click **Run eval**.
+   The same from the terminal: `make eval UC=marketing ENGINE=python NAME=scaffold` (or `ENGINE=claude`,
+   `ENGINE=n8n`).
 2. When it ends, click **Open results →**. Open a red case (✗): click its row.
 3. Read it from top to bottom: the **checks** (✓ and ✗, each with a reason), the **Output** next to the
-   **Expected**, then the **Tool calls** and the **Engine log**. Claude and Python: the **Langfuse trace** link.
-   n8n: the **n8n execution** link.
+   **Expected**, and the **Input**. Claude and Python: also the **Tool calls** and the **Engine log** (and the
+   **Langfuse trace** link, if Langfuse is on). n8n: the tool calls are in the **n8n execution ↗** link.
 
 **What you see**
 
-- A score such as `4/8 cases passed`, and one "first failing reason" per red case.
-- The terminal line for `t03`: ``✗ t03 ... contains draft: `draft` is missing in the result``.
-- Other red cases fail on a real mistake, for example `equals tasks.0.status: got open, expected ready_to_book`.
+- A score such as `5/8 cases passed`, and one "first failing reason" per red case.
+- `m14` is red on all engines. Its first failing reason: ``route_to` is missing in the result``. In the
+  terminal: ``✗ m14 ... equals route_to: `route_to` is missing in the result``.
+- Other red cases fail on a real mistake, for example ``contains reply: does not have Datenschutz`` (`m07`), or a
+  judge score below 4 (``judge reply: score 3/5 (min 4): ...`` on `m20` or `m23`).
 
 **What it teaches**
 
@@ -40,42 +44,49 @@ where the agent is wrong, and why.
 
 ## Level 2. Fix it with one change (about 10 min)
 
-`t03` (Mainz day trip without a travel request) checks a field `draft`: a short message to Jonas that asks
-for the travel request ("Reiseantrag"). The scaffold has no such field. This gap is on purpose
-(`usecases/travel/BRIEF.md`).
+`m14` (Hoffmann writes again: her certificate is still not verified) checks a field `route_to`: who must handle
+the email. Here it is the technical team (`tech_team`, see `data/routing.md`). The scaffold has no such field.
+This gap is on purpose (`usecases/marketing/BRIEF.md`).
 
 **What you do**
 
-1. In `usecases/travel/output.schema.json`, add `draft` to `"required"` and to `"properties"`:
+1. In `usecases/marketing/output.schema.json`, add `route_to` to `"required"` and to `"properties"`:
 
    ```json
-   "required": ["tasks", "reasons", "draft"],
+   "required": ["category", "flags", "reply", "reasons", "route_to"],
    ```
 
    ```json
-   "draft": {
+   "route_to": {
      "type": "string",
-     "description": "A short message to the traveller if they must do something first, else empty."
+     "enum": ["", "tech_team", "membership_owner", "head"],
+     "description": "Who must handle the email (data/routing.md). Empty when we reply ourselves."
    }
    ```
 
-   (Put a comma after the `"reasons": {...}` block, before `"draft"`.)
+   (Put a comma after the `"reasons": {...}` block, before `"route_to"`.)
 2. Add **one line** to the prompt of your engine, after the line about `reasons`:
 
    ```text
-   5. Write draft: if the traveller must do something first (for example a missing travel request), a short
-      message to them in their language (see message_templates). Else "".
+   6. Write route_to: who must handle the email (tech_team, membership_owner or head, see routing).
+      When we reply ourselves, write "route_to": "". Never leave the field out.
    ```
 
+   Claude: also add `"route_to": ""` to the example JSON in the part "Answer". Claude copies the example; n8n
+   and Python force the schema, so they need only the line.
    n8n: the schema needs no edit in n8n (the node **Result shape** reads it from the case). Only change the
-   System Message, save, and run `make n8n-export UC=travel`.
-3. Run again, run name `draft`. On the Results page, choose **Compare with** → your `scaffold` run.
+   System Message, click **Publish**, and run `make n8n-export UC=marketing`.
+3. Run again, run name `route`. On the Results page, check **Compare with**: it shows your `scaffold` run (pick
+   it if not).
 
 **What you see**
 
-- `t03` is green now, or it fails on the text of the draft and no longer on "missing".
-- Compare shows **▲ better** for `t03`. A case can also get **▼ worse**: for example, the agent forgets the
-  new field (``schema: the field `draft` is missing``). That is the next thing to fix, not a reason to stop.
+- `m14` no longer fails on "missing": open it, the check `equals route_to` is ✓ (`got tech_team`).
+- If the other checks of `m14` pass too, Compare shows **▲ better** for `m14`. It can stay red on another check,
+  often the judge on the reply. That is a real mistake in the reply, not in `route_to`.
+- A case can also get **▼ worse**: for example, the agent leaves out the new field
+  (``schema: the field `route_to` is missing``; we saw it on Claude). That is the next thing to fix, not a
+  reason to stop.
 
 **What it teaches**
 
@@ -86,13 +97,13 @@ The loop: **one change, then run again, then compare**. The schema says *what* c
 
 **What you do**
 
-Run again with **no change**, run name `draft-2`. Compare `draft-2` with `draft`.
+Run again with **no change**, run name `route-2`. Compare `route-2` with `route`.
 
 **What you see**
 
-Some cases flip: green before, red now, or the other way. On n8n `t01` often flips. On Claude and Python,
-cases with a `judge` check (`t05`, `t07`, `t08`) and `t06` can flip. Nothing changed: the model is not the
-same each time.
+Some cases flip: green before, red now, or the other way. On all engines `m14` and `m23` flip often: their
+`judge` check on the reply gives 3 one time and 4 the next. On Python `m06` and `m07` flip too. On Claude the
+case that leaves out `route_to` changes from run to run. Nothing changed: the model is not the same each time.
 
 **What it teaches**
 
@@ -103,13 +114,14 @@ keep it. A case that flips is a sign: the instruction is not clear, or the check
 
 **What you do**
 
-1. Pick one mistake you saw in levels 1 to 3, for example a wrong `kind`, a wrong `status`, or a field the
-   agent added.
-2. Open **Cases → + Add case** (or **Copy** on a case with the same input). Fill in: an id (for example
-   `t20`), a title that names the mistake, `Today`, the input (pick the email or message from `data/`), the
-   **Expected** values, and one or two **checks** for that mistake (for example `equals` on `tasks.0.status`).
+1. Pick one mistake you saw in levels 1 to 3, for example a wrong `category`, a wrong `route_to`, or a reply
+   that misses a fact.
+2. Open **Cases → + Add case**, or **Copy** on a case with the same input (for example **Copy** on `m23`, the
+   membership request). Fill in: an id (for example `m30`), a title that names the mistake, `Today`, the input
+   (pick the email from `data/`), the **Expected** values (for example `{"route_to": "membership_owner"}`), and
+   one or two **checks** for that mistake (for example `equals` on `route_to`, value empty = use Expected).
    Do **not** tick holdout yet.
-3. **Save case**. Run only this case (on **Run**, pick only `t20`).
+3. **Save case**. Run only this case (on **Run**, tick only `m30`).
 
 **What you see**
 
@@ -122,10 +134,9 @@ The cases are the part of the work that stays when the prompt and the model chan
 
 ## After the tutorial: keep or undo?
 
-**Keep everything** (the `draft` field, the prompt line, your new case). Commit it on your laptop:
-`git add -A usecases/travel && git commit -m "tutorial"`. If your team works in one fork, one person pushes
-the tutorial commit; the others undo their copy (`git checkout -- usecases/travel`) and `git pull`.
+**Keep everything** (the `route_to` field, the prompt line, your new case). Commit it on your laptop:
+`git add -A usecases/marketing && git commit -m "tutorial"`. If your team works in one fork, one person pushes
+the tutorial commit; the others undo their copy (`git checkout -- usecases/marketing`) and `git pull`.
 
 Your team starts its own service in the design block. If the design changes the schema, change or delete the
-travel cases that no longer fit (the cases-first block says how). Marketing teams: the tutorial changes are in
-`usecases/travel/`, which you do not use. They do no harm.
+marketing cases that no longer fit (the cases-first block says how).
