@@ -445,7 +445,8 @@ def builder_excludes(folder) -> dict:
     for d in [folder.parent, *folder.parent.parents]:
         for p in {d, d.resolve()}:
             mds += [str(p / "CLAUDE.md"), str(p / "CLAUDE.local.md")]
-        skills.update({s.name: "off" for s in (d / ".claude" / "skills").glob("*/") if s.is_dir()})
+        if d.is_relative_to(config.ROOT):  # the user's own skills (~/.claude) do not load with --setting-sources
+            skills.update({s.name: "off" for s in (d / ".claude" / "skills").glob("*/") if s.is_dir()})
     for own in (folder / ".claude" / "skills").glob("*/"):  # a skill of the agent with the same name stays on
         skills.pop(own.name, None)
     return {"claudeMdExcludes": sorted(set(mds)), "skillOverrides": skills}
