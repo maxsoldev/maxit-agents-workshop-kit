@@ -11,6 +11,8 @@ import re
 import shutil
 import signal
 import subprocess
+import threading
+import time
 
 import httpx
 
@@ -18,7 +20,45 @@ from kit import config
 from kit.config import settings
 
 TIMEOUTS = {"n8n": 120, "claude": 300, "python": 300}
+GRACE_S = 10  # the hard deadline of a case = engine timeout + this
 CLAUDE_PROMPT = "Process this case. Answer with only the result JSON.\n\n"
+
+
+class Deadline(Exception):
+    """`with_deadline` stopped waiting."""
+
+
+def with_deadline(fn, seconds: float):
+    """Return fn(), but wait at most `seconds` (wall clock); else raise Deadline.
+
+    fn runs in a daemon thread: if it hangs, the thread stays, but the case goes on.
+    """
+    box: dict = {}
+
+    def work():
+        try:
+            box["value"] = fn()
+        except BaseException as e:
+            box["error"] = e
+
+    t = threading.Thread(target=work, daemon=True)
+    t.start()
+    t.join(seconds)
+    if t.is_alive():
+        raise Deadline(f"no answer in {seconds:.0f} s")
+    if "error" in box:
+        raise box["error"]
+    return box["value"]
+
+
+def call_with_deadline(uc: str, engine: str, engine_input: dict, extra_env: dict | None = None):
+    """Like `call`, but never waits longer than the engine timeout + GRACE_S.
+    The subprocess engines also kill their own process group at the timeout."""
+    limit = TIMEOUTS.get(engine, 120)
+    try:
+        return with_deadline(lambda: call(uc, engine, engine_input, extra_env), limit + GRACE_S)
+    except Deadline:
+        return None, f"{engine} did not finish in {limit} s (hard deadline): the runner stopped waiting", {}
 
 
 def call(uc: str, engine: str, engine_input: dict, extra_env: dict | None = None):
@@ -68,8 +108,15 @@ def _run(cmd: list[str], cwd, stdin: str, env: dict, timeout: int):
         out, err = p.communicate(stdin, timeout=timeout)
         return p.returncode, out, err
     except subprocess.TimeoutExpired:
-        os.killpg(p.pid, signal.SIGKILL)
-        out, err = p.communicate()
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        try:  # a child outside the group can keep the pipes open: do not wait for it forever
+            out, err = p.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            out, err = "", ""
         return None, out, err
 
 
@@ -82,7 +129,9 @@ def call_n8n(uc: str, engine_input: dict):
     url = f"{s.n8n_url}/webhook/{uc}"
     meta = {"url": url}
     try:
-        r = httpx.post(url, json=engine_input, timeout=TIMEOUTS["n8n"])
+        # n8n sends nothing until the workflow ends, so the read timeout is the total time.
+        # call_with_deadline adds a hard wall-clock limit on top.
+        r = httpx.post(url, json=engine_input, timeout=httpx.Timeout(TIMEOUTS["n8n"], connect=10))
     except httpx.ConnectError:
         return None, f"cannot reach n8n at {s.n8n_url}: is it running? run `make up` (or check N8N_URL in .env)", meta
     except httpx.TimeoutException:

@@ -4,7 +4,8 @@ from __future__ import annotations
 import json
 import os
 import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -33,7 +34,9 @@ class FakeN8n(BaseHTTPRequestHandler):
             self.end_headers()
             return
         inp = body["input"]
-        answer = [{"category": inp.get("want", "zzz"), "reply": inp.get("note", "hi"), "tags": ["z"]}]
+        if inp.get("mode") == "sleep":
+            time.sleep(3)
+        answer =[{"category": inp.get("want", "zzz"), "reply": inp.get("note", "hi"), "tags": ["z"]}]
         data = json.dumps(answer).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -47,7 +50,7 @@ class FakeN8n(BaseHTTPRequestHandler):
 
 @pytest.fixture
 def n8n(monkeypatch):
-    server = HTTPServer(("127.0.0.1", 0), FakeN8n)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), FakeN8n)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     monkeypatch.setenv("N8N_URL", f"http://127.0.0.1:{server.server_port}")
     yield server
@@ -167,6 +170,22 @@ def test_n8n_errors_say_what_to_do(n8n, monkeypatch):
     monkeypatch.setenv("N8N_URL", "http://127.0.0.1:9")
     out, err, _ = engines.call_n8n("fake", {"case_id": "x", "input": {}})
     assert "cannot reach n8n" in err
+
+
+def test_n8n_that_sleeps_fails_in_time(n8n, monkeypatch):
+    monkeypatch.setitem(engines.TIMEOUTS, "n8n", 1)
+    t0 = time.time()
+    res = runner.run_case("fake", "n8n", {"id": "s", "input": {"mode": "sleep"}}, {}, "r", "r")
+    assert time.time() - t0 < 2.5 and "did not answer in 1 s" in res["error"] and res["seconds"] >= 1
+
+
+def test_hard_deadline_when_the_engine_hangs(monkeypatch):
+    monkeypatch.setitem(engines.TIMEOUTS, "python", 1)
+    monkeypatch.setattr(engines, "GRACE_S", 0.5)
+    monkeypatch.setattr(engines, "call", lambda *a, **k: time.sleep(5))
+    t0 = time.time()
+    res = runner.run_case("fake", "python", {"id": "h", "input": {}}, {}, "r", "r")
+    assert time.time() - t0 < 2.5 and "hard deadline" in res["error"] and not res["passed"]
 
 
 def test_compare():

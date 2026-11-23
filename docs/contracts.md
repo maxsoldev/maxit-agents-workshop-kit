@@ -65,6 +65,11 @@ Engine output: one JSON object that must validate against `output.schema.json`.
 | `claude` | in `usecases/<uc>/claude/`: `claude -p <prompt> --output-format json --mcp-config .mcp.json --strict-mcp-config --permission-mode dontAsk --allowedTools mcp__kit` + `--setting-sources project`; prompt = "Process this case. Answer with only the result JSON.\n\n" + engine input. The result is the JSON in the final `result` text (a fenced ```json block, or the whole text) | 300 s |
 | `python` | in `usecases/<uc>/python/`: `uv run --project <repo root> python agent.py`, engine input on stdin, result JSON on stdout (stderr = logs) | 300 s |
 
+Timeouts are wall-clock time. Each case has a hard deadline of engine timeout + 10 s: then the runner stops
+waiting and the case fails with "hard deadline". A `judge` check has its own limit (120 s). The n8n scaffolds set
+`settings.executionTimeout` to 110 s (under the runner timeout). On macOS the runner keeps the computer awake
+during an eval (`caffeinate -i`): a sleeping computer stops every engine.
+
 Env passed to engines: `OPENAI_API_KEY`, `KIT_MODEL`, `KIT_TOOLS_URL`, and for Claude the OTel/`TRACEPARENT`
 variables (§6). Claude uses the participant's own login.
 

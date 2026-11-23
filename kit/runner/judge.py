@@ -19,7 +19,7 @@ def score(value, rubric: str, case_input: dict) -> tuple[int, str]:
         raise RuntimeError("no OPENAI_API_KEY: set it in .env to run judge checks")
     from openai import BadRequestError, OpenAI
 
-    client = OpenAI(api_key=s.openai_api_key, base_url=s.openai_base_url or None, timeout=60)
+    client = OpenAI(api_key=s.openai_api_key, base_url=s.openai_base_url or None, timeout=45, max_retries=1)
     text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, indent=1)
     user = (f"Rubric:\n{rubric}\n\nCase input:\n{json.dumps(case_input, ensure_ascii=False)[:8000]}\n\n"
             f"Field value:\n{text[:8000]}")

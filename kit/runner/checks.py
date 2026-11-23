@@ -6,8 +6,10 @@ import json
 import jsonschema
 
 from kit.runner import judge
+from kit.runner.engines import with_deadline
 
 MISSING = object()
+JUDGE_DEADLINE_S = 120  # hard limit for one judge check (the client: 45 s timeout, 1 retry)
 
 
 def get_field(obj, path: str):
@@ -78,7 +80,7 @@ def run_check(check: dict, output, expected: dict, case_input: dict) -> dict:
     if kind == "judge":
         minimum = check.get("min", 4)
         try:
-            score, reason = judge.score(got, check.get("rubric", ""), case_input)
+            score, reason = with_deadline(lambda: judge.score(got, check.get("rubric", ""), case_input), JUDGE_DEADLINE_S)
         except Exception as e:  # the judge must not stop the run
             return result(kind, field, False, f"judge failed: {e}")
         return result(kind, field, score >= minimum, f"score {score}/5 (min {minimum}): {reason}")

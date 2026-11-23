@@ -221,6 +221,6 @@
   "settings": {
     "executionOrder": "v1",
     "saveDataSuccessExecution": "all",
-    "executionTimeout": 120
+    "executionTimeout": 110
   }
 }
