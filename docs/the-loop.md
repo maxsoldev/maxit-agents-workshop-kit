@@ -39,6 +39,10 @@ then measure every change.**
 - **Run it twice** before you trust a small change. Models are not fully deterministic. This is true for the
   `judge` too (the kit asks for temperature 0, but many models do not allow it): a judge check can pass on one
   run and fail on the next with no change. Trust a judge result only when it is the same twice.
+- **A flaky case is a finding.** Run the first eval twice. A case that passes once and fails once, with no
+  change, often means the agent skips a step on some runs (for example it does not read `routing` every time).
+  Look at the tool calls of both runs. Then make that step explicit in the prompt ("Step 1: call
+  `rules_get` for `routing`"), and run twice again.
 - **How to read a trace (Langfuse, for everyone):** open the case trace from the results page. Read the
   `tool:<name>` lines from top to bottom: each one is one thing the agent looked up (`tool:rules_get` with
   `"name": "priorities"` = "it read your priorities"), with what it got back. Skip the technical lines
@@ -74,6 +78,10 @@ like an instruction to a colleague: what must be in it, what must not.
 **Tone and form → `judge`, not `contains`.** `contains` is a plain substring test. "The reply uses the Sie
 form" is not the same as "the reply has the word Sie": a polite German reply can pass on one run and fail on
 the next. Use `contains` only for a fact that must be there word for word (a date, a number, a name).
+The same for `not_contains`: a word check can hit a correct text. `not_contains "Termin"` also fails on
+"we will check our dates and send you a Terminvorschlag later", and `not_contains "call"` fails on "we do
+not offer a call". For a must-not-say rule with a condition ("no meeting offer", "no promise before the head
+approves"), use a `judge` with that rule as the rubric.
 A judge that cannot run (no key, API error) is **skipped**: the case passes or fails on its other checks.
 
 **What the judge sees:** the rubric, the case input, the field, and (Claude and Python) the agent's tool calls
