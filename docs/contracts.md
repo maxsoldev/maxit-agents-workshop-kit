@@ -154,7 +154,7 @@ adding a function. `kit/tools.py` exposes `serve()` (blocking) and `start_backgr
 | Tool | Returns |
 |---|---|
 | `contacts_lookup(query)` | matching contacts from `usecases/marketing/data/contacts.csv` |
-| `inbox_history(sender)` | earlier emails of that sender (from, date, subject, first 500 chars) |
-| `events_list(date_from, date_to)` | events from `usecases/travel/data/events.csv` |
+| `inbox_history(sender, before=None)` | earlier emails of that sender, newest first (file, from, date, subject, first 500 chars). `before` (YYYY-MM-DD): only emails sent before that day. The scaffolds pass `before=<today>` of the case; without it you also get emails sent after the case's "today" |
+| `events_list(date_from=None, date_to=None)` | events from `usecases/travel/data/events.csv` that overlap the span (both optional, YYYY-MM-DD); events without a date are in `undated` |
 | `trains_search(from_place, to_place, date, arrive_by=None, depart_after=None, modes="rail")` | up to 5 connections on that day, no prices (MOTIS plan API: `TRAINS_URL`, fallback `TRAINS_FALLBACK_URL`). `arrive_by`: the last ones that arrive before the time, latest first; `depart_after`: from that time on (default 06:00). `modes`: `rail` (trains and S-Bahn, no buses) or `all` |
-| `rules_get(usecase, name)` | the text of `usecases/<uc>/data/<name>.md` |
+| `rules_get(usecase, name="")` | the text of `usecases/<uc>/data/<name>.md`; an empty or unknown name gives the list of names |

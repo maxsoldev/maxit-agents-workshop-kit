@@ -19,7 +19,8 @@ changes the draft if needed, and sends it. You never send anything.
 - `rules_get(usecase="marketing", name=...)`: the owner's rules. Names: `categories`, `routing`,
   `reply_guidelines`, `contact_rules`, `process`.
 - `contacts_lookup(query)`: the contact sheet (name, organisation, status, notes).
-- `inbox_history(sender)`: earlier emails from the same sender.
+- `inbox_history(sender, before)`: earlier emails from the same sender. Always pass `before` = the case's
+  `today` (YYYY-MM-DD): else you also see emails that came later.
 
 ## Safety
 

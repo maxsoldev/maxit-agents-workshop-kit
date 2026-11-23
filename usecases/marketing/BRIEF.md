@@ -46,7 +46,7 @@ marketing (22), a vendor we declined before (06), contact sheet gaps (new sender
 |---|---|
 | `rules_get("marketing", name)` | the text of `data/<name>.md` |
 | `contacts_lookup(query)` | matching rows of the contact sheet |
-| `inbox_history(sender)` | earlier emails from that sender |
+| `inbox_history(sender, before)` | earlier emails from that sender; `before=<today>` keeps out emails after the case's today |
 
 No tool sends anything. To add a tool, add a function in `kit/tools.py`.
 
