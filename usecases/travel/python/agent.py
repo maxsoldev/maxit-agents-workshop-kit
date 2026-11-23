@@ -1,4 +1,4 @@
-"""Travel office agent, Python engine (OpenAI SDK + kit tools over MCP).
+"""Travel office agent, Python engine (OpenAI Responses API + kit tools over MCP).
 
 The runner sends the case on stdin and reads the result JSON from stdout (docs/contracts.md §4).
 Logs go to stderr. Change the prompt, the model or the steps here: this file is yours.
@@ -46,9 +46,10 @@ def log(*args) -> None:
 
 
 def to_openai_tool(tool) -> dict:
-    """An MCP tool description in the format the OpenAI chat API wants."""
-    return {"type": "function", "function": {
-        "name": tool.name, "description": tool.description or "", "parameters": tool.input_schema}}
+    """An MCP tool description in the format of the OpenAI Responses API.
+    strict=False: MCP schemas do not follow the strict rules (the Responses API default is strict)."""
+    return {"type": "function", "name": tool.name, "description": tool.description or "",
+            "parameters": tool.input_schema, "strict": False}
 
 
 async def call_tool(client: Client, name: str, args: dict) -> str:
@@ -57,35 +58,38 @@ async def call_tool(client: Client, name: str, args: dict) -> str:
 
 
 async def run(case: dict, client: Client | None) -> dict:
-    llm = OpenAI()  # reads OPENAI_API_KEY
+    llm = OpenAI()  # reads OPENAI_API_KEY (and OPENAI_BASE_URL for a gateway)
     schema = case.get("output_schema") or json.loads(SCHEMA_FILE.read_text())
     tools = [to_openai_tool(t) for t in (await client.list_tools()).tools] if client else []
-    messages = [{"role": "system", "content": PROMPT},
-                {"role": "user", "content": f"Today is {case.get('today')}.\n\n"
-                                            + json.dumps(case["input"], ensure_ascii=False)}]
-    # Tool turns first, WITHOUT response_format: with it, many models never call a tool.
-    # When the model stops calling tools, one last call WITH response_format gives the result JSON.
+    with_tools = {"tools": tools} if tools else {}  # some APIs refuse an empty tool list
+    # The conversation: our messages, then the model's output items and our tool results.
+    items = [{"role": "user", "content": f"Today is {case.get('today')}.\n\n"
+                                         + json.dumps(case["input"], ensure_ascii=False)}]
+    # Tool turns first, WITHOUT a result format: with it, many models never call a tool.
+    # When the model stops calling tools, one last call WITH the result format gives the result JSON.
     for _ in range(MAX_STEPS):
-        answer = llm.chat.completions.create(model=MODEL, messages=messages, tools=tools or None).choices[0].message
-        if not answer.tool_calls:
-            messages.append({"role": "assistant", "content": answer.content or ""})
+        answer = llm.responses.create(model=MODEL, instructions=PROMPT, input=items, **with_tools)
+        items += answer.output  # reasoning, messages and function calls go back as they came
+        calls = [item for item in answer.output if item.type == "function_call"]
+        if not calls:
             break
-        messages.append(answer.model_dump(exclude_none=True))
-        for call in answer.tool_calls:
-            args = json.loads(call.function.arguments or "{}")
-            text = await call_tool(client, call.function.name, args)
+        for call in calls:
+            args = json.loads(call.arguments or "{}")
+            text = await call_tool(client, call.name, args)
             # One line per tool call: the runner reads these lines and gives them to the judge.
-            log(f"tool {call.function.name} {json.dumps(args, ensure_ascii=False)} -> "
+            log(f"tool {call.name} {json.dumps(args, ensure_ascii=False)} -> "
                 f"{json.dumps(text[:2000], ensure_ascii=False)}")
-            messages.append({"role": "tool", "tool_call_id": call.id, "content": text})
+            items.append({"type": "function_call_output", "call_id": call.call_id, "output": text})
     else:
         log(f"still calling tools after {MAX_STEPS} steps: asking for the result now")
-    messages.append({"role": "user", "content": "Now return only the result JSON, with only the fields of the schema."})
-    final = llm.chat.completions.create(
-        model=MODEL, messages=messages,
-        response_format={"type": "json_schema", "json_schema": {"name": "result", "schema": schema, "strict": False}},
-    ).choices[0].message
-    return json.loads(final.content)
+    items.append({"role": "user", "content": "Now return only the result JSON, with only the fields of the schema."})
+    if tools:
+        with_tools["tool_choice"] = "none"  # the last turn gives the result, no more tool calls
+    final = llm.responses.create(
+        model=MODEL, instructions=PROMPT, input=items, **with_tools,
+        text={"format": {"type": "json_schema", "name": "result", "schema": schema, "strict": False}},
+    )
+    return json.loads(final.output_text)
 
 
 async def main() -> None:

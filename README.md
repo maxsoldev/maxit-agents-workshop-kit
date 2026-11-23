@@ -44,7 +44,7 @@ The scaffold does the same small job on each engine, so you can compare them fai
 |---|---|---|
 | **n8n** (Docker, :5702) | the workflow `Kit: <uc> agent` in the n8n editor; `make n8n-export` saves it to `n8n/workflow.json` (commit it) | `POST /webhook/<uc>` |
 | **Claude Code** (your login) | `claude/CLAUDE.md`, skills in `claude/.claude/skills/` | `claude -p` in `usecases/<uc>/claude/` |
-| **Python** (OpenAI SDK) | `python/agent.py` | `uv run python agent.py`, JSON in on stdin, JSON out on stdout |
+| **Python** (OpenAI SDK, Responses API) | `python/agent.py` | `uv run python agent.py`, JSON in on stdin, JSON out on stdout |
 
 All three use the same tools through the kit MCP server (`kit/tools.py`, :5701). No tool sends or books
 anything: the agent only proposes, a person decides.

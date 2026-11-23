@@ -80,7 +80,7 @@ Engine output: one JSON object that must validate against `output_schema`. The s
 |---|---|---|
 | `n8n` | `POST {N8N_URL}/webhook/<uc>`, body = engine input; the response body is the result (workflow ends with Respond to Webhook) | 120 s |
 | `claude` | in `usecases/<uc>/claude/`: `claude -p <prompt> --output-format stream-json --verbose --mcp-config .mcp.json --strict-mcp-config --permission-mode dontAsk --allowedTools mcp__kit` + `--setting-sources project`; prompt = "Process this case. Answer with only the result JSON.\n\n" + engine input. The result is the JSON in the `result` text of the last `result` event (a fenced ```json block, or the whole text) | 300 s |
-| `python` | in `usecases/<uc>/python/`: `uv run --project <repo root> python agent.py`, engine input on stdin, result JSON on stdout (stderr = logs) | 300 s |
+| `python` | in `usecases/<uc>/python/`: `uv run --project <repo root> python agent.py`, engine input on stdin, result JSON on stdout (stderr = logs). The scaffold uses the OpenAI Responses API (`/v1/responses`; new models allow function tools only there), also through `OPENAI_BASE_URL` | 300 s |
 
 Timeouts are wall-clock time. Each case has a hard deadline of engine timeout + 10 s: then the runner stops
 waiting and the case fails with "hard deadline". A `judge` check has its own limit (120 s). The n8n scaffolds set
