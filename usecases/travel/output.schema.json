@@ -13,12 +13,11 @@
         "required": ["kind", "person", "event", "date", "status"],
         "additionalProperties": false,
         "properties": {
-          "kind": {"type": "string", "enum": ["trip", "leave", "estimate", "reminder", "open_question"]},
+          "kind": {"type": "string", "description": "A task kind from data/priorities.md."},
           "person": {"type": "string", "description": "Full name of the team member."},
           "event": {"type": "string", "description": "Event name and place, or what the task is about."},
           "date": {"type": "string", "description": "Start date as YYYY-MM-DD, or empty if unknown."},
-          "status": {"type": "string",
-                     "enum": ["open", "needs_info", "waiting_for_request", "ready_to_book", "cancelled", "done"]}
+          "status": {"type": "string", "description": "A status word from data/priorities.md."}
         }
       }
     },

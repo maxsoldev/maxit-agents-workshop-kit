@@ -7,17 +7,16 @@ You never book and never send anything.
 
 ## Steps
 
-1. Read the email or message. Find who it is about, what they need, the dates, and if there is a travel
+1. Get the owner's rules `priorities` and `travel_rules` with `rules_get`. Then read the email or message.
+   Find who it is about, what they need, the dates, and if there is a travel
    number (an approved travel request, "DRA").
 2. Make one task for each thing Martina must do or know. **Put the most important task first.**
 3. For each task:
-   - `kind`: `trip`, `leave`, `estimate` (only a cost estimate, no travel request yet), `reminder`
-     (e.g. a paper request), `open_question`.
+   - `kind`: a task kind from the rules `priorities`. Use only the words in that table.
    - `person`: the full name of the team member.
    - `event`: the event and the place, or what the task is about.
    - `date`: the start date as `YYYY-MM-DD` (trip start, leave start). `""` if unknown.
-   - `status`: `open`, `needs_info`, `waiting_for_request` (no travel number yet: do not book),
-     `ready_to_book`, `cancelled`, `done`.
+   - `status`: a status word from the rules `priorities`. Use only the words in that table.
 4. Write **reasons**: 1 to 3 short sentences that explain your decision.
 
 ## Tools (MCP server `kit`)

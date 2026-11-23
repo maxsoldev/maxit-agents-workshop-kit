@@ -115,7 +115,7 @@
             "textOptions": {
               "type": "json_schema",
               "name": "triage",
-              "schema": "{\n  \"type\": \"object\",\n  \"additionalProperties\": false,\n  \"required\": [\n    \"category\",\n    \"flags\",\n    \"sender_email\",\n    \"reason\"\n  ],\n  \"properties\": {\n    \"category\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"institute_request\",\n        \"membership\",\n        \"partnership\",\n        \"event_invitation\",\n        \"press\",\n        \"service_offer\",\n        \"unverified_outreach\",\n        \"newsletter\",\n        \"spam\"\n      ]\n    },\n    \"flags\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\",\n        \"enum\": [\n          \"phishing\",\n          \"injection\",\n          \"unverified\",\n          \"off_target\"\n        ]\n      }\n    },\n    \"sender_email\": {\n      \"type\": \"string\"\n    },\n    \"reason\": {\n      \"type\": \"string\"\n    }\n  }\n}"
+              "schema": "{\n  \"type\": \"object\",\n  \"additionalProperties\": false,\n  \"required\": [\n    \"category\",\n    \"flags\",\n    \"no_reply\",\n    \"sender_email\",\n    \"reason\"\n  ],\n  \"properties\": {\n    \"category\": {\n      \"type\": \"string\"\n    },\n    \"flags\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"no_reply\": {\n      \"type\": \"boolean\"\n    },\n    \"sender_email\": {\n      \"type\": \"string\"\n    },\n    \"reason\": {\n      \"type\": \"string\"\n    }\n  }\n}"
             }
           }
         }
@@ -147,7 +147,7 @@
           "conditions": [
             {
               "id": "fd4a1415-0606-4da6-a4a9-7334c21326bd",
-              "leftValue": "={{ ['spam', 'newsletter'].includes($json.output.category) || $json.output.flags.includes('phishing') || $json.output.flags.includes('off_target') }}",
+              "leftValue": "={{ $json.output.no_reply === true }}",
               "rightValue": "",
               "operator": {
                 "type": "boolean",
@@ -376,7 +376,7 @@
         "color": 6,
         "width": 240,
         "height": 840,
-        "content": "## 3 Junk? (a rule, no AI)\nSpam, newsletter, phishing or off target: no reply, no more AI calls.\nChange the rule in **Junk?**."
+        "content": "## 3 Junk? (a rule, no AI)\nTriage says `no_reply` (the owner's routing rules): no reply, no more AI calls.\nChange the rule in **Junk?**, or the `no_reply` line in `data/routing.md`."
       }
     },
     {

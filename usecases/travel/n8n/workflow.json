@@ -115,7 +115,7 @@
             "textOptions": {
               "type": "json_schema",
               "name": "message_fields",
-              "schema": "{\n  \"type\": \"object\",\n  \"additionalProperties\": false,\n  \"required\": [\n    \"about\",\n    \"person\",\n    \"date_from\",\n    \"date_to\"\n  ],\n  \"properties\": {\n    \"about\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"trip\",\n        \"leave\",\n        \"cancellation\",\n        \"estimate\",\n        \"other\"\n      ]\n    },\n    \"person\": {\n      \"type\": \"string\"\n    },\n    \"date_from\": {\n      \"type\": \"string\"\n    },\n    \"date_to\": {\n      \"type\": \"string\"\n    }\n  }\n}"
+              "schema": "{\n  \"type\": \"object\",\n  \"additionalProperties\": false,\n  \"required\": [\n    \"about\",\n    \"person\",\n    \"date_from\",\n    \"date_to\"\n  ],\n  \"properties\": {\n    \"about\": {\n      \"type\": \"string\"\n    },\n    \"person\": {\n      \"type\": \"string\"\n    },\n    \"date_from\": {\n      \"type\": \"string\"\n    },\n    \"date_to\": {\n      \"type\": \"string\"\n    }\n  }\n}"
             }
           }
         }

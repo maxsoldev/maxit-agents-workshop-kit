@@ -7,14 +7,12 @@
   "properties": {
     "category": {
       "type": "string",
-      "enum": ["institute_request", "membership", "partnership", "event_invitation", "press",
-               "service_offer", "unverified_outreach", "newsletter", "spam"],
-      "description": "Exactly one category, see data/categories.md."
+      "description": "Exactly one category from the table in data/categories.md (the owner keeps the list there)."
     },
     "flags": {
       "type": "array",
-      "items": {"type": "string", "enum": ["phishing", "injection", "unverified", "off_target"]},
-      "description": "Zero or more warning flags, see data/categories.md."
+      "items": {"type": "string"},
+      "description": "Zero or more flags from the flag table in data/categories.md."
     },
     "reply": {
       "type": "string",

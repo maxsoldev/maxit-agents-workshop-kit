@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 from pathlib import Path
 
 import jsonschema
@@ -156,3 +157,47 @@ def test_schemas_are_openai_strict(uc):
             opts = n["parameters"].get("options", {}).get("textFormat", {}).get("textOptions") or {}
             if opts.get("schema") and not opts["schema"].startswith("="):
                 _strict_ok(json.loads(opts["schema"]), f"{f.name}:{n['name']}")
+
+
+def owner_lists(uc: str) -> dict[str, set[str]]:
+    """The word lists the owner keeps in data/*.md: tables whose first column is a `word` (categories,
+    flags, task kinds, status words, routes). Key: "<file>: <table head>"."""
+    lists: dict[str, set[str]] = {}
+    for f in sorted((USECASES / uc / "data").glob("*.md")):
+        head = ""
+        for line in f.read_text(encoding="utf-8").splitlines():
+            m = re.match(r"\|\s*`([a-z_]+)`\s*\|", line)
+            if m:
+                lists.setdefault(f"{f.name}: {head}", set()).add(m[1])
+            elif line.startswith("|"):
+                head = head or line
+            else:
+                head = ""
+    return lists
+
+
+def schema_enums(node) -> list[list]:
+    if isinstance(node, dict):
+        return ([node["enum"]] if "enum" in node else []) + [e for v in node.values() for e in schema_enums(v)]
+    return [e for v in node for e in schema_enums(v)] if isinstance(node, list) else []
+
+
+@pytest.mark.parametrize("uc", UCS)
+def test_owner_lists_live_only_in_the_rules(uc):
+    """Lu's wish: the owner adds a category or a status word in data/*.md, with no code change.
+    So no schema enum and no agent prompt repeats a list from the rules (one example word is fine)."""
+    lists = owner_lists(uc)
+    assert lists, f"{uc}: no word tables in data/*.md"
+    schema = json.loads((USECASES / uc / "output.schema.json").read_text())
+    agent_files = [USECASES / uc / "claude" / "CLAUDE.md", USECASES / uc / "python" / "agent.py"]
+    agent_files += sorted((USECASES / uc / "n8n" / "prompts").glob("*.md"))
+    for n in json.loads((USECASES / uc / "n8n" / "workflow.json").read_text())["nodes"]:  # n8n model schemas
+        fmt = n["parameters"].get("options", {}).get("textFormat", {}).get("textOptions") or {}
+        if fmt.get("schema", "").startswith("{"):
+            schema = {"main": schema, n["name"]: json.loads(fmt["schema"])}
+    for where, words in lists.items():
+        for enum in schema_enums(schema):
+            assert not words & set(enum), f"{uc}: schema enum {enum} repeats {where}"
+        for f in agent_files:
+            named = {w for w in words if re.search(rf"\b{w}\b", f.read_text(encoding="utf-8"))}
+            assert len(named) <= 2, f"{f.relative_to(USECASES)} lists {sorted(named)} from {where}"
