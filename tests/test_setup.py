@@ -2,6 +2,8 @@
 
 import json
 import sys
+import threading
+import time
 import types
 
 import httpx
@@ -16,9 +18,13 @@ def test_check_with_a_fake_runner(tmp_path, monkeypatch, capsys):
         (uc / engine).mkdir(parents=True)
     (uc / "cases.jsonl").write_text('{"id": "d1"}\n{"id": "d2"}\n')
     calls = []
+    both_running = threading.Barrier(2, timeout=5)  # raises BrokenBarrierError if the runs are not parallel
 
     def run_eval(usecase, engine, case_ids=None, name=None, on_progress=None):
         calls.append((usecase, engine, case_ids))
+        both_running.wait()
+        if engine == "n8n":
+            time.sleep(0.2)  # n8n ends last, but its line must still come first
         case = {
             "id": "d1",
             "passed": engine == "python",
@@ -33,12 +39,16 @@ def test_check_with_a_fake_runner(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(setup, "_port_open", lambda port: True)
     monkeypatch.setenv("N8N_API_KEY", "x")
     monkeypatch.setenv("OPENAI_API_KEY", "x")
+    monkeypatch.setenv("KIT_ENGINES", "")  # all engines, whatever .env says
     assert setup.check() == 1
     out = capsys.readouterr().out
-    assert calls == [("demo", "n8n", ["d1"]), ("demo", "python", ["d1"])]
-    assert "FAIL  demo/n8n (d1): HTTP 404" in out
-    assert "OK    demo/python (d1)" in out
-    assert "SKIP  demo/claude (d1)" in out
+    assert sorted(calls) == [("demo", "n8n", ["d1"]), ("demo", "python", ["d1"])]
+    lines = out.splitlines()
+    assert lines[1] == "Running 2 checks in parallel (one case each; this can take a few minutes) ..."
+    assert lines[2].startswith("FAIL  demo/n8n (d1): HTTP 404")  # fixed order: use case, then n8n, claude, python
+    assert lines[3].startswith("SKIP  demo/claude (d1)")
+    assert lines[4] == "OK    demo/python (d1)"
+    assert lines[-1] == "1 engine(s) failed. Fix them, then run make check again."
 
 
 def test_python_next_step_fits_the_error():

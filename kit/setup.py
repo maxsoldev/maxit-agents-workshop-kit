@@ -14,6 +14,7 @@ import socket
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
@@ -655,51 +656,63 @@ def check() -> int:
     unused = [e for e in ("n8n", "claude", "python") if e not in s.engines]
     if unused:
         print(f"SKIP  {', '.join(unused)}: not in KIT_ENGINES")
-    bad = 0
+    # One row per use case × engine, in print order: (uc, engine, first case id, a line known before any run).
+    rows = []
     for uc in usecases():
         lines = (USECASES_DIR / uc / "cases.jsonl").read_text().splitlines()
         first = next((json.loads(x)["id"] for x in lines if x.strip()), None)
         if not first:
-            print(f"SKIP  {uc}: cases.jsonl has no cases")
+            rows.append((uc, None, None, f"SKIP  {uc}: cases.jsonl has no cases"))
             continue
         for engine in s.engines:
-            label = f"{uc}/{engine} ({first})"
-            if not (USECASES_DIR / uc / engine).exists():
-                print(f"SKIP  {label}: no usecases/{uc}/{engine}/ folder")
-                continue
-            if engine == "n8n" and not s.n8n_api_key and s.n8n_mode == "local":
-                print(f"FAIL  {label}: n8n is not set up. Next: make up, make setup")
-                bad += 1
-                continue
-            if engine == "n8n" and not s.openai_api_key and s.n8n_mode == "local":
-                print(
-                    f"FAIL  {label}: no OPENAI_API_KEY, so the workflow is not active. "
-                    "Next: put the key in .env, then make setup"
-                )
-                bad += 1
-                continue
-            try:
-                run = run_eval(uc, engine, case_ids=[first], name="check")
-                case = run["cases"][0]
-            except Exception as e:  # the check must go on to the next engine
-                print(f"FAIL  {label}: {type(e).__name__}: {e}. Next: {next_step(engine, str(e), uc, first)}")
-                bad += 1
-                continue
-            if case.get("passed"):
-                print(f"OK    {label}")
-                continue
-            reason = case.get("error") or "; ".join(
-                f"{c['type']} {c.get('field', '')}: {c.get('reason', '')}"
-                for c in case.get("checks", [])
-                if c.get("passed") is False
-            )
-            if case.get("error"):
-                bad += 1
-                print(f"FAIL  {label}: {reason}. Next: {next_step(engine, reason, uc, first)}")
-            else:  # the engine answered; only checks failed. That is normal for a scaffold.
-                print(f"OK    {label}: the engine works, some checks fail ({reason[:200]})")
+            rows.append((uc, engine, first, _check_before_run(uc, engine, first, s)))
+    todo = [r for r in rows if r[3] is None]
+    if todo:
+        print(f"Running {len(todo)} checks in parallel (one case each; this can take a few minutes) ...", flush=True)
+    bad = 0
+    with ThreadPoolExecutor(max_workers=max(1, len(todo))) as pool:
+        futures = [None if line else pool.submit(_check_run, run_eval, uc, e, first) for uc, e, first, line in rows]
+        for (_uc, _e, _first, line), future in zip(rows, futures, strict=True):
+            line = line or future.result()  # wait for this row only: the lines stay in the fixed order
+            bad += line.startswith("FAIL")
+            print(line, flush=True)
     print("\nAll engines answer." if not bad else f"\n{bad} engine(s) failed. Fix them, then run make check again.")
     return 1 if bad else 0
+
+
+def _check_before_run(uc: str, engine: str, first: str, s) -> str | None:
+    """The SKIP / FAIL line for a pair that cannot run; None if it can run."""
+    label = f"{uc}/{engine} ({first})"
+    if not (USECASES_DIR / uc / engine).exists():
+        return f"SKIP  {label}: no usecases/{uc}/{engine}/ folder"
+    if engine == "n8n" and not s.n8n_api_key and s.n8n_mode == "local":
+        return f"FAIL  {label}: n8n is not set up. Next: make up, make setup"
+    if engine == "n8n" and not s.openai_api_key and s.n8n_mode == "local":
+        return (
+            f"FAIL  {label}: no OPENAI_API_KEY, so the workflow is not active. "
+            "Next: put the key in .env, then make setup"
+        )
+    return None
+
+
+def _check_run(run_eval, uc: str, engine: str, first: str) -> str:
+    """Run the first case of `uc` on `engine` (a thread of check); return its OK / FAIL line."""
+    label = f"{uc}/{engine} ({first})"
+    try:
+        case = run_eval(uc, engine, case_ids=[first], name="check")["cases"][0]
+    except Exception as e:  # the check must go on to the next engine
+        return f"FAIL  {label}: {type(e).__name__}: {e}. Next: {next_step(engine, str(e), uc, first)}"
+    if case.get("passed"):
+        return f"OK    {label}"
+    reason = case.get("error") or "; ".join(
+        f"{c['type']} {c.get('field', '')}: {c.get('reason', '')}"
+        for c in case.get("checks", [])
+        if c.get("passed") is False
+    )
+    if case.get("error"):
+        return f"FAIL  {label}: {reason}. Next: {next_step(engine, reason, uc, first)}"
+    # the engine answered; only checks failed. That is normal for a scaffold.
+    return f"OK    {label}: the engine works, some checks fail ({reason[:200]})"
 
 
 # ---------- kit n8n-export ----------
