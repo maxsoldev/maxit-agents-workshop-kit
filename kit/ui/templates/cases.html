@@ -14,7 +14,7 @@
   {% for r in rows %}{% set c = r.case %}
   <tr id="case-{{ c.id }}">
     <td><code>{{ c.id }}</code></td>
-    <td>{{ c.title }}{% if c.today %}<div class="muted small">today {{ c.today }}</div>{% endif %}</td>
+    <td>{{ c.title }}{% if c.holdout %} <span class="chip" title="runs only with --holdout or the tick on the Run page">holdout</span>{% endif %}{% if c.today %}<div class="muted small">today {{ c.today }}</div>{% endif %}</td>
     <td class="input">
       {% for p in r.files %}
         {% if p.email %}

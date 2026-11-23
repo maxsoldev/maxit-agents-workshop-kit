@@ -12,6 +12,8 @@
     {% for t, pair in (s.by_check or {}).items() %}
     <span class="chip t-{{ t }} {{ 'ok' if pair[0] == pair[1] else 'ko' }}">{{ t }} {{ pair[0] }}/{{ pair[1] }}</span>
     {% endfor %}
+    {% if s.by_field %}<div class="muted small">Per field:
+      {% for f, pair in s.by_field.items() if f != 'schema' %}<span class="{{ '' if pair[0] == pair[1] else 'bad' }}">{{ f }} {{ pair[0] }}/{{ pair[1] }}</span>{{ ' · ' if not loop.last }}{% endfor %}</div>{% endif %}
     {% for t, n in (s.skipped or {}).items() %}
     <span class="chip muted" title="the check could not run (for example: no key); it does not count">{{ n }} {{ t }} skipped</span>
     {% endfor %}

@@ -290,6 +290,24 @@ def test_crash_in_one_case_does_not_stop_others(monkeypatch):
     assert run["cases"][0]["passed"] and "boom" in run["cases"][1]["error"]
 
 
+def test_holdout_cases_and_per_field_summary(monkeypatch):
+    real = runner.load_cases
+
+    def with_holdout(uc):
+        cs = real(uc)
+        cs[1] = {**cs[1], "holdout": True}
+        return cs
+
+    monkeypatch.setattr(runner, "load_cases", with_holdout)
+    ids = lambda run: [c["id"] for c in run["cases"]]  # noqa: E731
+    run = runner.run_eval("fake", "claude")
+    assert "f02" not in ids(run)
+    assert "f02" in ids(runner.run_eval("fake", "claude", holdout=True))
+    assert ids(runner.run_eval("fake", "claude", case_ids=["f02"])) == ["f02"]  # named: it runs
+    assert run["summary"]["by_field"]["equals category"][1] >= 1 and run["cases"][0]["today"] == "2026-11-04"
+    assert cases.validate_case({"id": "a", "holdout": "yes"}) == ["`holdout` must be true or false"]
+
+
 def test_cli(capsys):
     assert cli.main("fake", "claude", ["f01", "f02"], "") == 0
     out = capsys.readouterr().out

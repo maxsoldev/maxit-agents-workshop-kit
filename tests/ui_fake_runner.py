@@ -59,7 +59,7 @@ def _passes(run_id, case_id):
     return zlib.crc32(f"{run_id}{case_id}".encode()) % 2 == 0
 
 
-def run_eval(usecase, engine, case_ids=None, name=None, on_progress=None):
+def run_eval(usecase, engine, case_ids=None, name=None, on_progress=None, holdout=False):
     run_id = f"{datetime.now():%Y%m%d-%H%M%S}-{usecase}-{engine}"
     started = datetime.now().isoformat(timespec="seconds")
     results = []

@@ -13,7 +13,8 @@ def _label(check: dict) -> str:
     return f"{check['type']}{where}: {check['reason']}"
 
 
-def main(usecase: str, engine: str, case_ids: list[str] | None = None, name: str | None = None) -> int:
+def main(usecase: str, engine: str, case_ids: list[str] | None = None, name: str | None = None,
+         holdout: bool = False) -> int:
     """Exit 0 when the run ran (also if cases fail); 1 only if it could not start."""
     lock, done = threading.Lock(), [0]
 
@@ -26,7 +27,7 @@ def main(usecase: str, engine: str, case_ids: list[str] | None = None, name: str
 
     print(f"Running {usecase} on {engine} ...", file=sys.stderr, flush=True)
     try:
-        run = run_eval(usecase, engine, case_ids or None, name or None, on_progress)
+        run = run_eval(usecase, engine, case_ids or None, name or None, on_progress, holdout=holdout)
     except (CaseError, ValueError, OSError) as e:
         print(f"Cannot start the run: {e}", file=sys.stderr)
         return 1
@@ -45,6 +46,9 @@ def main(usecase: str, engine: str, case_ids: list[str] | None = None, name: str
     by_check = "  ".join(f"{t} {p}/{n}" for t, (p, n) in s["by_check"].items())
     skipped = "  ".join(f"{n} {t} skipped" for t, n in s.get("skipped", {}).items())
     print(f"\n{s['passed']}/{s['cases']} cases passed   {by_check}" + (f"   ({skipped})" if skipped else ""))
+    by_field = s.get("by_field") or {}
+    if by_field:
+        print("Per field: " + "  ".join(f"{k} {p}/{n}" for k, (p, n) in by_field.items() if k != "schema"))
     for c in run["cases"]:  # say once why the judge was skipped (for example: no key)
         why = next((k["reason"] for k in c["checks"] if k.get("skipped")), None)
         if why:

@@ -85,23 +85,27 @@ def run_case(uc: str, engine: str, case: dict, schema: dict, run_id: str, run_na
 
 
 def summarize(case_results: list[dict]) -> dict:
-    """Counts per check type; skipped checks (a judge that could not run) are counted apart."""
+    """Counts per check type and per check type + field (`equals action`: [8, 15]).
+    Skipped checks (a judge that could not run) are counted apart."""
     by_check: dict[str, list[int]] = {}
+    by_field: dict[str, list[int]] = {}
     skipped: dict[str, int] = {}
     for r in case_results:
         for c in r["checks"]:
             if c.get("skipped"):
                 skipped[c["type"]] = skipped.get(c["type"], 0) + 1
                 continue
-            counts = by_check.setdefault(c["type"], [0, 0])
-            counts[0] += c["passed"] is True
-            counts[1] += 1
+            name = f"{c['type']} {c['field']}".strip() if c["type"] != "schema" else "schema"
+            for counts in (by_check.setdefault(c["type"], [0, 0]), by_field.setdefault(name, [0, 0])):
+                counts[0] += c["passed"] is True
+                counts[1] += 1
     return {"cases": len(case_results), "passed": sum(r["passed"] for r in case_results), "by_check": by_check,
-            "skipped": skipped}
+            "by_field": by_field, "skipped": skipped}
 
 
-def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=None) -> dict:
+def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=None, holdout=False) -> dict:
     """Run the cases (all, or `case_ids`) and return the run dict. Blocks until all cases end.
+    Cases with `"holdout": true` run only with holdout=True (or when you name them in case_ids).
 
     Raises CaseError / ValueError if the run cannot start (bad cases file, unknown engine or case id).
     """
@@ -115,6 +119,8 @@ def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=No
         if unknown:
             raise ValueError(f"unknown case id(s): {', '.join(unknown)}")
         cases = [c for c in cases if c["id"] in case_ids]
+    elif not holdout:
+        cases = [c for c in cases if not c.get("holdout")]  # kept aside for the end (docs/the-loop.md)
     schema = _load_schema(usecase)
     progress = on_progress or (lambda event: None)
 
@@ -122,7 +128,7 @@ def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=No
     run_id = new_run_id(usecase, engine, started)
     run = {"run_id": run_id, "name": name or run_id, "usecase": usecase, "engine": engine,
            "started_at": started.astimezone().isoformat(timespec="seconds"), "ended_at": None,
-           "summary": summarize([]), "cases": []}
+           "holdout": bool(holdout), "summary": summarize([]), "cases": []}
     save_run(run)  # reserves the run id; ended_at = None means "still running"
 
     def one(case):

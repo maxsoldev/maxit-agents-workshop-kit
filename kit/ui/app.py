@@ -352,6 +352,8 @@ async def case_save(request: Request, uc: str):
     case: dict = {"id": str(f.get("id", "")).strip(), "title": str(f.get("title", "")).strip()}
     if str(f.get("today", "")).strip():
         case["today"] = str(f.get("today")).strip()
+    if f.get("holdout"):
+        case["holdout"] = True
     for key in ("input", "expected"):
         try:
             case[key] = json.loads(raw[key] or "{}")
@@ -422,13 +424,17 @@ JOBS: dict[tuple[str, str], dict] = {}   # (uc, engine) -> live state of the las
 JOBS_LOCK = threading.Lock()
 
 
-def start_job(uc: str, engine: str, case_ids: list[str] | None, name: str | None, cases: list[dict]) -> str | None:
+def start_job(uc: str, engine: str, case_ids: list[str] | None, name: str | None, cases: list[dict],
+              holdout: bool = False) -> str | None:
     """Start a run in a background thread. Returns an error text if one runs already."""
     with JOBS_LOCK:
         old = JOBS.get((uc, engine))
         if old and not old["done"]:
             return f"A {engine} run for {uc} is still running. Wait until it ends."
-        picked = [c for c in cases if not case_ids or c.get("id") in case_ids]
+        if case_ids:
+            picked = [c for c in cases if c.get("id") in case_ids]
+        else:  # the runner skips holdout cases unless asked
+            picked = [c for c in cases if holdout or not c.get("holdout")]
         job = {"engine": engine, "name": name or "", "done": False, "error": None, "run_id": None,
                "cases": [{"id": c.get("id"), "title": c.get("title", ""), "status": "waiting"} for c in picked]}
         JOBS[(uc, engine)] = job
@@ -442,7 +448,8 @@ def start_job(uc: str, engine: str, case_ids: list[str] | None, name: str | None
 
     def work():
         try:
-            run = runner().run_eval(uc, engine, case_ids=case_ids, name=name, on_progress=on_progress)
+            run = runner().run_eval(uc, engine, case_ids=case_ids, name=name, on_progress=on_progress,
+                                    holdout=holdout)
             job["run_id"] = run.get("run_id")
         except Exception as e:
             job["error"] = f"{type(e).__name__}: {e}"
@@ -481,7 +488,8 @@ async def run_start(request: Request, uc: str):
     cases, error = load_cases_safe(uc)
     ids = [str(i) for i in f.getlist("case")] or None
     if not error:
-        error = start_job(uc, engine, ids, str(f.get("name", "")).strip() or None, cases)
+        error = start_job(uc, engine, ids, str(f.get("name", "")).strip() or None, cases,
+                          holdout=bool(f.get("holdout")))
     url = f"/uc/{uc}/run?engine={engine}" + (f"&error={quote(error)}" if error else "")
     return RedirectResponse(url, status_code=303)
 

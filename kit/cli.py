@@ -30,6 +30,7 @@ def main(argv: list[str] | None = None) -> int:
     ev.add_argument("engine", choices=["n8n", "claude", "python"])
     ev.add_argument("--cases", default="", help="comma-separated case ids (default: all)")
     ev.add_argument("--name", default="", help="run name (default: timestamp)")
+    ev.add_argument("--holdout", action="store_true", help='also run the cases with "holdout": true')
     tl = sub.add_parser("tool", help="try a tool by hand: kit tool trains_search from_place=... date=...")
     tl.add_argument("name", nargs="?", default="", help="tool name (empty: list the tools)")
     tl.add_argument("args", nargs="*", help="key=value")
@@ -50,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
         return tools.serve()
     if a.cmd == "eval":
         from kit.runner import cli as runner_cli
-        return runner_cli.main(a.usecase, a.engine, [c for c in a.cases.split(",") if c], a.name)
+        return runner_cli.main(a.usecase, a.engine, [c for c in a.cases.split(",") if c], a.name, a.holdout)
     if a.cmd == "tool":
         from kit import tools
         return tools.try_tool(a.name, a.args)

@@ -45,6 +45,8 @@ def validate_case(case) -> list[str]:
     today = case.get("today")
     if today is not None and not (isinstance(today, str) and len(today) == 10 and today[4] == "-" and today[7] == "-"):
         errors.append("`today` must be an ISO date like 2026-11-04")
+    if not isinstance(case.get("holdout", False), bool):
+        errors.append("`holdout` must be true or false")
     if not isinstance(case.get("input", {}), dict):
         errors.append("`input` must be a JSON object")
     if not isinstance(case.get("expected", {}), dict):

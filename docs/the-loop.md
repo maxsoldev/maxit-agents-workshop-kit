@@ -35,6 +35,11 @@ then measure every change.**
 - **Do not fit the cases.** A rule like "if the sender is Lara Venn, say unverified" makes the case pass and
   the agent worse. Write rules that hold for the next email too.
 - **Run it twice** before you trust a small change. Models are not fully deterministic.
+- **Keep 3 to 5 cases aside.** After many loops, your cases get easy: the agent is tuned to them. Mark a few
+  new cases as **holdout** (tick in the case form, or `"holdout": true`). The eval skips them; run them at the
+  end (`make eval ... HOLDOUT=1`, or the tick on the Run page) to see if the agent works on cases it never saw.
+- **Read the score per field** (results page, "Per field", e.g. `equals action 8/15`): it shows which part of
+  the result is weak.
 - **Fix the case** when the case is wrong. Ask the owner what is right; do not change it to make it pass.
 
 ## Which check when

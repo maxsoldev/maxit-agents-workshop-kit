@@ -40,6 +40,8 @@ usecases/<uc>/
 ```
 
 - `id` unique in the file; `title` short; `today` ISO date (the agent's "today"), optional.
+- `holdout`: optional, `true` = a case kept aside. `run_eval` skips it unless `holdout=True` (`kit eval
+  --holdout`, `make eval HOLDOUT=1`, the tick on the Run page) or its id is in `case_ids`.
 - `input`: free JSON. Every key that ends in `_file` is a path relative to the use case folder; the runner adds
   the file text under the same key without `_file` (for example `email_file` → `email`). Engines never read files.
   An `.eml` file is decoded: `email` = readable text ("From: …", "To: …", "Date: …", "Subject: …", a blank line,
@@ -91,7 +93,7 @@ variables (§6). Claude uses the participant's own login.
 
 ```python
 from kit.runner import run_eval, list_runs, load_run, compare
-run = run_eval(usecase, engine, case_ids=None, name=None, on_progress=None)  # blocking; returns the run dict
+run = run_eval(usecase, engine, case_ids=None, name=None, on_progress=None, holdout=False)  # blocking
 list_runs(usecase=None) -> list[dict]   # newest first; summary fields and the sorted `case_ids`
 load_run(run_id) -> dict
 compare(run_id_a, run_id_b) -> dict     # per case: better / worse / same
@@ -101,14 +103,15 @@ compare(run_id_a, run_id_b) -> dict     # per case: better / worse / same
 Compare defaults to the previous run of the same engine, lists that engine first, and marks runs with other
 case ids ("other cases").
 
-`on_progress(event: dict)` is called with `{"case_id", "status": "running"|"done", "passed"?}`. Cases run up to
+`on_progress(event: dict)` is called with `{"case_id", "status": "running"|"done", "passed"?, "error"?}`. Cases run up to
 4 in parallel (claude 2).
 
 Run file `runs/<run_id>.json`, `run_id` = `<YYYYmmdd-HHMMSS>-<uc>-<engine>`:
 
 ```json
 {"run_id": "...", "name": "...", "usecase": "marketing", "engine": "n8n", "started_at": "...", "ended_at": "...",
- "summary": {"cases": 5, "passed": 4, "by_check": {"equals": [4, 5], "judge": [3, 3]}, "skipped": {}},
+ "summary": {"cases": 5, "passed": 4, "by_check": {"equals": [4, 5], "judge": [3, 3]},
+             "by_field": {"schema": [5, 5], "equals category": [4, 5], "judge reply": [3, 3]}, "skipped": {}},
  "cases": [{"id": "m06", "title": "...", "passed": false, "seconds": 3.2, "error": null,
             "input": {...}, "expected": {...}, "output": {...},
             "checks": [{"type": "equals", "field": "category", "passed": false, "reason": "got unverified_outreach, expected service_offer"}],

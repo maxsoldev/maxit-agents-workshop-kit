@@ -70,6 +70,8 @@
   <template id="check-row">{% set c = {"type": "equals", "field": "", "arg": "", "min": ""} %}{% include "_check_row.html" %}</template>
   <button type="button" class="btn" onclick="addCheck()">+ Add check</button>
 
+  <p><label><input type="checkbox" name="holdout" value="1" {{ 'checked' if case.holdout }}> Holdout case: keep it
+    aside, the eval skips it until you tick "also the holdout cases" (or use <code>--holdout</code>)</label></p>
   <div class="form-actions">
     <button class="btn primary">Save case</button>
     <a class="btn" href="/uc/{{ uc }}/cases">Cancel</a>
