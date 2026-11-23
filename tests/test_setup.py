@@ -113,6 +113,16 @@ def test_settings_read_env_file_each_time(tmp_path, monkeypatch):
     assert config.settings().judge_model == "shell"
 
 
+def test_export_puts_the_placeholders_back():
+    from kit.config import ROOT, settings
+    text = (ROOT / "usecases/travel/n8n/workflow.json").read_text()
+    url = "http://host.docker.internal:5701/mcp"
+    filled = json.loads(fill_placeholders(text, "cred123", url))
+    assert "cred123" in json.dumps(filled) and "{{KIT_" not in json.dumps(filled)
+    back = setup.placeholders_back(filled, "cred123", url, settings().model)
+    assert back == json.loads(text)
+
+
 def test_kit_engines_limits_profiles_and_engines():
     from kit.config import parse_engines
     assert parse_engines("") == ("n8n", "claude", "python")

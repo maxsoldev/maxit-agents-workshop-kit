@@ -12,7 +12,8 @@ then measure every change.**
    Ask: is the agent wrong, or is the case wrong?
 4. **Change one thing.** The prompt, one rule, one tool, the model, the schema. Only one.
 5. **Run the eval again.** Compare with the last run (Results → Compare). Better: keep it and commit.
-   Worse: undo it. Same: think again.
+   Worse: undo it. Same: think again. n8n: your change lives in n8n, not in git. Run `make n8n-export`
+   (it writes `usecases/<uc>/n8n/workflow.json` with the placeholders back), then commit that file.
 6. **Every new failure becomes a case.** When you see a mistake (in a trace, in a demo, in real use), write a
    case for it before you fix it. Then the fix stays fixed.
 

@@ -82,19 +82,54 @@ def workflow_body(wf: dict) -> dict:
             "settings": wf.get("settings") or {}}
 
 
+def workflow_hash(wf: dict) -> str:
+    """Hash of what a workflow does: nodes (name, type, version, parameters, credential id) and links.
+    Node positions do not count."""
+    nodes = []
+    for n in wf.get("nodes", []):
+        d = {k: n.get(k) for k in ("name", "type", "typeVersion", "parameters")}
+        # n8n stores its own credential name; only the id matters.
+        d["credentials"] = {t: (c or {}).get("id") for t, c in (n.get("credentials") or {}).items()}
+        nodes.append(json.dumps(d, sort_keys=True))
+    text = json.dumps([sorted(nodes), wf.get("connections", {})], sort_keys=True)
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
+
+
 def same_workflow(a: dict, b: dict) -> bool:
     """True if two workflows have the same nodes (name, type, version, parameters, credentials) and links."""
-    def nodes(wf: dict) -> list:
-        keys = ("name", "type", "typeVersion", "parameters")
-        out = []
-        for n in wf.get("nodes", []):
-            d = {k: n.get(k) for k in keys}
-            # n8n stores its own credential name; only the id matters.
-            d["credentials"] = {t: (c or {}).get("id") for t, c in (n.get("credentials") or {}).items()}
-            out.append(json.dumps(d, sort_keys=True))
-        return sorted(out)
-    return nodes(a) == nodes(b) and json.dumps(a.get("connections", {}), sort_keys=True) == json.dumps(
-        b.get("connections", {}), sort_keys=True)
+    return workflow_hash(a) == workflow_hash(b)
+
+
+IMPORTED_FILE = RUNS_DIR / "n8n-imported.json"  # workflow name -> hash of what setup last put into n8n
+
+
+def imported_hashes() -> dict:
+    try:
+        return json.loads(IMPORTED_FILE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def remember_import(name: str, wf: dict) -> None:
+    data = imported_hashes()
+    data[name] = workflow_hash(wf)
+    IMPORTED_FILE.parent.mkdir(parents=True, exist_ok=True)
+    IMPORTED_FILE.write_text(json.dumps(data, indent=1))
+
+
+def placeholders_back(value, credential_id: str, tools_url: str, model: str):
+    """The opposite of fill_placeholders, on parsed JSON: real values -> {{...}} placeholders."""
+    if isinstance(value, dict):
+        return {k: placeholders_back(v, credential_id, tools_url, model) for k, v in value.items()}
+    if isinstance(value, list):
+        return [placeholders_back(v, credential_id, tools_url, model) for v in value]
+    if isinstance(value, str):
+        if credential_id and value == credential_id:
+            return "{{OPENAI_CREDENTIAL_ID}}"
+        if model and value == model:
+            return "{{KIT_MODEL}}"
+        return value.replace(tools_url, "{{KIT_TOOLS_URL}}") if tools_url else value
+    return value
 
 
 # ---------- output ----------
@@ -226,7 +261,7 @@ def wait_for(check, seconds: int) -> bool:
     return False
 
 
-def setup_n8n() -> bool:
+def setup_n8n(force: bool = False) -> bool:
     s = settings()
     print(f"n8n ({s.n8n_mode}, {s.n8n_url})")
     n8n = N8n(s.n8n_url)
@@ -280,7 +315,7 @@ def setup_n8n() -> bool:
     if not cred_id:  # import anyway, so you can look at the workflows; activate them later
         import_workflows(n8n, "")
         return False
-    return import_workflows(n8n, cred_id)
+    return import_workflows(n8n, cred_id, force)
 
 
 def key_fingerprint(key: str) -> str:
@@ -344,9 +379,10 @@ def restart_n8n(n8n: N8n) -> bool:
     return False
 
 
-def import_workflows(n8n: N8n, cred_id: str) -> bool:
+def import_workflows(n8n: N8n, cred_id: str, force: bool = False) -> bool:
     """Create or update each usecases/*/n8n/workflow.json by name, then activate it.
-    Before an update, the old n8n copy goes to runs/n8n-backup/ (you may have edited it in n8n)."""
+    If the n8n copy has edits (it differs from what setup put there last), keep it, unless `force`.
+    Before an update, the old n8n copy goes to runs/n8n-backup/."""
     files = sorted(USECASES_DIR.glob("*/n8n/workflow.json"))
     if not files:
         warn("no usecases/*/n8n/workflow.json to import yet")
@@ -384,13 +420,24 @@ def import_workflows(n8n: N8n, cred_id: str) -> bool:
                 good = False
                 continue
             wid, state = r.json()["id"], "imported"
+            remember_import(body["name"], body)
         else:
             wid = old["id"]
             full = n8n.api("GET", f"/workflows/{wid}").json()
+            uc_name = f.parent.parent.name
             if same_workflow(full, body):
                 state = "unchanged"
+                remember_import(body["name"], body)
+            elif not force and imported_hashes().get(body["name"]) != workflow_hash(full):
+                # n8n is not what setup put there last: someone edited it in the editor. Keep it.
+                warn(f"{body['name']}: n8n has edits that are not in {rel}. Kept the n8n version.\n"
+                     f"        Save them to the file: make n8n-export UC={uc_name}  (then commit {rel})\n"
+                     f"        Or throw them away and load the file: make setup FORCE=1")
+                if full.get("active"):
+                    continue
+                state = "kept (n8n edits)"
             else:
-                backup = RUNS_DIR / "n8n-backup" / f"{f.parent.parent.name}-{datetime.now():%Y%m%d-%H%M%S}.json"
+                backup = RUNS_DIR / "n8n-backup" / f"{uc_name}-{datetime.now():%Y%m%d-%H%M%S}.json"
                 backup.parent.mkdir(parents=True, exist_ok=True)
                 backup.write_text(json.dumps(full, indent=2))
                 if full.get("active"):
@@ -400,6 +447,7 @@ def import_workflows(n8n: N8n, cred_id: str) -> bool:
                     fail(f"{rel}: update failed ({r.status_code}): {r.text[:200]}")
                     good = False
                     continue
+                remember_import(body["name"], body)
                 state = f"updated from the file (old copy: {backup.relative_to(ROOT)})"
             if full.get("active") and state == "unchanged":
                 ok(f"{body['name']}: {state}, active")
@@ -469,13 +517,13 @@ def summary() -> None:
         print("  Langfuse   off")
 
 
-def setup() -> int:
+def setup(force: bool = False) -> int:
     host = check_host()
     if not ENV_FILE.exists():
         return 1
     print(f"Engines: {', '.join(settings().engines)} (KIT_ENGINES in .env)")
     if "n8n" in settings().engines:
-        n8n = setup_n8n()
+        n8n = setup_n8n(force)
     else:
         print("n8n\n  SKIP  not in KIT_ENGINES")
         n8n = True
@@ -568,8 +616,47 @@ def check() -> int:
     return 1 if bad else 0
 
 
-def main(cmd: str) -> int:
-    return setup() if cmd == "setup" else check()
+# ---------- kit n8n-export ----------
+
+def n8n_export(only_uc: str = "") -> int:
+    """Save the workflows from n8n to usecases/<uc>/n8n/workflow.json, with the placeholders back
+    ({{OPENAI_CREDENTIAL_ID}}, {{KIT_TOOLS_URL}}, {{KIT_MODEL}}), so the file works on every laptop."""
+    s = settings()
+    n8n = N8n(s.n8n_url)
+    n8n.key = s.n8n_api_key
+    if not n8n.ready() or not n8n.key_works(s.n8n_api_key):
+        print(f"FAIL  n8n at {s.n8n_url} does not answer, or N8N_API_KEY does not work. Run make up and make setup")
+        return 1
+    ucs = [only_uc] if only_uc else [uc for uc in usecases() if (USECASES_DIR / uc / "n8n").is_dir()]
+    flows = n8n.workflows()
+    bad = 0
+    for uc in ucs:
+        path = USECASES_DIR / uc / "n8n" / "workflow.json"
+        try:
+            name = json.loads(path.read_text())["name"]
+        except (OSError, ValueError, KeyError):
+            name = ""
+        # The workflow with the same name, else the active one on the webhook path <uc>.
+        hit = next((w for w in flows if w["name"] == name), None) or next(
+            (w for w in flows if w.get("active") and uc in webhook_paths(w)), None)
+        if hit is None:
+            print(f"FAIL  {uc}: no workflow '{name}' (or webhook path '{uc}') in n8n")
+            bad += 1
+            continue
+        full = n8n.api("GET", f"/workflows/{hit['id']}").json()
+        wf = placeholders_back(workflow_body(full), s.n8n_openai_credential_id, s.tools_url_docker, s.model)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(wf, indent=2, ensure_ascii=False) + "\n")
+        remember_import(full["name"], full)  # n8n and the file are the same now
+        print(f"OK    {uc}: '{full['name']}' from n8n -> {path.relative_to(ROOT)}. Look at it with git diff, "
+              "then commit it")
+    return 1 if bad else 0
+
+
+def main(cmd: str, force: bool = False, usecase: str = "") -> int:
+    if cmd == "n8n-export":
+        return n8n_export(usecase)
+    return setup(force) if cmd == "setup" else check()
 
 
 if __name__ == "__main__":

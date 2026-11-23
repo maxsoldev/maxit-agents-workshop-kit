@@ -7,11 +7,13 @@ ENGINE ?= n8n
 CASES ?=
 NAME ?=
 
-.PHONY: help up down setup check serve eval logs reset test
+.PHONY: help up down setup n8n-export check serve eval logs reset test
 
 help:
 	@echo "make up       start n8n and/or Langfuse in Docker (as set in .env), wait until healthy"
 	@echo "make setup    first-time setup: n8n login, API key, OpenAI credential, workflows; Langfuse check"
+	@echo "              keeps your n8n edits; FORCE=1 loads workflow.json over them"
+	@echo "make n8n-export [UC=travel]  save your n8n editor changes to usecases/<uc>/n8n/workflow.json"
 	@echo "make serve    kit UI on :5700 and tools server on :5701 (keep it running)"
 	@echo "make check    one case per use case and engine: OK or what to fix"
 	@echo "make eval UC=marketing ENGINE=n8n [CASES=m01,m02] [NAME=try-1]"
@@ -38,7 +40,11 @@ down:
 	$(COMPOSE) --profile n8n --profile langfuse down
 
 setup: .env
-	uv run kit setup
+	uv run kit setup $(if $(FORCE),--force)
+
+# UC only if you give it (make n8n-export UC=travel); else all use cases.
+n8n-export: .env
+	uv run kit n8n-export $(if $(filter command line,$(origin UC)),$(UC))
 
 check: .env
 	uv run kit check

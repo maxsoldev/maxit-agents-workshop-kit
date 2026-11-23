@@ -41,7 +41,7 @@ The scaffold does the same small job on each engine, so you can compare them fai
 
 | Engine | What you change | How the kit calls it |
 |---|---|---|
-| **n8n** (Docker, :5702) | the workflow `Kit: <uc> agent` in the n8n editor (export it to `n8n/workflow.json` to keep it in git) | `POST /webhook/<uc>` |
+| **n8n** (Docker, :5702) | the workflow `Kit: <uc> agent` in the n8n editor; `make n8n-export` saves it to `n8n/workflow.json` (commit it) | `POST /webhook/<uc>` |
 | **Claude Code** (your login) | `claude/CLAUDE.md`, skills in `claude/.claude/skills/` | `claude -p` in `usecases/<uc>/claude/` |
 | **Python** (OpenAI SDK) | `python/agent.py` | `uv run python agent.py`, JSON in on stdin, JSON out on stdout |
 
@@ -52,7 +52,7 @@ anything: the agent only proposes, a person decides.
 
 ```text
 README.md  SETUP.md        start here
-Makefile                   make up · make setup · make serve · make check · make eval · make down
+Makefile                   make up · make setup · make serve · make check · make eval · make n8n-export · make down
 docker-compose.yml         n8n and Langfuse (profiles n8n, langfuse)
 .env.example               settings: copy to .env
 usecases/<uc>/             YOUR TEAM OWNS THIS FOLDER
