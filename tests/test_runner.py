@@ -14,6 +14,10 @@ import pytest
 
 from kit import config, runner
 from kit.runner import cases, checks, cli, engines, judge, store
+from kit.runner.engines import claude as claude_engine
+from kit.runner.engines import common, n8n_execution
+from kit.runner.engines import n8n as n8n_engine
+from kit.runner.engines import python as python_engine
 
 FIX = Path(__file__).parent / "fixtures"
 
@@ -266,27 +270,27 @@ def test_read_claude_stream():
         },
         {"type": "result", "result": "{}", "num_turns": 2},
     ]
-    result, calls = engines.read_stream("\n".join(json.dumps(x) for x in lines) + "\nnot json\n")
+    result, calls = claude_engine.read_stream("\n".join(json.dumps(x) for x in lines) + "\nnot json\n")
     assert result["num_turns"] == 2
     assert calls == [{"name": "rules_get", "input": {"name": "routing"}, "output": "# Routing"}]
 
 
 def test_parse_json_text():
-    assert engines.parse_json_text('x\n```json\n{"a": 1}\n```\nthen\n```json\n{"a": 2}\n```') == {"a": 2}
-    assert engines.parse_json_text(' {"a": 3} ') == {"a": 3}
+    assert common.parse_json_text('x\n```json\n{"a": 1}\n```\nthen\n```json\n{"a": 2}\n```') == {"a": 2}
+    assert common.parse_json_text(' {"a": 3} ') == {"a": 3}
 
 
 def test_claude_text_without_valid_json_says_where():
     """A real answer (23 Nov) with a stray `<br>` between two fields: the error shows the start and the spot."""
     text = (FIX / "claude" / "result-with-br.txt").read_text(encoding="utf-8")
-    out, err, _ = engines.call_claude("fake", {"case_id": "x", "input": {"mode": "text", "answer": text}}, {})
+    out, err, _ = claude_engine.call("fake", {"case_id": "x", "input": {"mode": "text", "answer": text}}, {})
     assert out is None and "Expecting ',' delimiter" in err and '."<br>, "route_to"' in err
     assert '{"category": "unverified_outreach"' in err and "CLAUDE.md" in err
 
 
 def test_read_python_tool_log():
     err = 'hello\ntool contacts_lookup {"query": "a -> b"} -> "x\\n\\"y\\""\ntool rules_get {} -> "r"\ntool broken'
-    assert engines.read_tool_log(err) == [
+    assert python_engine.read_tool_log(err) == [
         {"name": "contacts_lookup", "input": {"query": "a -> b"}, "output": 'x\n"y"'},
         {"name": "rules_get", "input": {}, "output": "r"},
     ]
@@ -295,19 +299,19 @@ def test_read_python_tool_log():
 def test_n8n_tool_calls_from_execution():
     # a real (trimmed) n8n 2.x execution: 3 MCP tool runs (saved in reverse order) and one model run
     execution = json.loads((FIX / "n8n_execution.json").read_text(encoding="utf-8"))
-    calls = engines.n8n_tool_calls(execution, limit=50)
+    calls = n8n_execution.tool_calls(execution, limit=50)
     assert [c["name"] for c in calls] == ["rules_get"] * 3
     assert [c["input"] for c in calls] == [
         {"usecase": "marketing", "name": n} for n in ["categories", "routing", "reply_guidelines"]
     ]
     assert '"name": "categories"' in calls[0]["output"] and len(calls[0]["output"]) == 50
-    assert engines.n8n_tool_calls(None) == [] and engines.n8n_tool_calls({"data": {}}) == []
+    assert n8n_execution.tool_calls(None) == [] and n8n_execution.tool_calls({"data": {}}) == []
 
 
 def test_n8n_nodes_of_the_workflow():
     # a real (trimmed) run of `Kit: marketing workflow` (m14, the reply path)
     execution = json.loads((FIX / "n8n_workflow_execution.json").read_text(encoding="utf-8"))
-    nodes = engines.n8n_nodes(execution)
+    nodes = n8n_execution.nodes(execution)
     main = [n["name"] for n in nodes if n["parent"] is None]
     assert main == [
         "Case in",
@@ -331,12 +335,12 @@ def test_n8n_nodes_of_the_workflow():
     }
     assert by["Junk?"]["input"] == by["Triage"]["output"]  # a main node's input = the output of the node before
     assert by["Triage"]["start"] <= by["Triage model"]["start"] and by["Triage"]["end"] >= by["Triage model"]["end"]
-    assert all(n["error"] is None for n in nodes) and engines.n8n_nodes(None) == []
+    assert all(n["error"] is None for n in nodes) and n8n_execution.nodes(None) == []
 
 
 def test_n8n_nodes_of_the_agent_nest_under_it():
     execution = json.loads((FIX / "n8n_agent_execution.json").read_text(encoding="utf-8"))
-    nodes = engines.n8n_nodes(execution, limit=100)
+    nodes = n8n_execution.nodes(execution, limit=100)
     agent = next(i for i, n in enumerate(nodes) if n["name"] == "Agent")
     subs = [n for n in nodes if n["parent"] == agent]
     assert nodes[agent]["kind"] == "agent" and [n["kind"] for n in subs].count("generation") == 2
@@ -359,7 +363,7 @@ def test_n8n_node_error():
             }
         ],
     }  # fmt: skip
-    nodes = engines.n8n_nodes({"data": {"resultData": {"runData": run_data}}})
+    nodes = n8n_execution.nodes({"data": {"resultData": {"runData": run_data}}})
     assert nodes[1]["error"] == "connection refused" and nodes[1]["input"] == {"a": 1}
     assert (nodes[1]["start"], nodes[1]["end"], nodes[1]["output"]) == (11, 16, None)
 
@@ -368,15 +372,15 @@ def test_n8n_failure_names_the_node(monkeypatch):
     # a real execution: the model answered valid JSON without the {"output": ...} wrapper that the
     # Structured Output Parser wants (m21 on 23 Nov); n8n itself only answered 500 "Error in workflow"
     execution = json.loads((FIX / "n8n_parser_error_execution.json").read_text(encoding="utf-8"))
-    assert engines.n8n_failure(execution) == (
+    assert n8n_execution.failure(execution) == (
         "n8n failed at Triage > Triage fields: The AI model returned an empty response to the Structured "
         "Output Parser (Model output wrapper is an empty object)"
     )
-    assert engines.n8n_failure(None) is None and engines.n8n_failure({"data": {"resultData": {}}}) is None
+    assert n8n_execution.failure(None) is None and n8n_execution.failure({"data": {"resultData": {}}}) is None
     answer = (None, 'n8n answered 500: {"message":"Error in workflow"} (look at Executions in n8n)', {"status": 500})
-    monkeypatch.setattr(engines, "_post_n8n", lambda *a: answer)
-    monkeypatch.setattr(engines, "n8n_execution", lambda *a: ("http://n8n/x/executions/33", execution))
-    _, err, meta = engines.call_n8n("marketing", {})
+    monkeypatch.setattr(n8n_engine, "post", lambda *a: answer)
+    monkeypatch.setattr(n8n_engine, "find_execution", lambda *a: ("http://n8n/x/executions/33", execution))
+    _, err, meta = n8n_engine.call("marketing", "n8n", {})
     assert err.startswith("n8n failed at Triage > Triage fields: ") and err.endswith(
         "execution: http://n8n/x/executions/33)"
     )
@@ -411,6 +415,10 @@ def test_n8n_sync_before_eval_and_warning(tmp_path, monkeypatch):
     class FakeN8n:
         def __init__(self, base):
             self.http = types.SimpleNamespace(timeout=None)
+
+        @classmethod
+        def from_settings(cls, timeout=30):
+            return cls("")
 
         def workflows(self):
             return [n8n["full"]]
@@ -459,11 +467,11 @@ def test_n8n_tool_calls_from_http_nodes():
         "Load rules": [run(1, {"tool": "rules_get", "input": {"name": "x"}, "output": {"text": "t"}})],
         "Triage": [run(2, {"output": {"category": "spam"}})],  # not a tool
     }
-    calls = engines.n8n_tool_calls({"data": {"resultData": {"runData": run_data}}})
+    calls = n8n_execution.tool_calls({"data": {"resultData": {"runData": run_data}}})
     assert [c["name"] for c in calls] == ["rules_get", "contacts_lookup"]
     assert calls[1] == {"name": "contacts_lookup", "input": {"query": "a@b"}, "output": '{"count": 0, "contacts": []}'}
     assert (
-        engines.n8n_hook("marketing") == "marketing" and engines.n8n_hook("marketing", "n8n-agent") == "marketing-agent"
+        n8n_engine.hook("marketing") == "marketing" and n8n_engine.hook("marketing", "n8n-agent") == "marketing-agent"
     )
 
 
@@ -511,7 +519,7 @@ def test_claude_run_with_fake_cli():
     # the schema goes to --json-schema (without "$schema"); the answer comes from structured_output
     schema = {"type": "object", "properties": {"category": {"type": "string"}}}
     inp = {"case_id": "x", "input": {"mode": "ok", "want": "a"}, "output_schema": {"$schema": "x", **schema}}
-    out, err, _ = engines.call_claude("fake", inp, {})
+    out, err, _ = claude_engine.call("fake", inp, {})
     assert err is None and out["category"] == "a"
 
 
@@ -524,7 +532,7 @@ def test_n8n_needs_a_strict_schema(n8n):
 
 
 def test_n8n_run(n8n, monkeypatch):
-    monkeypatch.setattr(runner, "strict_problem", lambda schema: None)  # the fake schema has an optional field
+    monkeypatch.setattr(n8n_engine, "strict_problem", lambda schema: None)  # the fake schema has an optional field
     run = runner.run_eval("fake", "n8n", case_ids=["f01", "f02"])
     assert run["cases"][0]["output"]["tags"] == ["z"]
     assert FakeN8n.last["output_schema"]["type"] == "object"  # every engine gets the result shape
@@ -532,10 +540,10 @@ def test_n8n_run(n8n, monkeypatch):
 
 
 def test_n8n_errors_say_what_to_do(n8n, monkeypatch):
-    out, err, _ = engines.call_n8n("other", {"case_id": "x", "input": {}})
+    out, err, _ = n8n_engine.call("other", "n8n", {"case_id": "x", "input": {}})
     assert out is None and "404" in err and "make setup" in err
     monkeypatch.setenv("N8N_URL", "http://127.0.0.1:9")
-    out, err, _ = engines.call_n8n("fake", {"case_id": "x", "input": {}})
+    out, err, _ = n8n_engine.call("fake", "n8n", {"case_id": "x", "input": {}})
     assert "cannot reach n8n" in err
 
 
@@ -583,7 +591,7 @@ def test_compare():
 def test_run_file_has_the_agent_version(monkeypatch):
     run = runner.run_eval("fake", "python", case_ids=["f01"])
     assert len(run["agent_version"]["hash"]) == 16
-    assert run["agent_version"] == runner.agent_version("fake", "python")  # nothing changed in between
+    assert run["agent_version"] == engines.get("python").version("fake")  # nothing changed in between
 
 
 def test_unknown_case_id_stops_start():
@@ -605,14 +613,14 @@ def test_crash_in_one_case_does_not_stop_others(monkeypatch):
 
 
 def test_holdout_cases_and_per_field_summary(monkeypatch):
-    real = runner.load_cases
+    real = cases.load_cases
 
     def with_holdout(uc):
         cs = real(uc)
         cs[1] = {**cs[1], "holdout": True}
         return cs
 
-    monkeypatch.setattr(runner, "load_cases", with_holdout)
+    monkeypatch.setattr(cases, "load_cases", with_holdout)
     ids = lambda run: [c["id"] for c in run["cases"]]  # noqa: E731
     run = runner.run_eval("fake", "claude")
     assert "f02" not in ids(run)

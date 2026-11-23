@@ -144,7 +144,7 @@ all of these cases, else the last one of that engine), lists that engine first, 
 case ids ("other cases").
 
 `on_progress(event: dict)` is called with `{"case_id", "status": "running"|"done", "passed"?, "error"?}`. Cases run up to
-4 in parallel (claude 2).
+`KIT_PARALLEL` (default 8) in parallel; claude at most 4.
 
 Run file `runs/<run_id>.json`, `run_id` = `<YYYYmmdd-HHMMSS>-<uc>-<engine>`:
 
@@ -195,7 +195,7 @@ a span event, which Langfuse does not show). So the runner reads the tool calls 
 writes one TOOL span per call, `tool:<name>`, with input and output, under the case trace. The run file has
 them too (`meta.tool_calls`, output cut to 4000 characters); the results page lists them.
 **n8n** (engines `n8n` and `n8n-agent`): Langfuse has no n8n tracing, so the runner reads the execution data it
-already fetches (`engines.n8n_nodes`) and writes **one observation per executed node run** under the case trace:
+already fetches (`kit/runner/engines/n8n_execution.py`) and writes **one observation per executed node run** under the case trace:
 name = node name (a tool sub-node run: `<node>: <tool>`), start and end time from the execution, input and
 output (cut to 4000 characters; a main node's input = the output of the node before it), metadata
 `n8n_node_type` (and `branch` for an IF/Switch), level `ERROR` with the message if the node failed. Types: model

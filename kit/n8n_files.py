@@ -11,7 +11,20 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from kit import config
+
 PLACEHOLDER = re.compile(r"^(=?)\{\{PROMPT:([a-z0-9_.]+)\}\}$")
+
+
+def workflow_file(uc: str, engine: str = "n8n") -> Path:
+    """The file of an n8n engine: `n8n` -> n8n/workflow.json, `n8n-agent` -> n8n/agent.json."""
+    return config.USECASES_DIR / uc / "n8n" / ("agent.json" if engine == "n8n-agent" else "workflow.json")
+
+
+def hook(uc: str, path: Path) -> str:
+    """The webhook path of a workflow file: `<uc>` for workflow.json, `<uc>-agent` for agent.json."""
+    return uc if path.stem == "workflow" else f"{uc}-{path.stem}"
+
 
 # node type (end of it) -> the prompt fields in `parameters`: (path, file suffix)
 PROMPT_FIELDS = {

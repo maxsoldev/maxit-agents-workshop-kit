@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import email
 import email.policy
+import hashlib
 import json
 import re
 from html.parser import HTMLParser
 from pathlib import Path
+
+import jsonschema
 
 from kit import config
 
@@ -177,6 +180,30 @@ def resolve_input(uc: str, inp: dict) -> dict:
                 out[f"{name}_raw"] = out[name]
                 out[name] = eml_text(path.read_bytes())
     return out
+
+
+def case_hash(case: dict) -> str:
+    """Short hash of what a case asks: today, input, expected, checks (not the title).
+    Compare uses it to see that a case changed between two runs."""
+    text = json.dumps(
+        {k: case.get(k) for k in ("today", "input", "expected", "checks")}, sort_keys=True, ensure_ascii=False
+    )
+    return hashlib.sha256(text.encode()).hexdigest()[:12]
+
+
+def load_schema(uc: str) -> dict:
+    """`output.schema.json` of a use case. Raise CaseError if it is missing or not a JSON Schema."""
+    path = usecase_dir(uc) / "output.schema.json"
+    if not path.exists():
+        raise CaseError(f"usecases/{uc}/output.schema.json not found: every use case needs one")
+    try:
+        schema = json.loads(path.read_text(encoding="utf-8"))
+        jsonschema.validators.validator_for(schema).check_schema(schema)
+    except (ValueError, jsonschema.SchemaError) as e:
+        raise CaseError(
+            f"usecases/{uc}/output.schema.json is not a valid JSON Schema: {str(e).splitlines()[0]}"
+        ) from None
+    return schema
 
 
 def engine_input(uc: str, case: dict) -> dict:

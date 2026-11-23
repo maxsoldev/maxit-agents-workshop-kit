@@ -97,22 +97,20 @@ def run_one(usecase: str, engine: str, case_id: str) -> int:
     import json
     from datetime import datetime
 
-    from kit.runner import _load_schema, load_cases, run_case
+    from kit.runner import load_cases, load_schema, run_case, tracing
 
     try:
         case = next((c for c in load_cases(usecase) if c["id"] == case_id), None)
         if case is None:
             print(f"No case {case_id!r} in usecases/{usecase}/cases.jsonl", file=sys.stderr)
             return 1
-        schema = _load_schema(usecase)
+        schema = load_schema(usecase)
     except (CaseError, ValueError, OSError) as e:
         print(f"Cannot run the case: {e}", file=sys.stderr)
         return 1
     run_id = f"{datetime.now():%Y%m%d-%H%M%S}-{usecase}-{engine}-run-case"
     print(f"Running {usecase}/{case_id} on {engine} ...", file=sys.stderr, flush=True)
     res = run_case(usecase, engine, case, schema, run_id, "run-case")
-    from kit.runner import tracing
-
     tracing.flush()
 
     def block(title: str, value) -> None:

@@ -7,7 +7,7 @@ import json
 import jsonschema
 
 from kit.runner import judge
-from kit.runner.engines import with_deadline
+from kit.runner.deadline import with_deadline
 
 MISSING = object()
 JUDGE_DEADLINE_S = 120  # hard limit for one judge check (the client: 45 s timeout, 1 retry)

@@ -305,7 +305,7 @@ def test_push_keeps_n8n_edits_and_discards_drafts(tmp_path, monkeypatch):
 
 
 def test_strict_schema_for_n8n():
-    from kit.runner import strict_problem
+    from kit.runner.engines.n8n import strict_problem
 
     item = {"type": "object", "additionalProperties": False, "required": ["c"], "properties": {"c": {}}}
     ok = {"type": "object", "additionalProperties": False, "required": ["a", "b"],
@@ -324,7 +324,7 @@ def test_strict_schema_for_n8n():
 def test_claude_engine_does_not_load_the_builder_files():
     """The builder's root CLAUDE.md and .claude/skills are for your Claude Code session, not for the agent."""
     from kit.config import ROOT, USECASES_DIR
-    from kit.runner.engines import builder_excludes
+    from kit.runner.engines.claude import builder_excludes
 
     out = builder_excludes(USECASES_DIR / "marketing" / "claude")
     assert str(ROOT / "CLAUDE.md") in out["claudeMdExcludes"]

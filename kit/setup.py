@@ -324,6 +324,15 @@ class N8n:
         self.http = httpx.Client(base_url=base, timeout=30, headers={"browser-id": "kit-setup"})
         self.key = ""
 
+    @classmethod
+    def from_settings(cls, timeout: float = 30) -> N8n:
+        """A client for N8N_URL with N8N_API_KEY from .env (it does not check that they work)."""
+        s = settings()
+        n8n = cls(s.n8n_url)
+        n8n.key = s.n8n_api_key
+        n8n.http.timeout = httpx.Timeout(timeout)
+        return n8n
+
     def ready(self) -> bool:
         try:
             return self.http.get("/healthz/readiness").status_code == 200
@@ -820,11 +829,6 @@ def same_order(new, old):
     return new
 
 
-def n8n_hook(uc: str, path: Path) -> str:
-    """The webhook path of a workflow file: `<uc>` for workflow.json, `<uc>-agent` for agent.json."""
-    return uc if path.stem == "workflow" else f"{uc}-{path.stem}"
-
-
 def _write_if_changed(path: Path, text: str) -> bool:
     if path.exists() and path.read_text(encoding="utf-8") == text:
         return False
@@ -876,8 +880,7 @@ def backup_files(uc: str, path: Path) -> Path:
 def n8n_client() -> N8n | None:
     """An n8n client with the key from .env, or None (and a FAIL line) if n8n or the key does not work."""
     s = settings()
-    n8n = N8n(s.n8n_url)
-    n8n.key = s.n8n_api_key
+    n8n = N8n.from_settings()
     if not n8n.ready() or not n8n.key_works(s.n8n_api_key):
         print(f"FAIL  n8n at {s.n8n_url} does not answer, or N8N_API_KEY does not work. Run make up and make setup")
         return None
@@ -890,7 +893,7 @@ def find_workflow(flows: list[dict], uc: str, path: Path) -> tuple[str, dict | N
         name = json.loads(path.read_text(encoding="utf-8"))["name"]
     except (OSError, ValueError, KeyError):
         name = ""
-    hook = n8n_hook(uc, path)
+    hook = n8n_files.hook(uc, path)
     hit = next((w for w in flows if w["name"] == name), None) or next(
         (w for w in flows if w.get("active") and hook in webhook_paths(w)), None
     )
@@ -937,7 +940,7 @@ def n8n_pull(only_uc: str = "", force: bool = False) -> int:
     for uc, path in workflow_files(only_uc):
         name, hit = find_workflow(flows, uc, path)
         if hit is None:
-            print(f"FAIL  {uc}: no workflow '{name}' (or webhook path '{n8n_hook(uc, path)}') in n8n")
+            print(f"FAIL  {uc}: no workflow '{name}' (or webhook path '{n8n_files.hook(uc, path)}') in n8n")
             bad += 1
             continue
         full = n8n.api("GET", f"/workflows/{hit['id']}").json()
@@ -969,13 +972,10 @@ def n8n_push(only_uc: str = "", force: bool = False) -> int:
 def n8n_status(uc: str, engine: str = "n8n") -> dict | None:
     """The sync state of the workflow of `uc` (n8n: workflow.json, n8n-agent: agent.json):
     {state, draft, name, path, full}. None if there is no key, n8n does not answer, or no such workflow."""
-    s = settings()
-    path = USECASES_DIR / uc / "n8n" / ("agent.json" if engine == "n8n-agent" else "workflow.json")
-    if not s.n8n_api_key or not path.exists():
+    path = n8n_files.workflow_file(uc, engine)
+    if not settings().n8n_api_key or not path.exists():
         return None
-    n8n = N8n(s.n8n_url)
-    n8n.key = s.n8n_api_key
-    n8n.http.timeout = httpx.Timeout(10)
+    n8n = N8n.from_settings(timeout=10)
     try:
         _, hit = find_workflow(n8n.workflows(), uc, path)
         if hit is None:

@@ -6,10 +6,12 @@ from __future__ import annotations
 import base64
 import json
 import subprocess
+import sys
 import threading
 from contextlib import contextmanager, nullcontext
 
 from kit.config import ROOT, settings
+from kit.runner.deadline import Deadline, with_deadline
 
 _client = None
 _lock = threading.Lock()
@@ -28,9 +30,11 @@ def client():
 
 
 class NoTrace:
+    """The case trace when Langfuse is off: every method does nothing."""
+
     url = None
 
-    def env(self, engine: str) -> dict:
+    def otel_env(self) -> dict:
         return {}
 
     def finish(self, output, error, checks, passed) -> None:
@@ -51,10 +55,8 @@ class CaseTrace(NoTrace):
         except Exception:
             self.url = None
 
-    def env(self, engine: str) -> dict:
+    def otel_env(self) -> dict:
         """OTel env for Claude Code, so its spans nest under this case trace."""
-        if engine != "claude":
-            return {}
         s = settings()
         auth = base64.b64encode(f"{s.langfuse_public_key}:{s.langfuse_secret_key}".encode()).decode()
         return {
@@ -87,7 +89,7 @@ class CaseTrace(NoTrace):
             pass  # tracing must never break a run
 
     def n8n_nodes(self, nodes: list[dict]) -> None:
-        """One observation per n8n node run (`engines.n8n_nodes`), with the start and end time of the execution.
+        """One observation per n8n node run (`n8n_execution.nodes`), with the start and end time of the execution.
         Sub-nodes (model, tool, parser) nest under their AI node; model runs are generations with tokens."""
         made: dict[int, object] = {}
 
@@ -215,7 +217,8 @@ def _in_experiment(experiment: dict | None, span, uc: str, case: dict):
 
 @contextmanager
 def case_trace(uc: str, engine: str, run_id: str, run_name: str, case: dict, engine_input: dict, experiment=None):
-    """Context for one case. Yields an object with `.url`, `.env(engine)` and `.finish(...)`.
+    """Context for one case. Yields an object with `.url`, `.otel_env()`, `.tool_calls(...)`, `.n8n_nodes(...)`
+    and `.finish(...)` (a NoTrace when Langfuse is off).
     With `experiment` (from `start_experiment`), the trace is also the case's item in that dataset run."""
     if not settings().langfuse_on:
         yield NoTrace()
@@ -234,9 +237,29 @@ def case_trace(uc: str, engine: str, run_id: str, run_name: str, case: dict, eng
                 yield CaseTrace(lf, span, uc)
 
 
+def experiment_for_run(uc: str, cases: list[dict], run: dict) -> dict | None:
+    """The experiment of an eval run, or None: Langfuse off, a `make check` run (a smoke test), or Langfuse
+    down or slow (20 s; then a WARN line, and the run goes on with plain traces)."""
+    if not settings().langfuse_on or run["name"] == "check":
+        return None
+    try:
+        return with_deadline(lambda: start_experiment(uc, cases, run), 20)
+    except Exception as e:
+        print(f"WARN  Langfuse dataset sync failed, no experiment for this run: {e}", file=sys.stderr, flush=True)
+        return None
+
+
 def flush() -> None:
     if _client is not None:
         try:
             _client.flush()
         except Exception:
             pass
+
+
+def flush_within(seconds: float = 30) -> None:
+    """Flush, but a slow Langfuse must not hold the run."""
+    try:
+        with_deadline(lambda: flush(), seconds)
+    except Deadline:
+        pass
