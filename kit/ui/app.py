@@ -264,8 +264,14 @@ def check_target(c: dict) -> str:
 
 
 def pair_check_defs(run_case: dict, case: dict | None) -> None:
-    """Put the check definition from cases.jsonl on each check result (`_def`), so the page can show the target.
-    Only when the case is still the same as in the run (same case_hash) and type and field match."""
+    """Put the check definition on each check result (`_def`), so the page can show the target.
+    From the run file (`def`); for old run files without it, from today's cases.jsonl (`_from_today`), only
+    when the case is still the same (same case_hash) and type and field match."""
+    if any("def" in k for k in run_case.get("checks") or []):
+        for k in run_case["checks"]:
+            if isinstance(k.get("def"), dict):
+                k["_def"] = k["def"]
+        return
     if not case:
         return
     hash_fn = getattr(runner(), "case_hash", None)  # the fake runner of the tests has none
@@ -278,6 +284,7 @@ def pair_check_defs(run_case: dict, case: dict | None) -> None:
         d = next(defs, None)
         if d and d.get("type") == k.get("type") and d.get("field") == k.get("field"):
             k["_def"] = d
+            k["_from_today"] = True
 
 
 def uc_name(uc: str) -> str:
@@ -766,6 +773,7 @@ def results_page(request: Request, run_id: str, vs: str = ""):
             for k in c.get("checks") or []
             if (d := k.get("_def")) and check_target(d)
         ]
+        c["_targets_from_today"] = any(k.get("_from_today") for k in c.get("checks") or [])
         c["_first_fail"] = c.get("error") or next(
             (ch.get("reason") for ch in c.get("checks", []) if ch.get("passed") is False), None
         )

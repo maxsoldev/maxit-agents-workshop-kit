@@ -198,8 +198,9 @@ def _every_item(check: dict, output, expected: dict, case_input: dict, tool_call
 
 
 def run_checks(case: dict, output, schema: dict, case_input: dict, tool_calls: list | None = None) -> list[dict]:
-    """The schema check first, then the case checks."""
+    """The schema check first, then the case checks. Each case check result keeps its definition (`def`),
+    so the run file shows what the check wanted at run time, also after the case changes."""
     expected = case.get("expected", {})
     return [schema_check(output, schema)] + [
-        run_check(c, output, expected, case_input, tool_calls) for c in case.get("checks", [])
+        {**run_check(c, output, expected, case_input, tool_calls), "def": c} for c in case.get("checks", [])
     ]

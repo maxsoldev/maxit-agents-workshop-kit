@@ -331,6 +331,10 @@ def test_python_run(tmp_path):
     assert len([e for e in events if e["status"] == "done"]) == 4
     saved = runner.load_run(run["run_id"])
     assert saved["ended_at"] and saved["name"] == "first"
+    f01 = next(c for c in saved["cases"] if c["id"] == "f01")  # the run file keeps each check's definition
+    assert f01["title"] == "Good case" and f01["today"] == "2026-11-04" and f01["expected"] == {"category": "a"}
+    assert "def" not in f01["checks"][0]  # the schema check has no definition
+    assert [k["def"] for k in f01["checks"][1:]] == cases.load_cases("fake")[0]["checks"]
     assert runner.list_runs("fake")[0]["run_id"] == run["run_id"]
     assert "cases" not in runner.list_runs()[0]
 

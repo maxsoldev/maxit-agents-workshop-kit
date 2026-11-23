@@ -56,7 +56,8 @@
           <td><b>{{ k.type }}</b> <code>{{ k.field }}</code>{% set d = k._def %}
             {%- if d and d|check_target %} → <code class="target">{{ d|check_target }}</code>{% endif %}
             {%- if k.type == 'judge' %} <span class="muted">(min {{ (d or {}).min or 4 }})</span>
-              {%- if d and d.rubric %}<div class="muted small rubric">{{ d.rubric }}</div>{% endif %}{% endif %}</td>
+              {%- if d and d.rubric %}<div class="muted small rubric">{{ d.rubric }}</div>{% endif %}{% endif %}
+            {%- if k._from_today and (d|check_target or k.type == 'judge') %} <span class="muted small">(from today's case)</span>{% endif %}</td>
           <td>{{ k.reason }}</td></tr>
         {% endfor %}
       </table>
@@ -67,7 +68,7 @@
       <div class="cols">
         <div><h3>Output</h3><pre>{{ c.output|pretty }}</pre></div>
         <div><h3>Expected</h3><pre>{{ c.expected|pretty }}</pre>
-          {% if c._also_want %}<div class="small also-want">The checks also want: {{ c._also_want|join(' · ') }}</div>{% endif %}</div>
+          {% if c._also_want %}<div class="small also-want">The checks also want: {{ c._also_want|join(' · ') }}{% if c._targets_from_today %} <span class="muted">(from today's case)</span>{% endif %}</div>{% endif %}</div>
       </div>
       {% if (c.meta or {}).tool_calls %}
       <details class="tool-calls"><summary>Tool calls ({{ c.meta.tool_calls|length }})</summary>

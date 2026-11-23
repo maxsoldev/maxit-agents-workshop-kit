@@ -440,6 +440,27 @@ def test_results_show_check_targets(client):
     assert '<code>reply</code> → <code class="target">@</code>' in page
     assert '(min 3)</span><div class="muted small rubric">Polite no.</div>' in page
     assert "The checks also want: flags contains &#34;off_target&#34; · reply does not contain &#34;@&#34;" in page
+    assert "(from today's case)" in page  # an old run file without `def`: the targets come from cases.jsonl
+
+
+def test_results_targets_from_run_file(client):
+    """A run file with `def` shows its own targets, also after the case changed (each run in Compare too)."""
+    new = {"type": "contains", "field": "flags", "value": "vip"}
+    case = {"id": "m06", "title": "T", "input": {}, "expected": {}, "checks": [new]}
+    (config.USECASES_DIR / "demo" / "cases.jsonl").write_text(json.dumps(case) + "\n", encoding="utf-8")
+    config.RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    for run_id, value in [("20261124-100000-demo-python", "off_target"), ("20261124-110000-demo-python", "vip")]:
+        old = {**new, "value": value}
+        k = {"type": "contains", "field": "flags", "passed": True, "reason": "ok", "def": old}
+        c = {**case, "checks": [old], "case_hash": value, "passed": True, "output": {}}
+        run = {"run_id": run_id, "usecase": "demo", "engine": "python", "name": value, "summary": {}}
+        run["cases"] = [{**c, "checks": [k]}]
+        (config.RUNS_DIR / f"{run_id}.json").write_text(json.dumps(run))
+    page = client.get("/runs/20261124-100000-demo-python?vs=20261124-110000-demo-python").text
+    assert '<code class="target">off_target</code>' in page and '<code class="target">vip</code>' not in page
+    assert "case changed" in page and "from today" not in page
+    page = client.get("/runs/20261124-110000-demo-python?vs=20261124-100000-demo-python").text
+    assert '<code class="target">vip</code>' in page and '<code class="target">off_target</code>' not in page
 
 
 def test_docs_names_order_and_file_path(client, tmp_path, monkeypatch):

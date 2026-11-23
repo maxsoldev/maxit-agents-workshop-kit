@@ -121,9 +121,15 @@ Run file `runs/<run_id>.json`, `run_id` = `<YYYYmmdd-HHMMSS>-<uc>-<engine>`:
              "by_field": {"schema": [5, 5], "equals category": [4, 5], "judge reply": [3, 3]}, "skipped": {}},
  "cases": [{"id": "m06", "title": "...", "passed": false, "seconds": 3.2, "error": null,
             "input": {...}, "expected": {...}, "output": {...},
-            "checks": [{"type": "equals", "field": "category", "passed": false, "reason": "got unverified_outreach, expected service_offer"}],
+            "checks": [{"type": "equals", "field": "category", "passed": false, "reason": "got unverified_outreach, expected service_offer",
+                        "def": {"type": "equals", "field": "category"}}],
             "trace_url": "http://localhost:5703/...", "n8n_execution_url": "http://localhost:5702/workflow/<id>/executions/<n>"}]}
 ```
+
+Each case check result keeps `def`: the check from `cases.jsonl` as it was at run time (`value`, `values`,
+`rubric`, `min`, `where`, `contains`, …; the schema check has none). The results page shows the check targets
+from `def`, so an old run keeps its own targets after a case edit. For older run files without `def`, the page
+takes them from today's `cases.jsonl` (only if the `case_hash` is the same) and says "(from today's case)".
 
 Each case result also has `today` (the agent's date) and, for claude and python, `meta.stderr` (the last lines
 of the engine's stderr; the results page shows it as "Engine log"). `meta.tool_calls` (`[{"name", "input",
