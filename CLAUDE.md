@@ -15,6 +15,22 @@ agent files, run the evals, and report what changed in the score. The team decid
 All engines share `usecases/<uc>/data/*.md` (the owner's rules), `output.schema.json` and `cases.jsonl`.
 Skills: `eval-loop` (run, read, compare, add cases: every engine), `n8n-workflow` (the n8n files and the sync).
 
+## Commands (the team sees the same runs and cases in the kit UI, http://localhost:5700)
+
+| Do | Command |
+|---|---|
+| Run an eval | `make eval UC=<uc> ENGINE=<n8n\|n8n-agent\|claude\|python> NAME=<what-you-changed>` |
+| One case, with input, output, tool calls and log | `make run-case UC=<uc> ENGINE=<engine> CASE=<id>` |
+| Compare two runs | `make compare A=<run_id> B=<run_id>` |
+| Results | `runs/<run_id>.json` (newest file = last run; format: `docs/contracts.md` §5) |
+| Try a tool | `uv run kit tool` (list), `uv run kit tool <name> key=value ...` |
+
+## Tools and docs
+
+- The agents' tools (no tool sends or books): `rules_get`, `contacts_lookup`, `inbox_history`, `events_list`,
+  `trains_search`. Inputs and outputs: `docs/contracts.md` §7. A new tool: a function in `kit/tools.py`.
+- The job and the team's design: `usecases/<uc>/BRIEF.md`. Case format and check types: `docs/contracts.md` §3.
+
 ## Rules
 
 - One change per eval, then compare with the run before.
