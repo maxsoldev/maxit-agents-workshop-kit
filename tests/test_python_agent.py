@@ -100,10 +100,8 @@ def test_agent_runs_the_tool_loop_on_the_responses_api(uc, monkeypatch):
     assert tools.calls == [("rules_get", {"name": "process"})]  # only the model's own call
     assert len(requests) == 3
     first, second, last = requests
-    # prompt.md, then all the owner's rules (rules/*.md), read from disk in code
-    rules = sorted((USECASES / uc / "python" / "rules").glob("*.md"))
-    assert first["instructions"].startswith((USECASES / uc / "python" / "prompt.md").read_text())
-    assert rules and all(f"=== {f.name} ===" in first["instructions"] for f in rules)
+    # prompt.md (the instructions and the business rules), read from disk in code
+    assert first["instructions"] == (USECASES / uc / "python" / "prompt.md").read_text()
     assert first["tools"][0]["name"] == "rules_get" and first["tools"][0]["strict"] is False
     assert "text" not in first  # no result format in the tool turns
     # The tool result goes back with the call id, after the model's function_call item.

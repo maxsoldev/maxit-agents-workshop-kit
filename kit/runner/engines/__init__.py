@@ -41,19 +41,20 @@ class Engine:
         return n8n.before_run(uc, schema) if self.is_n8n else {}
 
     def version(self, uc: str) -> dict:
-        """What the engine ran: {"hash", "git"}. n8n: the workflow with its prompts (the hash of the sync
-        state) plus its rules folder; claude, python: all files of the engine folder (with rules/). `git` = the
+        """What the engine ran: {"hash", "git"}. n8n: the workflow (the hash of the sync state) plus its
+        business rules files (n8n/*.md); claude, python: all files of the engine folder. `git` = the
         commit if that folder has no changes that are not committed, else None. Compare uses `hash`."""
         folder = config.USECASES_DIR / uc / self.folder
         h = n8n.version_hash(uc) if self.is_n8n else None
-        if h is not None:  # n8n: a rule change is not an n8n sync change, but the agent changed
-            return {"hash": _digest(config.rules_dir(uc, "n8n"), h), "git": _clean_commit(folder)}
+        if h is not None:  # n8n: a rules file edit is not an n8n sync change, but the agent changed
+            rules = "".join(f"{p.name}\0{p.read_text(encoding='utf-8')}\0" for p in config.rule_files(uc, "n8n"))
+            return {"hash": hashlib.sha256((h + rules).encode()).hexdigest()[:16], "git": _clean_commit(folder)}
         return {"hash": _digest(folder), "git": _clean_commit(folder)}
 
 
-def _digest(folder, start: str = "") -> str:
-    """A short hash of all files in `folder` (names and bytes), after `start`."""
-    digest = hashlib.sha256(start.encode())
+def _digest(folder) -> str:
+    """A short hash of all files in `folder` (names and bytes)."""
+    digest = hashlib.sha256()
     for p in sorted(folder.rglob("*")) if folder.is_dir() else []:
         if p.is_file() and "__pycache__" not in p.parts and p.name != ".DS_Store":
             digest.update(str(p.relative_to(folder)).encode() + b"\0" + p.read_bytes() + b"\0")

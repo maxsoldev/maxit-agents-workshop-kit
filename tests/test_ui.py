@@ -640,64 +640,45 @@ def test_make_a_case_from_a_try(client):
 
 @pytest.fixture
 def rule(client):
-    """categories.md in the rules of two engines (different text), and each engine's instruction file."""
+    """The business rules files of two engines: n8n triage.md (and its workflow.json), claude CLAUDE.md."""
     demo = config.USECASES_DIR / "demo"
-    for engine in ("n8n", "claude"):
-        (demo / engine / "rules").mkdir(parents=True)
-        (demo / engine / "rules" / "categories.md").write_text(f"# Categories\n\n- `spam`: junk ({engine})\n", "utf-8")
-    (demo / "n8n" / "prompts").mkdir()
-    (demo / "n8n" / "prompts" / "triage.md").write_text("Sort the email.\n", encoding="utf-8")
-    (demo / "n8n" / "prompts" / "triage.input.md").write_text("{{ $json }}\n", encoding="utf-8")
-    (demo / "claude" / "CLAUDE.md").write_text("# Agent\n\n@rules/other.md\n", encoding="utf-8")
-    return demo / "n8n" / "rules" / "categories.md"
+    (demo / "n8n").mkdir()
+    (demo / "n8n" / "triage.md").write_text("# Triage\n\n- `spam`: junk (n8n)\n", encoding="utf-8")
+    (demo / "n8n" / "workflow.json").write_text("{}", encoding="utf-8")
+    (demo / "claude").mkdir()
+    (demo / "claude" / "CLAUDE.md").write_text("# Agent\n\n- `spam`: junk (claude)\n", encoding="utf-8")
+    return demo / "n8n" / "triage.md"
 
 
 def test_rules_page_shows_the_files_of_one_engine(client, rule):
     page = client.get("/uc/demo/rules?engine=n8n").text
-    assert "<h3>Instructions</h3>" in page and "prompts/triage.md" in page and "triage.input.md" not in page
-    assert "<h3>Owner&#39;s rules</h3>" in page and "- `spam`: junk (n8n)" in page  # opens the first rule file
-    assert "junk (claude)" not in page and 'option value="claude"' in page
-    assert "usecases/demo/n8n/rules/categories.md" in page
-    page = client.get("/uc/demo/rules?engine=claude&name=rules/categories.md").text
-    assert "junk (claude)" in page and "CLAUDE.md" in page
-    assert "Claude does not see categories.md" in page  # CLAUDE.md has no @rules/categories.md
-    assert "Sort the email." in client.get("/uc/demo/rules?engine=n8n&name=prompts/triage.md").text
-    assert "No files" in client.get("/uc/demo/rules?engine=python").text
+    assert "Business rules" in page and "- `spam`: junk (n8n)" in page and "junk (claude)" not in page
+    assert "workflow.json" not in page and 'option value="claude"' in page
+    assert "usecases/demo/n8n/triage.md" in page
+    assert "junk (claude)" in client.get("/uc/demo/rules?engine=claude").text
+    assert "No business rules files" in client.get("/uc/demo/rules?engine=python").text
     assert client.get("/uc/demo/rules?engine=n8n&name=../cases.jsonl").status_code == 200  # unknown: first file
     assert client.get("/uc/demo/rules/file?engine=n8n&name=../cases.jsonl").status_code == 404
-    assert client.get("/uc/demo/rules/file?engine=n8n&name=prompts/triage.input.md").status_code == 404
-    assert client.get("/uc/demo/rules/file?engine=../demo&name=rules/categories.md").status_code == 404
+    assert client.get("/uc/demo/rules/file?engine=n8n&name=workflow.json").status_code == 404
+    assert client.get("/uc/demo/rules/file?engine=../demo&name=triage.md").status_code == 404
 
 
 def test_rules_save_needs_the_version_on_disk(client, rule):
     def save(**form):
-        return client.post("/uc/demo/rules/save", data={"engine": "n8n", "name": "rules/categories.md", **form})
+        return client.post("/uc/demo/rules/save", data={"engine": "n8n", "name": "triage.md", **form})
 
-    v1 = client.get("/uc/demo/rules/file?engine=n8n&name=rules/categories.md").json()["version"]
+    v1 = client.get("/uc/demo/rules/file?engine=n8n&name=triage.md").json()["version"]
     r = save(text="A\r\nB\n", version=v1)
-    assert r.json()["ok"] and rule.read_text(encoding="utf-8") == "A\nB\n" and "note" not in r.json()
-    other = config.USECASES_DIR / "demo" / "claude" / "rules" / "categories.md"
-    assert "junk (claude)" in other.read_text(encoding="utf-8")  # the other engine's copy stays as it was
+    assert r.json() == {"ok": True, "version": r.json()["version"]} and rule.read_text(encoding="utf-8") == "A\nB\n"
+    other = config.USECASES_DIR / "demo" / "claude" / "CLAUDE.md"
+    assert "junk (claude)" in other.read_text(encoding="utf-8")  # the other engine's file stays as it was
     v2 = r.json()["version"]
-    now = client.get("/uc/demo/rules/file?engine=n8n&name=rules/categories.md").json()
-    assert now == {"version": v2, "text": "A\nB\n"}
+    assert client.get("/uc/demo/rules/file?engine=n8n&name=triage.md").json() == {"version": v2, "text": "A\nB\n"}
     rule.write_text("changed on disk\n", encoding="utf-8")  # a developer or Claude Code edits the file
     r = save(text="mine", version=v2)
     assert r.status_code == 409 and rule.read_text(encoding="utf-8") == "changed on disk\n"
     r = save(text="mine", version=v2, force="1")
     assert r.json()["ok"] and rule.read_text(encoding="utf-8") == "mine"
-
-
-def test_saving_an_n8n_prompt_pushes_it(client, rule, monkeypatch):
-    from kit.ui import app as ui
-
-    monkeypatch.setattr(ui, "n8n_push_text", lambda uc: f"Pushed to n8n. OK {uc}")
-    path = config.USECASES_DIR / "demo" / "n8n" / "prompts" / "triage.md"
-    v = client.get("/uc/demo/rules/file?engine=n8n&name=prompts/triage.md").json()["version"]
-    r = client.post(
-        "/uc/demo/rules/save", data={"engine": "n8n", "name": "prompts/triage.md", "text": "New", "version": v}
-    )
-    assert r.json()["note"] == "Pushed to n8n. OK demo" and path.read_text(encoding="utf-8") == "New"
 
 
 def test_rules_preview_renders_markdown(client, rule):

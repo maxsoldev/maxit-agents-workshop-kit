@@ -10,14 +10,14 @@
   "properties": {
     "category": {
       "type": "string",
-      "description": "Exactly one category from the list in the rules file categories.md."
+      "description": "Exactly one category from the list \"Categories\" in the business rules."
     },
     "flags": {
       "type": "array",
       "items": {
         "type": "string"
       },
-      "description": "Zero or more flags from the flag list in the rules file categories.md."
+      "description": "Zero or more flags from the list \"Flags\" in the business rules."
     }
   }
 }

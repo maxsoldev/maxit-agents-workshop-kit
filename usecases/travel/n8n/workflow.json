@@ -30,31 +30,12 @@
         0
       ],
       "parameters": {
-        "method": "POST",
-        "url": "{{KIT_TOOLS_URL}}/call/rules_get",
-        "sendBody": true,
-        "specifyBody": "keypair",
+        "url": "{{KIT_TOOLS_URL}}/rules/travel/n8n/read_message.md",
         "options": {
           "timeout": 60000
-        },
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "usecase",
-              "value": "travel"
-            },
-            {
-              "name": "engine",
-              "value": "n8n"
-            },
-            {
-              "name": "name",
-              "value": "*"
-            }
-          ]
         }
       },
-      "notes": "Reads all the rules: n8n/rules/*.md",
+      "notes": "Reads the business rules: n8n/read_message.md",
       "notesInFlow": true
     },
     {
@@ -68,11 +49,11 @@
       ],
       "parameters": {
         "promptType": "define",
-        "text": "={{PROMPT:read_message.input}}",
+        "text": "=Today is {{ $('Case in').item.json.body.today }}.\n\nCase input:\n{{ JSON.stringify($('Case in').item.json.body.input) }}",
         "messages": {
           "messageValues": [
             {
-              "message": "={{PROMPT:read_message}}"
+              "message": "={{ $('Read the rules').item.json.text }}"
             }
           ]
         }
@@ -161,7 +142,7 @@
         "color": 7,
         "width": 620,
         "height": 840,
-        "content": "## 1 The message comes in\nWhen you run an eval, the kit sends each test email or Mattermost message (a **case**) to **Case in** (`input.email`, `input.message`). **Read the rules** loads all the owner's rules of this engine (`usecases/travel/n8n/rules/*.md`; kit UI → **Rules**, engine n8n).\n\n**See the data of one eval case:** kit results → the case → **n8n execution ↗** → double-click a node."
+        "content": "## 1 The message comes in\nWhen you run an eval, the kit sends each test email or Mattermost message (a **case**) to **Case in** (`input.email`, `input.message`). **Read the rules** gets the business rules file `usecases/travel/n8n/read_message.md` (kit UI → **Rules**) on every case: an edit there counts from the next case, no push.\n\n**See the data of one eval case:** kit results → the case → **n8n execution ↗** → double-click a node."
       }
     },
     {
@@ -177,7 +158,7 @@
         "color": 4,
         "width": 540,
         "height": 840,
-        "content": "## 2 Read message (AI)\n**The prompt is here**: **Read message** > Chat Messages > Message. One model call: kind, person, event, date.\n**Read model** > Options > Response Format forces the result shape of the case (`output.schema.json`): a schema change needs no edit here.\n**Read result** reads the answer. Change one thing, Publish, run the eval again."
+        "content": "## 2 Read message (AI)\n**The prompt** is the business rules file `n8n/read_message.md` (kit UI → **Rules**); the node gets it from **Read the rules**. One model call: kind, person, event, date.\n**Read model** > Options > Response Format forces the result shape of the case (`output.schema.json`): a schema change needs no edit here.\n**Read result** reads the answer. Change one thing, Publish, run the eval again."
       }
     },
     {
@@ -193,7 +174,7 @@
         "color": 2,
         "width": 300,
         "height": 840,
-        "content": "## 5 Result out\nSends the result to the kit.\nAfter an edit: **Publish** (top right). The eval runs only the published version, and saves it to `n8n/workflow.json` and `n8n/prompts/`."
+        "content": "## Result out\nSends the result to the kit.\nA change of the graph here (a new node): **Publish** (top right); the eval saves it to `n8n/workflow.json`."
       }
     }
   ],

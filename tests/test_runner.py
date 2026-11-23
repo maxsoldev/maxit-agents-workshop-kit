@@ -401,14 +401,13 @@ def test_n8n_sync_before_eval_and_warning(tmp_path, monkeypatch):
     monkeypatch.setattr(setup, "IMPORTED_FILE", tmp_path / "runs" / "n8n-imported.json")
     monkeypatch.setenv("N8N_API_KEY", "k")
     path = tmp_path / "usecases" / "demo" / "n8n" / "workflow.json"
-    (path.parent / "prompts").mkdir(parents=True)
+    path.parent.mkdir(parents=True)
 
     def wf(prompt):
         node = {"name": "Triage", "type": "x.chainLlm", "typeVersion": 1, "parameters": {"text": prompt}}
         return {"name": "Kit: demo workflow", "nodes": [node], "connections": {}, "settings": {}}
 
-    path.write_text(json.dumps(wf("={{PROMPT:triage.input}}"), indent=2) + "\n")
-    (path.parent / "prompts" / "triage.input.md").write_text("v1\n")
+    path.write_text(json.dumps(wf("=v1"), indent=2) + "\n")
     setup.remember_import("Kit: demo workflow", wf("=v1"))  # the last sync
     n8n = {"full": {**wf("=v1"), "id": "w1", "active": True}}
 
@@ -431,23 +430,20 @@ def test_n8n_sync_before_eval_and_warning(tmp_path, monkeypatch):
     n8n["full"] = {**wf("=v2 from the editor"), "id": "w1", "active": True}  # edit + Publish in n8n
     assert "the eval saves them" in engines.n8n_warning("demo")
     note = setup.sync_before_eval("demo")
-    assert note == "n8n changes saved to usecases/demo/n8n/prompts/triage.input.md (not committed)"
-    assert (path.parent / "prompts" / "triage.input.md").read_text() == "v2 from the editor\n"
-    assert "PROMPT:triage.input" in path.read_text()  # the workflow file keeps the placeholder
-    (path.parent / "prompts" / "triage.input.md").write_text("v3 in the file\n")  # file edit, no push
+    assert note == "n8n changes saved to usecases/demo/n8n/workflow.json (not committed)"
+    assert "v2 from the editor" in path.read_text()
+    path.write_text(json.dumps(wf("=v3 in the file"), indent=2) + "\n")  # file edit, no push
     with pytest.raises(ValueError, match="make n8n-push UC=demo"):
         setup.sync_before_eval("demo")
     n8n["full"] = {**wf("=v4 from the editor"), "id": "w1", "active": True}  # and n8n changed too
     with pytest.raises(ValueError, match="Nothing was overwritten") as e:
         setup.sync_before_eval("demo")
     assert "make n8n-pull UC=demo FORCE=1" in str(e.value) and "make n8n-push UC=demo FORCE=1" in str(e.value)
-    assert (path.parent / "prompts" / "triage.input.md").read_text() == "v3 in the file\n"  # not overwritten
+    assert "v3 in the file" in path.read_text()  # not overwritten
     # FORCE pull: n8n wins, the files go to runs/n8n-backup/ first
     done, text = setup.pull_one("demo", path, n8n["full"], force=True)
     assert done and "runs/n8n-backup/" in text
-    assert (
-        list((tmp_path / "runs" / "n8n-backup").glob("*/prompts/triage.input.md"))[0].read_text() == "v3 in the file\n"
-    )
+    assert "v3 in the file" in list((tmp_path / "runs" / "n8n-backup").glob("*/workflow.json"))[0].read_text()
     # a draft that is not published: the published version counts, and the warning says what to do
     draft = {**wf("=draft"), "id": "w1", "active": True, "versionId": "b", "activeVersionId": "a"}
     n8n["full"] = {**draft, "activeVersion": {"nodes": n8n["full"]["nodes"], "connections": {}}}

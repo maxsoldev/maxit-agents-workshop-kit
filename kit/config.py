@@ -85,9 +85,15 @@ class Settings:
         return self.langfuse_mode != "off" and bool(self.langfuse_public_key and self.langfuse_secret_key)
 
 
-def rules_dir(uc: str, engine: str) -> Path:
-    """The owner's rules of one engine: usecases/<uc>/<engine>/rules/*.md (read by rules_get, edited on Rules)."""
-    return USECASES_DIR / uc / engine / "rules"
+# The business rules files of each engine (in usecases/<uc>/<engine>/): the instructions and the owner's rules,
+# plain text. The agent reads them on every case; the Rules page edits them. n8n: one file per AI step.
+RULE_FILES = {"n8n": ["*.md"], "claude": ["CLAUDE.md", ".claude/skills/*/SKILL.md"], "python": ["prompt.md"]}
+
+
+def rule_files(uc: str, engine: str) -> list[Path]:
+    """The business rules files of one engine, in a fixed order."""
+    folder = USECASES_DIR / uc / engine
+    return [p for pat in RULE_FILES.get(engine, []) for p in sorted(folder.glob(pat)) if p.is_file()]
 
 
 def settings() -> Settings:

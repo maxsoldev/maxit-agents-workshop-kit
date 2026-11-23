@@ -1,10 +1,10 @@
 """Kit tools: one MCP server (name `kit`) on http://localhost:5701/mcp for all engines.
 
 Each tool is a plain function with a docstring; the docstring is the tool description the model sees.
-To add a tool, add a function with `@mcp.tool()`. Tools only read `usecases/*/data/` and the rules
-folders `usecases/*/<engine>/rules/`, and send nothing.
+To add a tool, add a function with `@mcp.tool()`. Tools only read `usecases/*/data/` and send nothing.
 On bad input a tool returns {"error": ..., "hint": ...}; it does not raise.
 The same tools also answer plain HTTP: POST /mcp/call/<tool> with the arguments as JSON (the n8n workflows use it).
+GET /mcp/rules/<uc>/<engine>/<file> gives a business rules file (n8n reads its prompt so, on every case).
 """
 
 from __future__ import annotations
@@ -168,47 +168,6 @@ def trains_search(
     return trains.search(servers, from_place.strip(), to_place.strip(), when, bool(arrive_by), modes or "rail")
 
 
-# ---------- both ----------
-
-
-@mcp.tool()
-def rules_get(usecase: str, engine: str, name: str = "*") -> dict:
-    """Read the owner's rules of a use case (Markdown files), for one engine.
-
-    `usecase`: "marketing" or "travel". `engine`: your engine, "n8n", "claude" or "python".
-    `name`: "*" (the default) = all rule files at once. Or one name without ".md", e.g. "routing",
-    or several names with commas, e.g. "routing,reply_guidelines". An unknown name gives the list of names.
-    """
-    uc, eng = (usecase or "").strip(), (engine or "").strip()
-    wanted = [n.strip().removesuffix(".md") for n in (name or "*").split(",")]
-    if any(bad in v for v in [uc, eng, *wanted] for bad in ("/", "\\", "..")):
-        return _error("paths are not allowed", "Give a use case, an engine and a name, e.g. 'travel', 'n8n', 'team'.")
-    known = sorted(p.parent.name for p in config.USECASES_DIR.glob("*/data"))
-    if uc not in known:
-        return _error(f"unknown use case: {uc!r}", f"Use one of: {', '.join(known)}.")
-    if eng not in config.ENGINES:
-        return _error(f"unknown engine: {eng!r}", f"Use one of: {', '.join(config.ENGINES)}.")
-    folder = config.rules_dir(uc, eng)
-    names = sorted(p.stem for p in folder.glob("*.md"))
-    if wanted == ["*"]:
-        wanted = names
-    for nm in wanted or [""]:
-        if nm not in names:
-            return _error(
-                f"unknown document: {nm!r}" if nm else f"no rule files in usecases/{uc}/{eng}/rules/",
-                f"Use one of: {', '.join(names)}, or '*' for all." if names else "Add a .md file there.",
-            )
-    if len(wanted) == 1 and name != "*":
-        return {
-            "usecase": uc,
-            "engine": eng,
-            "name": wanted[0],
-            "text": (folder / f"{wanted[0]}.md").read_text("utf-8"),
-        }
-    texts = [f"=== {nm}.md ===\n{(folder / f'{nm}.md').read_text(encoding='utf-8')}" for nm in wanted]
-    return {"usecase": uc, "engine": eng, "name": ",".join(wanted), "text": "\n\n".join(texts)}
-
-
 # ---------- try a tool by hand: kit tool <name> key=value ... ----------
 
 
@@ -261,6 +220,18 @@ async def call_http(request: Request) -> JSONResponse:
     except TypeError as e:  # a missing or unknown argument
         out = _error(str(e), f"Parameters: {name}{inspect.signature(globals()[name])}")
     return JSONResponse({"tool": name, "input": args, "output": out})
+
+
+@mcp.custom_route("/mcp/rules/{uc}/{engine}/{file}", methods=["GET"])
+async def rules_http(request: Request) -> JSONResponse:
+    """One business rules file of an engine, e.g. /mcp/rules/marketing/n8n/triage.md: {"file", "text"}.
+    Only the files of config.rule_files (no paths): an n8n step reads its prompt so, on every case."""
+    uc, engine, name = (request.path_params[k] for k in ("uc", "engine", "file"))
+    files = {p.name: p for p in config.rule_files(uc, engine)} if "/" not in uc + engine and ".." not in uc else {}
+    if name not in files:
+        names = ", ".join(files) or "none"
+        return JSONResponse(_error(f"no rules file {uc}/{engine}/{name}", f"Files: {names}"), status_code=404)
+    return JSONResponse({"file": f"{uc}/{engine}/{name}", "text": files[name].read_text(encoding="utf-8")})
 
 
 # ---------- server ----------

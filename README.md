@@ -26,13 +26,15 @@ The scaffold does the same small job on each engine, so you can compare them.
 
 | Engine | What you change |
 |---|---|
-| **n8n** (:5702) | the workflow `Kit: <uc> workflow` in the n8n editor (click **Publish**), or its files `n8n/prompts/*.md`, `n8n/workflow.json` (then `make n8n-push`). The eval saves n8n edits to the files |
+| **n8n** (:5702) | the workflow `Kit: <uc> workflow` in the n8n editor (click **Publish**), the prompt `n8n/triage.md` (no push), the graph `n8n/workflow.json` (then `make n8n-push`). The eval saves n8n edits to the files |
 | **Claude Code** (your login) | `claude/CLAUDE.md`, skills in `claude/.claude/skills/` |
 | **Python** (OpenAI SDK) | `python/prompt.md`, the code in `python/agent.py` |
 
-Each engine also has its own copy of the owner's rules, `<engine>/rules/*.md` (kit UI: **Rules**, as lists,
-no tables), and gets all of it on every case, in its own way: n8n by its node *Read the rules* (tool `rules_get`), Claude by a line `@rules/<file>` per file in
-`CLAUDE.md`, Python by `agent.py` (it reads the folder). Your team picks one engine and changes only its folder.
+Each engine has **one business rules file**: its steps and the owner's rules (categories, kinds ...), plain
+text, read on every case. Claude: `claude/CLAUDE.md` (Claude Code loads it). Python: `python/prompt.md`
+(`agent.py` reads it). n8n: one file per AI step, e.g. `n8n/triage.md` (the node *Read the rules* gets it from
+the tools server; no push). Edit them in the kit UI: **Rules** (pick your engine). Write rules as lists, one
+item per line, not as tables. Your team picks one engine and changes only its folder.
 
 All three use the same tools (`kit/tools.py`, :5701). No tool sends or books anything: the agent only
 proposes, a person decides.
@@ -48,7 +50,7 @@ usecases/<uc>/             YOUR TEAM OWNS THIS FOLDER
   data/                    the inputs: emails, contacts, events (all engines)
   cases.jsonl              the eval cases (edit them in the UI or by hand)
   output.schema.json       the shape of the result
-  n8n/  claude/  python/   the three scaffolds; each has rules/*.md, the owner's rules for that engine
+  n8n/  claude/  python/   the three scaffolds; each has one business rules file (kit UI: Rules)
 kit/                       the shared kit: UI, runner, tools, setup
 runs/                      one JSON file per eval run (not in git)
 docs/                      tutorial, the loop, day plan, contracts, data pack

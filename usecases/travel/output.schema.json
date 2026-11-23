@@ -12,11 +12,11 @@
   "properties": {
     "kind": {
       "type": "string",
-      "description": "One kind from the rules file kinds.md."
+      "description": "One kind from the list \"Kinds\" in the business rules."
     },
     "person": {
       "type": "string",
-      "description": "Full name of the team member (the rules file team.md)."
+      "description": "Full name of the team member (the list \"Team\" in the business rules)."
     },
     "event": {
       "type": "string",

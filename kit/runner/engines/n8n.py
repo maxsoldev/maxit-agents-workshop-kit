@@ -178,7 +178,7 @@ def before_run(uc: str, schema: dict) -> dict:
 
 
 def version_hash(uc: str) -> str | None:
-    """The hash of the workflow with its prompts (the same as the sync state), or None."""
+    """The hash of the workflow (the same as the sync state), or None."""
     from kit import setup
 
     return setup.files_hash(n8n_files.workflow_file(uc))

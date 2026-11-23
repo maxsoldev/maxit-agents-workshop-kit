@@ -12,7 +12,7 @@ then measure every change.**
 3. **Read the failures:** the output, the reason of each check, the trace. Is the agent wrong, or the case?
 4. **Change one thing:** the prompt, one rule, one tool, the model, the schema. Only one.
 5. **Run the eval again** and compare (Results → Compare). Better: keep it and commit. Worse: undo it.
-   n8n: the eval saves your n8n edits to `n8n/workflow.json` and `n8n/prompts/`: commit them.
+   n8n: the eval saves your n8n graph edits to `n8n/workflow.json`: commit them.
 6. **Every new failure becomes a case.** Write the case before you fix it. Then the fix stays fixed.
 
 ## Rules that save time
@@ -77,13 +77,11 @@ counts only if the score stays the same.
 
 ## How business people change the rules (in the UI)
 
-Open **Rules** and pick your engine. **Instructions** are the engine's own files (the n8n prompts, `CLAUDE.md`
-and the skills, `python/prompt.md`). **Owner's rules** are `<engine>/rules/*.md` (categories, routing, reply
-guidelines, priorities, templates), written as lists, not tables. Each engine has its own copy and gets all of it
-on every case. Change a
-rule, **Save** (Ctrl+S), then run the eval on that engine and compare ("agent files changed"). The categories,
-flags, routes and status words live only in these files: add one there, with no change to the code or the schema. The page and the
-file stay in sync: an edit on disk (by a developer or Claude Code) shows in the page, and the page never
+Open **Rules** and pick your engine: its business rules file (`CLAUDE.md`, `prompt.md`, `n8n/triage.md`):
+the steps and the owner's lists (categories, flags, kinds), written as lists, not tables. Change a rule,
+**Save** (Ctrl+S), then run the eval on that engine and compare ("agent files changed"). The categories,
+flags and kinds live only in this file: add one there, with no change to the code or the schema. The page and
+the file stay in sync: an edit on disk (by a developer or Claude Code) shows in the page, and the page never
 saves over an edit it has not seen.
 
 **Try** runs the agent on one email or message, as a person uses it: no checks, no run file. A good or a

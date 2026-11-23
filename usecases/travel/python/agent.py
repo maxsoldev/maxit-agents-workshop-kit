@@ -1,7 +1,7 @@
 """Travel office agent, Python engine (OpenAI Responses API + kit tools over MCP).
 
 The runner sends the case on stdin and reads the result JSON from stdout (docs/contracts.md §4).
-Logs go to stderr. The prompt is in prompt.md, the owner's rules in rules/*.md. The model and the steps are here.
+Logs go to stderr. The instructions and the business rules are in prompt.md. The model and the loop are here.
 """
 
 from __future__ import annotations
@@ -23,9 +23,8 @@ SCHEMA_FILE = Path(__file__).resolve().parent.parent / "output.schema.json"
 MAX_STEPS = 10  # model turns before we give up
 
 HERE = Path(__file__).resolve().parent
-# The instructions are in prompt.md, the owner's rules in rules/*.md: plain text files, edit them in the kit UI (Rules).
+# The instructions and the business rules: one plain text file, edit it in the kit UI (Rules).
 PROMPT_FILE = HERE / "prompt.md"
-RULES_DIR = HERE / "rules"
 
 
 def log(*args) -> None:
@@ -78,11 +77,9 @@ async def call_tool(client: Client, name: str, args: dict) -> str:
 
 
 def instructions() -> str:
-    """prompt.md, then all the owner's rules (rules/*.md), read from disk at the start of each case.
-    So the model sees every rule, also one it would not look up, and an edit counts from the next case."""
-    rules = "\n\n".join(f"=== {f.name} ===\n{f.read_text(encoding='utf-8')}" for f in sorted(RULES_DIR.glob("*.md")))
-    log(f"rules: {', '.join(f.name for f in sorted(RULES_DIR.glob('*.md'))) or 'none'}")
-    return f"{PROMPT_FILE.read_text(encoding='utf-8')}\nThe owner's rules (python/rules/*.md). Follow them:\n\n{rules}"
+    """prompt.md: the instructions and the business rules, read from disk at the start of each case
+    (an edit counts from the next case)."""
+    return PROMPT_FILE.read_text(encoding="utf-8")
 
 
 async def run(case: dict, client: Client | None) -> dict:

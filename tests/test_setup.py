@@ -280,24 +280,17 @@ def test_kit_engines_limits_profiles_and_engines():
     assert compose_profiles({"KIT_ENGINES": "n8n"}) == ["n8n", "langfuse"]
 
 
-def test_prompt_files_round_trip():
-    """The kit workflow files keep their prompts in n8n/prompts/*.md. Filling them in and splitting them out
-    again gives the same files, byte for byte (a pull with no change keeps git diff clean)."""
-    from kit import n8n_files
+def test_workflow_files_round_trip():
+    """Each use case has one n8n workflow file, with no prompt text in it: an AI node gets its prompt from its
+    business rules file (n8n/<step>.md) through Read the rules. A pull with no change keeps git diff clean."""
     from kit.config import USECASES_DIR
 
     files = sorted(USECASES_DIR.glob("*/n8n/*.json"))
     assert [f.name for f in files] == ["workflow.json"] * len(files)  # one n8n workflow per use case
     for f in files:
         text = f.read_text(encoding="utf-8")
-        filled = n8n_files.fill_prompts(json.loads(text), f.parent / "prompts")
-        assert "{{PROMPT:" not in json.dumps(filled)
-        wf, prompts = n8n_files.split_prompts(filled)
-        assert json.dumps(wf, indent=2, ensure_ascii=False) + "\n" == text, f
-        for name, body in prompts.items():
-            assert (f.parent / "prompts" / f"{name}.md").read_text(encoding="utf-8") == body + "\n"
-        assert setup.unused_prompts(f.parent) == []
-    assert n8n_files.prompt_base("Decide and draft") == "decide_and_draft"
+        assert "{{PROMPT:" not in text and not (f.parent / "prompts").exists()
+        assert json.dumps(json.loads(text), indent=2, ensure_ascii=False) + "\n" == text, f
 
 
 def test_sync_state():
@@ -316,10 +309,9 @@ def test_push_keeps_n8n_edits_and_discards_drafts(tmp_path, monkeypatch):
         node = {"name": "Triage", "type": "x.chainLlm", "parameters": {"text": text}}
         return {"name": "Kit: x workflow", "nodes": [node], "connections": {}, "settings": {}}
 
-    (tmp_path / "usecases/x/n8n/prompts").mkdir(parents=True)
-    (tmp_path / "usecases/x/n8n/workflow.json").write_text(json.dumps(wf("={{PROMPT:triage.input}}")))
-    prompt = tmp_path / "usecases/x/n8n/prompts/triage.input.md"
-    prompt.write_text("v1\n")
+    (tmp_path / "usecases/x/n8n").mkdir(parents=True)
+    path = tmp_path / "usecases/x/n8n/workflow.json"
+    path.write_text(json.dumps(wf("=v1")))
     for name, value in [("ROOT", tmp_path), ("RUNS_DIR", tmp_path / "runs"), ("USECASES_DIR", tmp_path / "usecases")]:
         monkeypatch.setattr(setup, name, value)
     monkeypatch.setattr(setup, "IMPORTED_FILE", tmp_path / "runs/n8n-imported.json")
@@ -333,7 +325,7 @@ def test_push_keeps_n8n_edits_and_discards_drafts(tmp_path, monkeypatch):
 
     fake = types.SimpleNamespace(workflows=lambda: [n8n["full"]], api=api)
     puts = lambda: [b for m, b in calls if m == "PUT"]  # noqa: E731
-    prompt.write_text("v2\n")  # a file edit
+    path.write_text(json.dumps(wf("=v2")))  # a file edit
     assert setup.import_workflows(fake, "cred") and puts()[0]["nodes"][0]["parameters"]["text"] == "=v2"
     calls.clear()
     n8n["full"] = {**wf("=mine"), "id": "w1", "active": True}  # edited and published in n8n

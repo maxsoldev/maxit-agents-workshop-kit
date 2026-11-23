@@ -25,15 +25,14 @@ usecases/<uc>/
   cases.jsonl           the eval cases (§3)
   output.schema.json    JSON Schema of the result (§4)
   n8n/workflow.json     n8n workflow `Kit: <uc> workflow` (nodes; no AI Agent node), webhook path = <uc>
-  n8n/prompts/*.md      the prompts of the n8n workflow (§5, n8n sync)
+  n8n/<step>.md         the business rules file of each n8n AI step (e.g. n8n/triage.md): its prompt, plain text
   claude/               Claude Code agent folder: CLAUDE.md, .mcp.json, .claude/settings.json
   python/agent.py       Python agent: stdin → stdout; its prompt is python/prompt.md
-  <engine>/rules/*.md   the owner's rules of that engine (n8n/, claude/, python/ each have a copy), as lists, no
-                        tables. Each engine gets all its files on every case, by code: n8n by the node Read
-                        the rules (`rules_get`, §7), Claude by a line `@rules/<file>` per file in CLAUDE.md,
-                        Python by agent.py (reads the folder). Edited on the Rules page, with the engine's
-                        instructions (n8n prompts, CLAUDE.md and skills, python/prompt.md). They are part of
-                        `agent_version` (§5): a rule change is an agent change
+  business rules files  claude/CLAUDE.md (+ skills), python/prompt.md, n8n/<step>.md: what the agent is told, its
+                        steps and the owner's rules, as lists, no tables (`config.RULE_FILES`). Read on every
+                        case: Claude Code loads CLAUDE.md, agent.py reads prompt.md, an n8n AI node gets its file
+                        from the node Read the rules (`GET {KIT_TOOLS_URL}/rules/<uc>/n8n/<file>`, §7). Edited on
+                        the Rules page. Part of `agent_version` (§5): a rules change is an agent change
 ```
 
 ## 3. Case (one JSON object per line in `cases.jsonl`)
@@ -110,21 +109,19 @@ n8n_warning(usecase) -> str | None      # a warning if the n8n workflow is not i
 ```
 
 **n8n sync (files ↔ n8n).** n8n keeps its own copy of each workflow; the files are the source for git and for
-Claude Code. A prompt field in `n8n/workflow.json` (chainLlm: the first chat message and `text`; an AI Agent
-node: `options.systemMessage` and `text`) holds `={{PROMPT:<name>}}`; the text is in `n8n/prompts/<name>.md`
-(`<name>` = node name in snake case; `.input` = the `text` field, the user message; the file ends with one
-newline that is not part of the prompt). `kit/n8n_files.py` fills and splits them.
-- `make n8n-push [UC=] [FORCE=1]` (and `make setup`): files → n8n. Fills `{{PROMPT:…}}`, `{{KIT_MODEL}}`,
+Claude Code. The sync is for the graph only: an AI node's prompt (its first chat message) is
+`={{ $('Read the rules').item.json.text }}`, the business rules file read at run time, so a rules edit needs no sync.
+The node's `text` (what it gets: the email, the case) is n8n wiring, in `workflow.json`.
+- `make n8n-push [UC=] [FORCE=1]` (and `make setup`): files → n8n. Fills `{{KIT_MODEL}}`,
   `{{KIT_TOOLS_URL}}`, `{{OPENAI_CREDENTIAL_ID}}`, updates by name, publishes. Unpublished editor edits are
   discarded (old copy to `runs/n8n-backup/`). It deletes the old examples of earlier kits, the workflows named
   exactly `Kit: <uc> agent` or `Kit: <uc> agent (example)` (a copy goes to `runs/n8n-backup/deleted-*.json`
   first); it never deletes other workflows.
 - `make n8n-pull [UC=] [FORCE=1]` (`make n8n-export` = the same): n8n → files, the **published** version
-  (`activeVersion`), placeholders and prompt files back, keys in the order of the old file: no change = the same
-  bytes. It warns about prompt files that no node uses any more.
+  (`activeVersion`), placeholders back, keys in the order of the old file: no change = the same bytes.
 - **Conflict guard.** `runs/n8n-imported.json` keeps, per workflow name, `workflow_hash` of the last sync (push,
-  pull, setup). The state is `same`, `n8n` (only n8n changed), `files` (only the files changed, e.g. a prompt
-  edit or `git pull`), `both`, or `unknown` (they differ and there is no record). Push without `FORCE` keeps
+  pull, setup). The state is `same`, `n8n` (only n8n changed), `files` (only the files changed, e.g. a new node
+  or `git pull`), `both`, or `unknown` (they differ and there is no record). Push without `FORCE` keeps
   n8n in `n8n`/`both`/`unknown`; pull without `FORCE` stops in `files`/`both`/`unknown`. Each says which side
   changed and what to run; `FORCE=1` copies the overwritten side to `runs/n8n-backup/` first.
 - **Before each n8n eval** (`run_eval`: CLI and UI): `n8n` → pull, the run file gets
@@ -285,4 +282,4 @@ body not an object: 400; a wrong argument: 200 with `output = {"error", "hint"}`
 | `inbox_history(sender, before=None)` | earlier emails of that sender, newest first (file, from, date, subject, first 500 chars). `before` (YYYY-MM-DD): only emails sent before that day. The scaffolds pass `before=<today>` of the case; without it you also get emails sent after the case's "today" |
 | `events_list(date_from=None, date_to=None)` | events from `usecases/travel/data/events.csv` that overlap the span (both optional, YYYY-MM-DD); events without a date are in `undated` |
 | `trains_search(from_place, to_place, date, arrive_by=None, depart_after=None, modes="rail")` | up to 5 connections on that day, no prices (MOTIS plan API: `TRAINS_URL`, fallback `TRAINS_FALLBACK_URL`). `arrive_by`: the last ones that arrive before the time, latest first; `depart_after`: from that time on (default 06:00). `modes`: `rail` (trains and S-Bahn, no buses) or `all` |
-| `rules_get(usecase, engine, name="*")` | the owner's rules of one engine, `usecases/<uc>/<engine>/rules/`. `name="*"` (default): all files, one text, each part starts with `=== <name>.md ===`. One name: that file. Several names with commas (`"routing,reply_guidelines"`): those files, as for `*`. An unknown name gives the list of names |
+| (not a tool) `GET /mcp/rules/<uc>/<engine>/<file>` | one business rules file of an engine (`config.RULE_FILES`), `{"file", "text"}`; 404 with the list of files for any other name. The n8n node Read the rules uses it; the models do not see it |

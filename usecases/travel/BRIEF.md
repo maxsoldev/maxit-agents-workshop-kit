@@ -30,17 +30,18 @@ booked or sent without Martina.
 | `mattermost_messages.txt` | 5 Mattermost direct messages, copied from the chat window |
 | `events.csv` | The annual event overview 2027 (event, place, dates, deadlines) |
 
-## The owner's rules: `<engine>/rules/` (one copy per engine)
+## Business rules: one file per engine
 
-Each engine has its own copy: `n8n/rules/`, `claude/rules/`, `python/rules/`. They start the same.
-The agent gets all files of its own copy on every case: n8n by its node *Read the rules*, Claude by a line
-`@rules/<file>` per file in `CLAUDE.md`, Python by `agent.py` (it reads the folder). Edit them in the kit UI:
-**Rules** (pick your engine). Write them as lists, one item per line, not as tables.
+Each engine has **one business rules file**: its steps and the owner's rules (categories, kinds ...), plain
+text, read on every case. Claude: `claude/CLAUDE.md` (Claude Code loads it). Python: `python/prompt.md`
+(`agent.py` reads it). n8n: one file per AI step, e.g. `n8n/triage.md` (the node *Read the rules* gets it from
+the tools server; no push). Edit them in the kit UI: **Rules** (pick your engine). Write rules as lists, one
+item per line, not as tables.
 
-- `kinds.md`: the kinds (trip, leave, estimate, reminder) and how to write person, event and date.
-- `team.md`: the team directory (names, emails, Mattermost names).
+The starter files (`claude/CLAUDE.md`, `python/prompt.md`, `n8n/read_message.md`) hold the steps and the kinds (trip, leave, estimate, reminder), how to write person, event and date, and the team.
 
-More of the owner's rules, for when you extend the agent, are in `extend/rules/` (see `extend/README.md`):
+More of the owner's rules, for when you extend the agent, are in `extend/rules/` (see `extend/README.md`;
+paste what you need into your file):
 
 - `priorities.md`: what comes first, one task per trip, status words.
 - `travel_rules.md`: order of steps, home base (Munich), train / flight / hotel limits.
@@ -58,7 +59,6 @@ paper training request mentioned only on Mattermost.
 |---|---|
 | `events_list(date_from, date_to)` | events from the event overview |
 | `trains_search(from_place, to_place, date, arrive_by / depart_after, modes)` | up to 5 real train connections on that day (times, trains, changes; **no prices**). Trains only, unless `modes="all"` |
-| `rules_get("travel", engine, name="*")` | the owner's rules of that engine (n8n uses it; Claude and Python have them already) |
 
 No tool books or sends anything. To add a tool (e.g. hotels), add a function in `kit/tools.py`.
 
@@ -86,7 +86,7 @@ Pick one, or make your own. Each one is a different output: change `output.schem
    Martina checks the price when she books. Checks: `contains` / `in` on times and trains, `not_contains` on
    `options.*.trains` (no buses), a `judge` for "follows the rules".
 3. **Reminders before leave.** Who is away when; which questions must go out before the leave starts; a draft
-   for each (in the traveller's language, to the address from `team.md`). Checks: `equals` on `send_before`, a
+   for each (in the traveller's language, to the address from the team list). Checks: `equals` on `send_before`, a
    `judge` on the draft.
 4. **Cost estimate.** For a possible trip (e.g. Open Repositories in Brazil): flight, hotel and fees, with the
    open questions, as a draft for the traveller. Checks: `contains` for the dates, `judge` for "rough but

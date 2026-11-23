@@ -71,46 +71,11 @@ def test_events_list_filter():
 
 
 def test_kit_tool_by_hand(capsys):
-    assert tools.try_tool("rules_get", ["usecase=travel", "engine=n8n", "name=team"]) == 0
-    assert '"name": "team"' in capsys.readouterr().out
+    assert tools.try_tool("contacts_lookup", ["query=Wollner"]) == 0
+    assert '"count": 1' in capsys.readouterr().out
     assert tools.try_tool("", []) == 0 and "trains_search(" in capsys.readouterr().out
     assert tools.try_tool("nope", []) == 1
-    assert tools.try_tool("rules_get", ["travel"]) == 1  # not key=value
-
-
-def test_rules_get():
-    r = tools.rules_get("travel", "python", "kinds")
-    assert r["text"].strip() and r["engine"] == "python"
-    assert tools.rules_get("marketing", "claude", "categories.md")["name"] == "categories"
-    assert "categories" in tools.rules_get("marketing", "n8n", "nope")["hint"]
-    assert "error" in tools.rules_get("sales", "n8n", "x")
-    assert "unknown engine" in tools.rules_get("travel", "codex", "team")["error"]
-    for bad in [
-        ("travel", "n8n", "../marketing/data/routing"),
-        ("../travel", "n8n", "team"),
-        ("travel", "../n8n", "team"),
-        ("travel", "n8n", "a/b"),
-        ("travel", "n8n", "team,../x"),
-    ]:
-        assert tools.rules_get(*bad)["error"] == "paths are not allowed"
-    both = tools.rules_get("travel", "n8n", "team, kinds.md")
-    assert both["name"] == "team,kinds" and both["text"].index("=== team.md") < both["text"].index("=== kinds")
-    assert "nope" in tools.rules_get("travel", "n8n", "team,nope")["error"]
-
-
-def test_rules_get_all_reads_every_file_of_that_engine(tmp_path, monkeypatch):
-    from kit import config
-
-    for eng, files in {"n8n": ["a.md", "b.md"], "claude": ["c.md"]}.items():
-        (tmp_path / "uc" / eng / "rules").mkdir(parents=True)
-        for f in files:
-            (tmp_path / "uc" / eng / "rules" / f).write_text(f"# {f}\n", encoding="utf-8")
-    (tmp_path / "uc" / "data").mkdir()
-    monkeypatch.setattr(config, "USECASES_DIR", tmp_path)
-    r = tools.rules_get("uc", "n8n")  # name "*" is the default
-    assert r["name"] == "a,b" and "=== a.md ===\n# a.md" in r["text"] and "c.md" not in r["text"]
-    assert tools.rules_get("uc", "claude", "*")["name"] == "c"
-    assert "no rule files" in tools.rules_get("uc", "python")["error"]
+    assert tools.try_tool("contacts_lookup", ["Wollner"]) == 1  # not key=value
 
 
 def test_plain_http_call():
@@ -126,6 +91,13 @@ def test_plain_http_call():
         assert "unexpected keyword" in c.post("/mcp/call/contacts_lookup", json={"q": "x"}).json()["output"]["error"]
         assert c.post("/mcp/call/nope", json={}).status_code == 404
         assert c.post("/mcp/call/contacts_lookup", json=[1]).status_code == 400
+        # a business rules file of an engine (n8n reads its prompt so)
+        r = c.get("/mcp/rules/marketing/n8n/triage.md")
+        assert r.status_code == 200 and r.json()["file"] == "marketing/n8n/triage.md" and "`spam`" in r.json()["text"]
+        assert c.get("/mcp/rules/marketing/claude/CLAUDE.md").status_code == 200
+        assert c.get("/mcp/rules/marketing/n8n/workflow.json").status_code == 404  # only the rules files
+        assert "triage.md" in c.get("/mcp/rules/marketing/n8n/nope.md").json()["hint"]
+        assert c.get("/mcp/rules/marketing/codex/triage.md").status_code == 404
 
 
 # ---------- trains, with a fake MOTIS ----------
@@ -281,4 +253,4 @@ def test_tools_listed_over_mcp():
         async with Client(tools.mcp) as c:
             return {t.name for t in (await c.list_tools()).tools}
 
-    assert asyncio.run(names()) >= {"contacts_lookup", "inbox_history", "events_list", "trains_search", "rules_get"}
+    assert asyncio.run(names()) >= {"contacts_lookup", "inbox_history", "events_list", "trains_search"}

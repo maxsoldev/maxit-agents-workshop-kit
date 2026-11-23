@@ -8,13 +8,12 @@ agent files, run the evals, and report what changed in the score. The team decid
 
 | Engine | The agent | After an edit |
 |---|---|---|
-| n8n | `usecases/<uc>/n8n/prompts/*.md`, `n8n/workflow.json` | `make n8n-push UC=<uc>` |
+| n8n | `usecases/<uc>/n8n/<step>.md` (prompt of an AI step); `n8n/workflow.json` (the graph) | `.md`: nothing; graph: `make n8n-push UC=<uc>` |
 | Claude | `usecases/<uc>/claude/CLAUDE.md`, `claude/.claude/skills/` (the agent's own files) | nothing |
 | Python | `usecases/<uc>/python/prompt.md`, `python/agent.py` (the code) | nothing |
 
-All engines share `usecases/<uc>/data/` (the inputs), `output.schema.json` and `cases.jsonl`. The owner's rules
-are per engine: `usecases/<uc>/<engine>/rules/*.md`, lists, no tables. Each engine gets all of its own on every case:
-n8n by the node Read the rules, Claude by `@rules/<file>` lines in `CLAUDE.md`, Python by `agent.py`.
+All engines share `usecases/<uc>/data/` (the inputs), `output.schema.json` and `cases.jsonl`. The business rules
+(the owner's lists) are in each engine's own file (`CLAUDE.md`, `prompt.md`, `n8n/<step>.md`), lists, no tables.
 Skills: `eval-loop` (run, read, compare, add cases: every engine), `n8n-workflow` (the n8n files and the sync).
 
 ## Commands (the team sees the same runs and cases in the kit UI, http://localhost:5700)
@@ -29,7 +28,7 @@ Skills: `eval-loop` (run, read, compare, add cases: every engine), `n8n-workflow
 
 ## Tools and docs
 
-- The agents' tools (no tool sends or books): `rules_get`, `contacts_lookup`, `inbox_history`, `events_list`,
+- The agents' tools (no tool sends or books): `contacts_lookup`, `inbox_history`, `events_list`,
   `trains_search`. Inputs and outputs: `docs/contracts.md` §7. A new tool: a function in `kit/tools.py`.
 - The job and the team's design: `usecases/<uc>/BRIEF.md`. Case format and check types: `docs/contracts.md` §3.
 

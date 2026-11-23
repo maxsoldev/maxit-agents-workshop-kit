@@ -6,14 +6,15 @@ You play the loop once on the **marketing** use case (the bloxberg info inbox), 
 > **One email in → category + flags out.** For example: an institute asks for a demo → `institute_request`, no
 > flags. "You have won 1,000,000 EUR" → `spam`, flag `phishing`.
 
-**Pick one engine** (n8n, Claude or Python). The steps are the same on each. All the files you change are in the
-kit UI: **Rules** → pick your engine.
+**Pick one engine** (n8n, Claude or Python). The steps are the same on each. Each engine has **one business
+rules file**: its steps and the owner's rules (categories, flags, priorities). Open it in the kit UI: **Rules**
+→ pick your engine. The agent reads it on every case: a saved change counts from the next case, also on n8n.
 
-| Engine | The prompt (Rules → **Instructions**) | The owner's rules (Rules → **Owner's rules**) |
-|---|---|---|
-| n8n | `prompts/triage.md` (node **Triage**). A save on the Rules page also pushes it to n8n. In the n8n editor (http://localhost:5702): node **Triage** → Chat Messages → **Message**, then **Publish** | `categories.md` |
-| Claude | `CLAUDE.md`, part "Steps" | `categories.md` |
-| Python | `prompt.md` | `categories.md` |
+| Engine | The business rules file |
+|---|---|
+| n8n | `n8n/triage.md` (the prompt of the node **Triage**) |
+| Claude | `claude/CLAUDE.md` |
+| Python | `python/prompt.md` |
 
 You need `make serve` running and http://localhost:5700 open, use case **Marketing**.
 
@@ -34,7 +35,7 @@ You need `make serve` running and http://localhost:5700 open, use case **Marketi
   adds a second flag.
 - `m08` (a support request with a deadline) is red: ``equals priority: `priority` is missing``. That is level 3.
 
-**Learn:** for each red case ask: **is the agent wrong, or is the case wrong?** Open **Rules** → `categories.md`:
+**Learn:** for each red case ask: **is the agent wrong, or is the case wrong?** Open **Rules**, part "Flags":
 `off_target` is for an offer that "assumes we are a speculative token or crypto project". The fund talks about
 tokens, so the agent has a point. Only the owner can say what is right. Here the owner says: `off_target` is for
 people who want to *sell* us something.
@@ -43,7 +44,7 @@ people who want to *sell* us something.
 
 **Do**
 
-1. Open **Rules** → your engine → `categories.md`. Under the `off_target` line, add **one line** (two spaces at
+1. Open **Rules** → your engine. In the part "Flags", under the `off_target` line, add **one line** (two spaces at
    the start keep it in the same list item):
 
    ```text
@@ -63,7 +64,7 @@ make this change alone, in the Rules page.
 
 ## Level 3. A new field: schema + prompt (about 8 min)
 
-`m08` checks a field `priority`. `categories.md` already says what is `high`, `medium` and `low`, but the agent
+`m08` checks a field `priority`. The business rules (part "Priority") already say what is `high`, `medium` and `low`, but the agent
 does not give a priority yet, on purpose.
 
 **Do**
@@ -78,11 +79,11 @@ does not give a priority yet, on purpose.
    ```json
    "priority": {
      "type": "string",
-     "description": "A priority from the priority list in the rules file categories.md."
+     "description": "A priority from the list \"Priority\" in the business rules."
    }
    ```
 
-2. Add **one line** to the prompt (Rules → **Instructions**), after step 3:
+2. Add **one line** to the steps in your business rules file (Rules), after step 3:
 
    ```text
    4. Write priority: one priority from the priority list of the rules.
@@ -93,7 +94,7 @@ does not give a priority yet, on purpose.
 **See:** in `m08`, the check `equals priority` is ✓ (`got high`). `m08` is **▲ better**.
 
 **Learn:** the schema says *what* comes out; the prompt says *how*. A new field needs both. The words the owner
-uses (categories, flags, priorities) stay in the rules file, not in the schema: the owner can add one there.
+uses (categories, flags, priorities) stay in the business rules, not in the schema: the owner can add one there.
 
 ## Level 4. Run it twice (about 4 min)
 
@@ -126,4 +127,4 @@ hidden instruction also `phishing`?), or the check is too strict. Ask the owner,
 team: one person pushes; the others run `git checkout -- usecases/marketing` and `git pull`.
 
 Your team's own service starts small in the same way, and grows step by step: more of the owner's rules are in
-`usecases/<uc>/extend/` (routing, reply guidelines, travel rules ...), and `BRIEF.md` has ideas.
+`usecases/<uc>/extend/` (routing, reply guidelines, travel rules ...): paste the ones you need into your file, and `BRIEF.md` has ideas.

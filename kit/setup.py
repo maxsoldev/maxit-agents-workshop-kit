@@ -132,13 +132,12 @@ def same_workflow(a: dict, b: dict) -> bool:
 
 
 def load_workflow(path: Path, credential_id: str, tools_url: str) -> dict:
-    """A workflow file as n8n gets it: placeholders filled, prompts from n8n/prompts/*.md put in."""
-    wf = json.loads(fill_placeholders(path.read_text(encoding="utf-8"), credential_id, tools_url))
-    return n8n_files.fill_prompts(wf, path.parent / "prompts")
+    """A workflow file as n8n gets it: placeholders filled."""
+    return json.loads(fill_placeholders(path.read_text(encoding="utf-8"), credential_id, tools_url))
 
 
 def files_hash(path: Path) -> str | None:
-    """workflow_hash of a workflow file with its prompts, as n8n would get it. None if it cannot be read."""
+    """workflow_hash of a workflow file, as n8n would get it. None if it cannot be read."""
     s = settings()
     try:
         return workflow_hash(load_workflow(path, s.n8n_openai_credential_id, s.tools_url_docker))
@@ -173,7 +172,7 @@ def sync_state(files: str | None, n8n: str, last: str | None) -> str:
 
 def sync_advice(state: str, uc: str, rel, name: str) -> str:
     """What to run for a sync state (contracts §5). Never overwrites by itself."""
-    files = f"{rel} (or n8n/prompts/)"
+    files = f"{rel}"
     if state == "files":
         return f"{files} changed since the last sync; n8n still has the old '{name}'. Run: make n8n-push UC={uc}"
     if state == "n8n":
@@ -536,7 +535,7 @@ def remove_old_workflows(n8n: N8n, flows: list[dict], ucs: list[str]) -> list[di
 
 
 def import_workflows(n8n: N8n, cred_id: str, force: bool = False, only_uc: str = "") -> bool:
-    """Push: create or update each usecases/*/n8n/workflow.json (with the prompts from n8n/prompts/) by name,
+    """Push: create or update each usecases/*/n8n/workflow.json by name,
     then activate (publish) it. If the published n8n copy changed since the last sync, keep it, unless
     `force`. Unpublished editor edits are discarded. The old n8n copy goes to runs/n8n-backup/."""
     files = sorted(USECASES_DIR.glob(f"{only_uc or '*'}/n8n/workflow.json"))
@@ -904,40 +903,24 @@ def _write_if_changed(path: Path, text: str) -> bool:
 
 
 def save_workflow_files(path: Path, wf: dict) -> list[Path]:
-    """Write an n8n workflow to `path` and its prompts to n8n/prompts/*.md, with the placeholders back
-    ({{PROMPT:...}}, {{OPENAI_CREDENTIAL_ID}}, {{KIT_TOOLS_URL}}, {{KIT_MODEL}}). Same content = same bytes.
-    Returns the files that changed."""
+    """Write an n8n workflow to `path`, with the placeholders back ({{OPENAI_CREDENTIAL_ID}}, {{KIT_TOOLS_URL}},
+    {{KIT_MODEL}}). Same content = same bytes. Returns the files that changed."""
     s = settings()
     try:
         old = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         old = {}
-    body, prompts = n8n_files.split_prompts(json.loads(json.dumps(workflow_body(wf))))
+    body = json.loads(json.dumps(workflow_body(wf)))
     body = same_order(placeholders_back(body, s.n8n_openai_credential_id, s.tools_url_docker, s.model), old)
-    changed = [path] if _write_if_changed(path, json.dumps(body, indent=2, ensure_ascii=False) + "\n") else []
-    for name, text in prompts.items():
-        p = path.parent / "prompts" / f"{name}.md"
-        if _write_if_changed(p, text + "\n"):
-            changed.append(p)
-    return changed
-
-
-def unused_prompts(folder: Path) -> list[Path]:
-    """Prompt files in n8n/prompts/ that workflow.json does not point to (a node was renamed)."""
-    try:
-        used = n8n_files.placeholder_names(json.loads((folder / "workflow.json").read_text(encoding="utf-8")))
-    except (OSError, ValueError):
-        used = set()
-    return [p for p in sorted((folder / "prompts").glob("*.md")) if p.stem not in used]
+    return [path] if _write_if_changed(path, json.dumps(body, indent=2, ensure_ascii=False) + "\n") else []
 
 
 def backup_files(uc: str, path: Path) -> Path:
-    """Copy a workflow file and its prompt files to runs/n8n-backup/ (before a pull overwrites them)."""
+    """Copy a workflow file to runs/n8n-backup/ (before a pull overwrites it)."""
     dest = RUNS_DIR / "n8n-backup" / f"{uc}-{path.stem}-files-{datetime.now():%Y%m%d-%H%M%S}"
-    for p in [path, *sorted((path.parent / "prompts").glob("*.md"))]:
-        if p.exists():
-            (dest / p.relative_to(path.parent)).parent.mkdir(parents=True, exist_ok=True)
-            (dest / p.relative_to(path.parent)).write_bytes(p.read_bytes())
+    if path.exists():
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / path.name).write_bytes(path.read_bytes())
     return dest
 
 
@@ -1008,14 +991,11 @@ def n8n_pull(only_uc: str = "", force: bool = False) -> int:
         bad += not done
         if has_draft(full):
             print(f"WARN  {uc}: {draft_advice(uc, full['name'])}")
-    for uc in {uc for uc, _ in workflow_files(only_uc)}:
-        for p in unused_prompts(USECASES_DIR / uc / "n8n"):
-            print(f"WARN  {uc}: no node uses {p.relative_to(ROOT)} any more (a node was renamed?): delete it")
     return 1 if bad else 0
 
 
 def n8n_push(only_uc: str = "", force: bool = False) -> int:
-    """`make n8n-push`: files -> n8n (fill the placeholders and prompts, update, publish)."""
+    """`make n8n-push`: workflow.json -> n8n (fill the placeholders, update, publish)."""
     n8n = n8n_client()
     if not n8n:
         return 1

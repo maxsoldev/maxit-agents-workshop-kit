@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Rules · {{ uc|uc_name }}{% endblock %}
 {% block main %}
-<h1>Rules and instructions <span class="muted">· {{ uc|uc_name }}</span></h1>
+<h1>Business rules <span class="muted">· {{ uc|uc_name }}</span></h1>
 <form class="row3" method="get" action="/uc/{{ uc }}/rules">
   <label>Engine <select name="engine" onchange="this.form.submit()">
     {% for e in run_engines %}<option value="{{ e }}" {{ 'selected' if e == engine }}>{{ e }}</option>{% endfor %}
@@ -9,22 +9,16 @@
   <input type="hidden" name="name" value="{{ rule }}">{# the same file in the other engine, if it has it #}
   <noscript><button class="btn">Show</button></noscript>
 </form>
-<p class="muted">The plain-text files of the <b>{{ engine }}</b> agent, in <code>usecases/{{ uc }}/{{ engine }}/</code>.
-  <b>Instructions</b>: how the agent works, step by step
-  {%- if engine == 'n8n' %} (the prompts of the AI nodes; a save also pushes them to n8n){% elif engine == 'claude' %}
-  (<code>CLAUDE.md</code> and the skills){% else %} (<code>prompt.md</code>){% endif %}.
-  <b>Owner's rules</b>: categories, routes, priorities, templates. The agent gets all of them on every case
-  {%- if engine == 'n8n' %} (node <i>Read the rules</i>){% elif engine == 'claude' %} (<code>CLAUDE.md</code> loads each
-  file with a line <code>@rules/&lt;file&gt;</code>){% else %} (<code>agent.py</code> reads them from disk){% endif %}.
+<p class="muted">What the <b>{{ engine }}</b> agent is told: its steps and the business rules (categories, kinds,
+  priorities ...), as plain text in <code>usecases/{{ uc }}/{{ engine }}/</code>. The agent reads the file on every
+  case, so a saved change counts from the next case
+  {%- if engine == 'n8n' %} (no push: the node <i>Read the rules</i> gets the file; one file per AI step){% endif %}.
   The other engines have their own files. Change one thing, save, then
   <a href="/uc/{{ uc }}/run?engine={{ engine }}">run the eval</a> on {{ engine }} and compare.</p>
-{% if not_loaded %}<div class="banner">Claude does not see {{ not_loaded|join(', ') }}: add a line
-  {% for f in not_loaded %}<code>@rules/{{ f }}</code> {% endfor %}to <code>CLAUDE.md</code>, part "The owner's rules".</div>{% endif %}
-{% if not files %}<div class="alert">No files in <code>usecases/{{ uc }}/{{ engine }}/</code>.</div>{% else %}
+{% if not files %}<div class="alert">No business rules files in <code>usecases/{{ uc }}/{{ engine }}/</code>.</div>{% else %}
 <div class="rules">
   <nav class="rule-files">
-    {% for group, f in files %}{% if loop.first or files[loop.index0 - 1][0] != group %}<h3>{{ group }}</h3>{% endif %}
-    <a href="/uc/{{ uc }}/rules?engine={{ engine }}&name={{ f|urlencode }}" class="{{ 'on' if f == rule }}">{{ f.removeprefix('rules/').removeprefix('.claude/skills/') }}</a>{% endfor %}
+    {% for f in files %}<a href="/uc/{{ uc }}/rules?engine={{ engine }}&name={{ f|urlencode }}" class="{{ 'on' if f == rule }}">{{ f.removeprefix('.claude/skills/') }}</a>{% endfor %}
   </nav>
   <div class="rule-edit">
     <div class="rule-bar">
@@ -72,7 +66,7 @@ async function saveRule(force) {
   const j = await r.json();
   if (j.ok) {
     version = j.version; saved = box.value; disk = null;
-    conflict(""); refresh(); state("Saved " + now() + (j.note ? ". " + j.note : ""));
+    conflict(""); refresh(); state("Saved " + now());
   } else {
     conflict(j.error + " Load it, or save yours over it.");
   }
