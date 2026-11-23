@@ -44,6 +44,23 @@ templates.env.filters["compact"] = lambda v: json.dumps(v, ensure_ascii=False)
 templates.env.filters["when"] = lambda v: str(v or "").replace("T", " ")[:16]  # ISO time -> "2026-11-24 10:05"
 
 
+def usd(v, sign: bool = False) -> str:
+    """0.01234 -> "$0.0123" (4 decimals under $1, else 2); None -> "–". sign: "+$0.0010" / "−$0.0010"."""
+    if not isinstance(v, int | float):  # None, or missing in an older run file
+        return "–"
+    text = f"${abs(v):.4f}" if abs(v) < 1 else f"${abs(v):.2f}"
+    return ("+" if v >= 0 else "−") + text if sign else ("−" if v < 0 else "") + text
+
+
+def tokens(v) -> str:
+    """12345 -> "12.3k"; None -> "–"."""
+    return "–" if not isinstance(v, int | float) else f"{v / 1000:.1f}k" if v >= 1000 else str(round(v))
+
+
+templates.env.filters["usd"] = usd
+templates.env.filters["tokens"] = tokens
+
+
 def runner():
     """The runner module (part C). Imported late, so tests can put a fake in sys.modules."""
     return importlib.import_module("kit.runner")
@@ -781,6 +798,7 @@ def run_results(run_id: str, vs: str) -> dict:
     counts = {k: sum(1 for v in changes.values() if v == k) for k in ("better", "worse", "same", "new")}
     changed = changed_cases(run, other)
     counts["changed"] = len(changed)
+    delta = run_delta(run, other)
     now = {c.get("id"): c for c in load_cases_safe(uc)[0]} if uc in usecases() else {}
     for c in run.get("cases", []):
         pair_check_defs(c, now.get(c.get("id")))
@@ -804,7 +822,19 @@ def run_results(run_id: str, vs: str) -> dict:
         "changes": changes,
         "counts": counts,
         "changed": changed,
+        "delta": delta,
     }
+
+
+def run_delta(run: dict, other: dict | None) -> dict:
+    """This run minus the other, per case on average: {"seconds", "cost_usd"} (None if one run has no value).
+    Older run files have no totals: then None."""
+    a, b = ((r or {}).get("summary", {}).get("totals") or {} for r in (other, run))
+    out = {}
+    for key in ("seconds", "cost_usd"):
+        x, y = a.get(f"avg_{key}"), b.get(f"avg_{key}")
+        out[key] = None if x is None or y is None else round(y - x, 6)
+    return out
 
 
 @app.get("/runs/{run_id}", response_class=HTMLResponse)

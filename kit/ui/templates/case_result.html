@@ -11,6 +11,7 @@
   <h1 class="res-case {{ 'pass' if c.passed else 'fail' }}"><span class="mark">{{ '✓ pass' if c.passed else '✗ fail' }}</span>
     <code>{{ c.id }}</code> {{ c.title }}</h1>
   <p class="muted">{{ run.name or run.run_id }} · {{ (run.usecase or '')|uc_name }} · {{ run.engine }} · {{ run.started_at|when }} · {{ '%.1f'|format(c.seconds or 0) }} s
+    · {{ c.cost_usd|usd }} ({{ c.tokens_in|tokens }} tokens in, {{ c.tokens_out|tokens }} out){% if c.judge %} · judge {{ '%.1f'|format(c.judge.seconds or 0) }} s, {{ c.judge.cost_usd|usd }}{% endif %}
     {% if other %}· vs {{ other.name or other.run_id }}: {% include "_case_badges.html" %}{% endif %}</p>
 </div>
 {% include "_case_detail.html" %}

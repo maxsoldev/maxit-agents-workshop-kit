@@ -213,6 +213,31 @@ def test_case_page_back_prev_next_and_compare(client):
     assert '<span class="muted">next →</span>' in client.get(f"{new}/cases/c3").text
 
 
+def test_results_show_time_and_cost(client):
+    """Time and cost per case, the run totals in the header, and Δ time / Δ cost against the compare run."""
+    config.RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    for run_id, secs, cost in (
+        ("20261124-100000-demo-python", 2.0, 0.001),
+        ("20261124-110000-demo-python", 3.0, 0.003),
+    ):
+        case = {"id": "a1", "title": "T", "passed": True, "checks": [], "input": {}, "expected": {}, "output": {},
+                "seconds": secs, "tokens_in": 12345, "tokens_out": 300, "cost_usd": cost,
+                "judge": {"seconds": 1.0, "tokens_in": 10, "tokens_out": 2, "cost_usd": 0.0002}}  # fmt: skip
+        totals = {"seconds": secs, "avg_seconds": secs, "tokens_in": 12345, "avg_tokens_in": 12345,
+                  "tokens_out": 300, "avg_tokens_out": 300, "cost_usd": cost, "avg_cost_usd": cost,
+                  "cost_cases": 1, "judge_cost_usd": 0.0002}  # fmt: skip
+        run = {"run_id": run_id, "usecase": "demo", "engine": "python", "name": run_id[-6:], "cases": [case],
+               "summary": {"cases": 1, "passed": 1, "by_check": {}, "totals": totals}}  # fmt: skip
+        (config.RUNS_DIR / f"{run_id}.json").write_text(json.dumps(run))
+    page = client.get("/runs/20261124-110000-demo-python?vs=20261124-100000-demo-python").text
+    assert "Agent: 3.0 s per case" in page and "12.3k tokens in, 300 out per case" in page
+    assert "$0.0030 per case, $0.0030 in total" in page and "judge $0.0002 in total" in page
+    assert ">$0.0030</span>" in page  # the Cost column of the case
+    assert "Δ time +1.0 s" in page and "Δ cost +$0.0020" in page
+    case = client.get("/runs/20261124-110000-demo-python/cases/a1").text
+    assert "$0.0030 (12.3k tokens in, 300 out)" in case and "judge 1.0 s, $0.0002" in case
+
+
 def test_old_n8n_agent_runs_still_open(client, monkeypatch):
     """The n8n-agent engine is gone; its old run files still show (read-only). It is not offered to run."""
     from kit.ui import app as ui

@@ -20,6 +20,11 @@
     {% for t, n in (s.skipped or {}).items() %}
     <span class="chip muted" title="the check could not run (for example: no key); it does not count">{{ n }} {{ t }} skipped</span>
     {% endfor %}
+    {% set tt = s.totals or {} %}
+    {% if tt %}<div class="muted small totals">Agent: {{ '%.1f'|format(tt.avg_seconds or 0) }} s per case ·
+      {{ tt.avg_tokens_in|tokens }} tokens in, {{ tt.avg_tokens_out|tokens }} out per case ·
+      <span title="the cost of the agent's model calls; the kit price table (KIT_PRICES) or Claude's own number">{{ tt.avg_cost_usd|usd }} per case, {{ tt.cost_usd|usd }} in total</span>{% if tt.cost_cases and tt.cost_cases < s.cases %} ({{ tt.cost_cases }} of {{ s.cases }} cases have a cost){% endif %}
+      {% if tt.judge_cost_usd is not none %} · judge {{ tt.judge_cost_usd|usd }} in total{% endif %}</div>{% endif %}
   </div>
   <form method="get" class="compare">
     <label>Compare with
@@ -32,19 +37,22 @@
     {% if other %}
     <div class="diff"><span class="better">▲ {{ counts.better }} better</span> <span class="worse">▼ {{ counts.worse }} worse</span>
       <span class="muted">{{ counts.same }} same{% if counts.new %} · {{ counts.new }} new case(s){% endif %}{% if counts.changed %} · {{ counts.changed }} case(s) changed since then{% endif %}</span>
+      {% if delta.seconds is not none %}<span class="muted" title="per case on average, this run minus the other">Δ time {{ '%+.1f'|format(delta.seconds) }} s</span>{% endif %}
+      {% if delta.cost_usd is not none %}<span class="muted" title="per case on average, this run minus the other">Δ cost {{ delta.cost_usd|usd(true) }}</span>{% endif %}
       {% if agent_changed %}<span class="badge changed" title="the agent files (n8n: the workflow and its prompts) are not the same as in the other run">{{ 'workflow' if (run.engine or '').startswith('n8n') else 'agent' }} changed</span>{% endif %}</div>
     {% endif %}
   </form>
 </div>
 
 <div class="results">
-  <div class="res-head"><span></span><span>Case</span><span>Time</span><span>First failing reason</span><span>{{ 'vs other' if other }}</span></div>
+  <div class="res-head"><span></span><span>Case</span><span title="the agent's time, without the checks">Time</span><span title="the agent's model calls (without the judge)">Cost</span><span>First failing reason</span><span>{{ 'vs other' if other }}</span></div>
   {% for c in run.cases or [] %}
   {% set ch = changes.get(c.id) %}
   <a class="res {{ 'pass' if c.passed else 'fail' }} {{ 'chg-' ~ ch if ch }}" id="c-{{ c.id }}" href="/runs/{{ run.run_id }}/cases/{{ c.id }}{{ vs_query }}">
     <span class="mark">{{ '✓' if c.passed else '✗' }}</span>
     <span><code>{{ c.id }}</code> {{ c.title }}</span>
     <span class="muted">{{ '%.1f'|format(c.seconds or 0) }} s</span>
+    <span class="muted" title="{{ c.tokens_in|tokens }} tokens in, {{ c.tokens_out|tokens }} out">{{ c.cost_usd|usd }}</span>
     <span class="reason">{{ c._first_fail or '' }}</span>
     <span>{% include "_case_badges.html" %}</span>
   </a>
