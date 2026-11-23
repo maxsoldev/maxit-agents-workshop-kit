@@ -1,7 +1,8 @@
 """Eval runner: run the cases of a use case on one engine, check the results, save a run file.
 
-    from kit.runner import run_eval, list_runs, load_run, compare
+from kit.runner import run_eval, list_runs, load_run, compare
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -52,18 +53,31 @@ def _keep_awake():
 def case_hash(case: dict) -> str:
     """Short hash of what a case asks: today, input, expected, checks (not the title).
     Compare uses it to see that a case changed between two runs."""
-    text = json.dumps({k: case.get(k) for k in ("today", "input", "expected", "checks")}, sort_keys=True,
-                      ensure_ascii=False)
+    text = json.dumps(
+        {k: case.get(k) for k in ("today", "input", "expected", "checks")}, sort_keys=True, ensure_ascii=False
+    )
     return hashlib.sha256(text.encode()).hexdigest()[:12]
 
 
 def run_case(uc: str, engine: str, case: dict, schema: dict, run_id: str, run_name: str) -> dict:
     """Run one case and check it. Never raises: a crash is a failed case with `error`."""
     t0 = time.time()  # wall clock: on macOS, monotonic time stops while the computer sleeps
-    res = {"id": case["id"], "title": case.get("title", ""), "today": case.get("today"), "case_hash": case_hash(case),
-           "passed": False, "seconds": 0.0, "error": None,
-           "input": case.get("input", {}), "expected": case.get("expected", {}), "output": None, "checks": [],
-           "trace_url": None, "n8n_execution_url": None, "meta": {}}
+    res = {
+        "id": case["id"],
+        "title": case.get("title", ""),
+        "today": case.get("today"),
+        "case_hash": case_hash(case),
+        "passed": False,
+        "seconds": 0.0,
+        "error": None,
+        "input": case.get("input", {}),
+        "expected": case.get("expected", {}),
+        "output": None,
+        "checks": [],
+        "trace_url": None,
+        "n8n_execution_url": None,
+        "meta": {},
+    }
     try:
         inp = engine_input(uc, case)
         res["input"] = inp["input"]
@@ -99,8 +113,13 @@ def summarize(case_results: list[dict]) -> dict:
             for counts in (by_check.setdefault(c["type"], [0, 0]), by_field.setdefault(name, [0, 0])):
                 counts[0] += c["passed"] is True
                 counts[1] += 1
-    return {"cases": len(case_results), "passed": sum(r["passed"] for r in case_results), "by_check": by_check,
-            "by_field": by_field, "skipped": skipped}
+    return {
+        "cases": len(case_results),
+        "passed": sum(r["passed"] for r in case_results),
+        "by_check": by_check,
+        "by_field": by_field,
+        "skipped": skipped,
+    }
 
 
 def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=None, holdout=False) -> dict:
@@ -126,9 +145,17 @@ def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=No
 
     started = datetime.now()
     run_id = new_run_id(usecase, engine, started)
-    run = {"run_id": run_id, "name": name or run_id, "usecase": usecase, "engine": engine,
-           "started_at": started.astimezone().isoformat(timespec="seconds"), "ended_at": None,
-           "holdout": bool(holdout), "summary": summarize([]), "cases": []}
+    run = {
+        "run_id": run_id,
+        "name": name or run_id,
+        "usecase": usecase,
+        "engine": engine,
+        "started_at": started.astimezone().isoformat(timespec="seconds"),
+        "ended_at": None,
+        "holdout": bool(holdout),
+        "summary": summarize([]),
+        "cases": [],
+    }
     save_run(run)  # reserves the run id; ended_at = None means "still running"
 
     def one(case):
@@ -182,8 +209,17 @@ def compare(run_id_a: str, run_id_b: str) -> dict:
             change = "better" if key_b > key_a else "worse" if key_b < key_a else "same"
         counts[change] += 1
         changed = bool(ca and cb and ca.get("case_hash") and cb.get("case_hash") and ca["case_hash"] != cb["case_hash"])
-        rows.append({"id": cid, "title": (cb or ca).get("title", ""), "change": change, "case_changed": changed,
-                     "a_passed": ca["passed"] if ca else None, "b_passed": cb["passed"] if cb else None,
-                     "a_checks": list(_check_count(ca)), "b_checks": list(_check_count(cb))})
+        rows.append(
+            {
+                "id": cid,
+                "title": (cb or ca).get("title", ""),
+                "change": change,
+                "case_changed": changed,
+                "a_passed": ca["passed"] if ca else None,
+                "b_passed": cb["passed"] if cb else None,
+                "a_checks": list(_check_count(ca)),
+                "b_checks": list(_check_count(cb)),
+            }
+        )
     keys = ("run_id", "name", "engine", "summary")
     return {"a": {k: a.get(k) for k in keys}, "b": {k: b.get(k) for k in keys}, "counts": counts, "cases": rows}

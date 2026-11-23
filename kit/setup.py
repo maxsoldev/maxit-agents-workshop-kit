@@ -4,6 +4,7 @@ setup: checks the host tools, sets up n8n (owner, API key, OpenAI credential, wo
 check: runs the first case of each use case on each engine and prints OK or what to fix.
 Both are safe to run again. They print names of keys, never their values.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -27,6 +28,7 @@ N8N_WAIT_S = 120
 
 
 # ---------- pure helpers (tested in tests/test_setup.py) ----------
+
 
 def read_env(path: Path) -> dict[str, str]:
     """KEY=value lines of an env file. Skips blank lines and comments; strips quotes."""
@@ -88,14 +90,21 @@ def service_notes(env: dict[str, str]) -> list[str]:
 
 def fill_placeholders(text: str, credential_id: str, tools_url: str) -> str:
     """Put the real values into a workflow.json text."""
-    return (text.replace("{{OPENAI_CREDENTIAL_ID}}", credential_id).replace("{{KIT_TOOLS_URL}}", tools_url)
-            .replace("{{KIT_MODEL}}", settings().model))
+    return (
+        text.replace("{{OPENAI_CREDENTIAL_ID}}", credential_id)
+        .replace("{{KIT_TOOLS_URL}}", tools_url)
+        .replace("{{KIT_MODEL}}", settings().model)
+    )
 
 
 def workflow_body(wf: dict) -> dict:
     """Only the fields the n8n public API accepts on create and update."""
-    return {"name": wf["name"], "nodes": wf["nodes"], "connections": wf.get("connections", {}),
-            "settings": wf.get("settings") or {}}
+    return {
+        "name": wf["name"],
+        "nodes": wf["nodes"],
+        "connections": wf.get("connections", {}),
+        "settings": wf.get("settings") or {},
+    }
 
 
 def workflow_hash(wf: dict) -> str:
@@ -150,6 +159,7 @@ def placeholders_back(value, credential_id: str, tools_url: str, model: str):
 
 # ---------- output ----------
 
+
 def ok(msg: str) -> None:
     print(f"  OK    {msg}")
 
@@ -172,6 +182,7 @@ def _run(cmd: list[str]) -> tuple[bool, str]:
 
 
 # ---------- step 1: host checks ----------
+
 
 def model_key_works() -> tuple[bool, str]:
     """One cheap call: GET {base}/models (OpenAI or the gateway). Returns (works, short text)."""
@@ -204,7 +215,9 @@ def check_host() -> bool:
         if works:
             ok(f"OPENAI_API_KEY works ({text})")
         else:
-            fail(f"OPENAI_API_KEY does not work: {text}. Fix the key (or OPENAI_BASE_URL) in .env, then run make setup again")
+            fail(
+                f"OPENAI_API_KEY does not work: {text}. Fix the key (or OPENAI_BASE_URL) in .env, then run make setup again"
+            )
             good = False
     else:
         fail("OPENAI_API_KEY is empty. Put your key in .env, then run make setup again")
@@ -231,6 +244,7 @@ def check_host() -> bool:
 
 
 # ---------- step 2: n8n ----------
+
 
 class N8n:
     """Small client for n8n: internal REST (/rest, session login) for the owner and API key,
@@ -301,27 +315,40 @@ def setup_n8n(force: bool = False) -> bool:
         if not s.n8n_owner_password:
             fail("N8N_OWNER_PASSWORD is empty in .env (8+ chars, 1 number, 1 capital letter)")
             return False
-        r = n8n.http.post("/rest/owner/setup", json={"email": s.n8n_owner_email, "firstName": "Kit",
-                                                     "lastName": "Owner", "password": s.n8n_owner_password})
+        r = n8n.http.post(
+            "/rest/owner/setup",
+            json={
+                "email": s.n8n_owner_email,
+                "firstName": "Kit",
+                "lastName": "Owner",
+                "password": s.n8n_owner_password,
+            },
+        )
         ok("owner account created" if r.status_code == 200 else "owner account exists")
-        r = n8n.http.post("/rest/login", json={"emailOrLdapLoginId": s.n8n_owner_email,
-                                               "password": s.n8n_owner_password})
+        r = n8n.http.post(
+            "/rest/login", json={"emailOrLdapLoginId": s.n8n_owner_email, "password": s.n8n_owner_password}
+        )
         if r.status_code == 429:
             fail("n8n blocks logins for a short time (too many tries). Wait a minute, then run make setup again")
             return False
         if r.status_code != 200:
-            fail(f"login as {s.n8n_owner_email} failed ({r.status_code}). Is N8N_OWNER_PASSWORD the one you used "
-                 "first? If you do not know it: make reset, then make up and make setup")
+            fail(
+                f"login as {s.n8n_owner_email} failed ({r.status_code}). Is N8N_OWNER_PASSWORD the one you used "
+                "first? If you do not know it: make reset, then make up and make setup"
+            )
             return False
         r = n8n.http.get("/rest/api-keys/scopes")
         scopes = r.json().get("data", []) if r.status_code == 200 else []
-        r = n8n.http.post("/rest/api-keys", json={"label": f"kit-{int(time.time())}", "expiresAt": None,
-                                                  "scopes": scopes})
+        r = n8n.http.post(
+            "/rest/api-keys", json={"label": f"kit-{int(time.time())}", "expiresAt": None, "scopes": scopes}
+        )
         data = (r.json().get("data") or {}) if r.status_code == 200 else {}
         new = data.get("rawApiKey") or data.get("apiKey") or ""
         if not n8n.key_works(new):
-            fail(f"could not create an API key ({r.status_code}). Create one in n8n: Settings > n8n API, "
-                 "and put it in .env as N8N_API_KEY")
+            fail(
+                f"could not create an API key ({r.status_code}). Create one in n8n: Settings > n8n API, "
+                "and put it in .env as N8N_API_KEY"
+            )
             return False
         set_env_key(ENV_FILE, "N8N_API_KEY", new)
         n8n.key = new
@@ -369,8 +396,11 @@ def setup_credential(n8n: N8n) -> str:
 
 
 def webhook_paths(wf: dict) -> set[str]:
-    return {n.get("parameters", {}).get("path", "") for n in wf.get("nodes", [])
-            if n.get("type") == "n8n-nodes-base.webhook"} - {""}
+    return {
+        n.get("parameters", {}).get("path", "")
+        for n in wf.get("nodes", [])
+        if n.get("type") == "n8n-nodes-base.webhook"
+    } - {""}
 
 
 def free_webhook_paths(n8n: N8n, body: dict, wid: str) -> None:
@@ -426,8 +456,10 @@ def import_workflows(n8n: N8n, cred_id: str, force: bool = False) -> bool:
                 fail(f"{rel}: import failed ({r.status_code}): {r.text[:200]}")
                 good = False
             else:
-                warn(f"{body['name']}: imported, not active (no OpenAI credential). Activate after the key "
-                     "is set: put OPENAI_API_KEY in .env, then make setup")
+                warn(
+                    f"{body['name']}: imported, not active (no OpenAI credential). Activate after the key "
+                    "is set: put OPENAI_API_KEY in .env, then make setup"
+                )
             continue
         if old is None:
             r = n8n.api("POST", "/workflows", body)
@@ -446,9 +478,11 @@ def import_workflows(n8n: N8n, cred_id: str, force: bool = False) -> bool:
                 remember_import(body["name"], body)
             elif not force and imported_hashes().get(body["name"]) != workflow_hash(full):
                 # n8n is not what setup put there last: someone edited it in the editor. Keep it.
-                warn(f"{body['name']}: n8n has edits that are not in {rel}. Kept the n8n version.\n"
-                     f"        Save them to the file: make n8n-export UC={uc_name}  (then commit {rel})\n"
-                     f"        Or throw them away and load the file: make setup FORCE=1")
+                warn(
+                    f"{body['name']}: n8n has edits that are not in {rel}. Kept the n8n version.\n"
+                    f"        Save them to the file: make n8n-export UC={uc_name}  (then commit {rel})\n"
+                    f"        Or throw them away and load the file: make setup FORCE=1"
+                )
                 if full.get("active"):
                     continue
                 state = "kept (n8n edits)"
@@ -482,14 +516,17 @@ def import_workflows(n8n: N8n, cred_id: str, force: bool = False) -> bool:
 
 # ---------- step 3: Langfuse ----------
 
+
 def setup_langfuse() -> bool:
     s = settings()
     print(f"Langfuse ({s.langfuse_mode}, {s.langfuse_host})")
     if s.langfuse_mode == "off":
         ok("off: no traces. The runner and the evals work the same")
         return True
-    switch = ("To go on without local Langfuse, set in .env: LANGFUSE=off (no traces), or LANGFUSE=hosted with "
-              "LANGFUSE_HOST and the keys from the trainer. Then run make up and make setup again")
+    switch = (
+        "To go on without local Langfuse, set in .env: LANGFUSE=off (no traces), or LANGFUSE=hosted with "
+        "LANGFUSE_HOST and the keys from the trainer. Then run make up and make setup again"
+    )
 
     def healthy() -> bool:
         try:
@@ -501,8 +538,9 @@ def setup_langfuse() -> bool:
         fail(f"Langfuse is not healthy at {s.langfuse_host}. See make logs. {switch}")
         return False
     try:
-        r = httpx.get(f"{s.langfuse_host}/api/public/projects", timeout=10,
-                      auth=(s.langfuse_public_key, s.langfuse_secret_key))
+        r = httpx.get(
+            f"{s.langfuse_host}/api/public/projects", timeout=10, auth=(s.langfuse_public_key, s.langfuse_secret_key)
+        )
     except httpx.HTTPError as e:
         fail(f"Langfuse key check failed: {type(e).__name__}")
         return False
@@ -526,7 +564,9 @@ def summary() -> None:
     else:
         print(f"  n8n        {s.n8n_url}   (hosted)")
     if s.langfuse_mode == "local":
-        print(f"  Langfuse   {s.langfuse_host}   login {s.langfuse_user_email}, password LANGFUSE_INIT_USER_PASSWORD in .env")
+        print(
+            f"  Langfuse   {s.langfuse_host}   login {s.langfuse_user_email}, password LANGFUSE_INIT_USER_PASSWORD in .env"
+        )
     elif s.langfuse_mode == "hosted":
         print(f"  Langfuse   {s.langfuse_host}   (hosted)")
     else:
@@ -562,12 +602,16 @@ NEXT_STEP = {
 # Python failures: the OpenAI error in the message says what is wrong. First match wins.
 PYTHON_HINTS = [
     (("AuthenticationError", "Error code: 401"), "check OPENAI_API_KEY in .env (make setup tests the key)"),
-    (("APIConnectionError", "APITimeoutError", "Connection error"),
-     "the model API does not answer: check OPENAI_API_KEY and OPENAI_BASE_URL in .env, and your network"),
+    (
+        ("APIConnectionError", "APITimeoutError", "Connection error"),
+        "the model API does not answer: check OPENAI_API_KEY and OPENAI_BASE_URL in .env, and your network",
+    ),
     (("RateLimitError", "Error code: 429"), "rate limit or no credit: wait a minute, or check the credit of your key"),
-    (("BadRequestError", "PermissionDeniedError", "NotFoundError", "Error code: 4"),
-     "the model API refused the call: check KIT_MODEL (the model name; your key or gateway must have it) "
-     "and the API call in python/agent.py"),
+    (
+        ("BadRequestError", "PermissionDeniedError", "NotFoundError", "Error code: 4"),
+        "the model API refused the call: check KIT_MODEL (the model name; your key or gateway must have it) "
+        "and the API call in python/agent.py",
+    ),
 ]
 
 
@@ -597,6 +641,7 @@ def check() -> int:
         print(f"Using the tools server that already runs on :{s.tools_port}.")
     else:
         from kit import tools
+
         try:
             tools.start_background()
             print(f"Started the tools server on :{s.tools_port} for this check (it stops when the check ends).")
@@ -625,8 +670,10 @@ def check() -> int:
                 bad += 1
                 continue
             if engine == "n8n" and not s.openai_api_key and s.n8n_mode == "local":
-                print(f"FAIL  {label}: no OPENAI_API_KEY, so the workflow is not active. "
-                      "Next: put the key in .env, then make setup")
+                print(
+                    f"FAIL  {label}: no OPENAI_API_KEY, so the workflow is not active. "
+                    "Next: put the key in .env, then make setup"
+                )
                 bad += 1
                 continue
             try:
@@ -640,8 +687,10 @@ def check() -> int:
                 print(f"OK    {label}")
                 continue
             reason = case.get("error") or "; ".join(
-                f"{c['type']} {c.get('field', '')}: {c.get('reason', '')}" for c in case.get("checks", [])
-                if c.get("passed") is False)
+                f"{c['type']} {c.get('field', '')}: {c.get('reason', '')}"
+                for c in case.get("checks", [])
+                if c.get("passed") is False
+            )
             if case.get("error"):
                 bad += 1
                 print(f"FAIL  {label}: {reason}. Next: {next_step(engine, reason, uc, first)}")
@@ -652,6 +701,7 @@ def check() -> int:
 
 
 # ---------- kit n8n-export ----------
+
 
 def same_order(new, old):
     """`new` with its keys in the order of `old` (nodes matched by name), so git diff shows only real changes."""
@@ -685,7 +735,8 @@ def n8n_export(only_uc: str = "") -> int:
             old, name = {}, ""
         # The workflow with the same name, else the active one on the webhook path <uc>.
         hit = next((w for w in flows if w["name"] == name), None) or next(
-            (w for w in flows if w.get("active") and uc in webhook_paths(w)), None)
+            (w for w in flows if w.get("active") and uc in webhook_paths(w)), None
+        )
         if hit is None:
             print(f"FAIL  {uc}: no workflow '{name}' (or webhook path '{uc}') in n8n")
             bad += 1
@@ -696,8 +747,10 @@ def n8n_export(only_uc: str = "") -> int:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(wf, indent=2, ensure_ascii=False) + "\n")
         remember_import(full["name"], full)  # n8n and the file are the same now
-        print(f"OK    {uc}: '{full['name']}' from n8n -> {path.relative_to(ROOT)}. Look at it with git diff, "
-              "then commit it")
+        print(
+            f"OK    {uc}: '{full['name']}' from n8n -> {path.relative_to(ROOT)}. Look at it with git diff, "
+            "then commit it"
+        )
     return 1 if bad else 0
 
 

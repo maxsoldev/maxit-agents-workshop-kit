@@ -1,4 +1,5 @@
 """The schema check and the check types (contracts §3). Each returns {"type", "field", "passed", "reason"}."""
+
 from __future__ import annotations
 
 import json
@@ -53,8 +54,10 @@ def schema_words(error, where: str) -> str:
     if error.validator == "additionalProperties" and isinstance(error.instance, dict):
         extra = [k for k in error.instance if k not in (error.schema.get("properties") or {})]
         names = ", ".join(f"`{prefix}{k}`" for k in extra)
-        return (f"the agent added a field that is not in the schema: {names}. Tell the agent to use only the "
-                f"fields of output_schema, or add the field to output.schema.json")
+        return (
+            f"the agent added a field that is not in the schema: {names}. Tell the agent to use only the "
+            f"fields of output_schema, or add the field to output.schema.json"
+        )
     if error.validator == "required" and isinstance(error.instance, dict):
         missing = [k for k in error.validator_value if k not in error.instance]
         return f"the field {', '.join(f'`{prefix}{k}`' for k in missing)} is missing"
@@ -104,7 +107,9 @@ def run_check(check: dict, output, expected: dict, case_input: dict, tool_calls:
         return _every_item(check, output, expected, case_input, tool_calls)
     got = get_field(output, field)
     if got is MISSING and kind == "not_contains":  # nothing there, so the value is not there either
-        return result(kind, field, True, f"`{field}` is missing or empty, so it does not have {short(check.get('value'))}")
+        return result(
+            kind, field, True, f"`{field}` is missing or empty, so it does not have {short(check.get('value'))}"
+        )
     if got is MISSING:
         return result(kind, field, False, f"`{field}` is missing in the result")
 
@@ -117,7 +122,9 @@ def run_check(check: dict, output, expected: dict, case_input: dict, tool_calls:
     if kind == "in":
         values = check.get("values", [])
         ok = got in values
-        return result(kind, field, ok, f"got {short(got)}" if ok else f"got {short(got)}, expected one of {short(values)}")
+        return result(
+            kind, field, ok, f"got {short(got)}" if ok else f"got {short(got)}, expected one of {short(values)}"
+        )
     if kind in ("contains", "not_contains"):
         value = check.get("value")
         found = _contains(got, value)
@@ -143,13 +150,18 @@ def run_check(check: dict, output, expected: dict, case_input: dict, tool_calls:
         if not got:
             return result(kind, field, False, f"`{field}` is empty, so no item matches {want}")
         best = min(range(len(got)), key=lambda i: len(misses[i]))  # the item that is closest
-        return result(kind, field, False, f"no item of {len(got)} matches {want}; closest is item {best + 1}: "
-                                          + ", ".join(misses[best]))
+        return result(
+            kind,
+            field,
+            False,
+            f"no item of {len(got)} matches {want}; closest is item {best + 1}: " + ", ".join(misses[best]),
+        )
     if kind == "judge":
         minimum = check.get("min", 4)
         try:
-            score, reason = with_deadline(lambda: judge.score(got, check.get("rubric", ""), case_input, tool_calls),
-                                          JUDGE_DEADLINE_S)
+            score, reason = with_deadline(
+                lambda: judge.score(got, check.get("rubric", ""), case_input, tool_calls), JUDGE_DEADLINE_S
+            )
         except Exception as e:  # no key, API error, timeout: the judge did not run, so it neither passes nor fails
             return {**result(kind, field, None, f"judge skipped: {e}"), "skipped": True}
         return result(kind, field, score >= minimum, f"score {score}/5 (min {minimum}): {reason}")
@@ -162,17 +174,22 @@ def _every_item(check: dict, output, expected: dict, case_input: dict, tool_call
     kind, field = check.get("type", "?"), check["field"]
     parts = field.split(".")
     star = parts.index("*")
-    base, rest = ".".join(parts[:star]), ".".join(parts[star + 1:])
+    base, rest = ".".join(parts[:star]), ".".join(parts[star + 1 :])
     items = get_field(output, base)
     if items is MISSING and kind == "not_contains":
         return result(kind, field, True, f"`{base}` is missing, so it does not have {short(check.get('value'))}")
     if not isinstance(items, list):
-        return result(kind, field, False, f"`{base}` is missing in the result" if items is MISSING
-                      else f"`{base}` is not a list: {short(items)}")
+        return result(
+            kind,
+            field,
+            False,
+            f"`{base}` is missing in the result" if items is MISSING else f"`{base}` is not a list: {short(items)}",
+        )
     for i, item in enumerate(items):
         exp = get_field(expected, f"{base}.{i}" if base else str(i))
-        sub = run_check({**check, "field": rest}, item, exp if not rest or isinstance(exp, dict) else {}, case_input,
-                        tool_calls)
+        sub = run_check(
+            {**check, "field": rest}, item, exp if not rest or isinstance(exp, dict) else {}, case_input, tool_calls
+        )
         if sub["passed"] is None:
             return {**result(kind, field, None, sub["reason"]), "skipped": True}
         if not sub["passed"]:
@@ -183,5 +200,6 @@ def _every_item(check: dict, output, expected: dict, case_input: dict, tool_call
 def run_checks(case: dict, output, schema: dict, case_input: dict, tool_calls: list | None = None) -> list[dict]:
     """The schema check first, then the case checks."""
     expected = case.get("expected", {})
-    return [schema_check(output, schema)] + [run_check(c, output, expected, case_input, tool_calls)
-                                             for c in case.get("checks", [])]
+    return [schema_check(output, schema)] + [
+        run_check(c, output, expected, case_input, tool_calls) for c in case.get("checks", [])
+    ]

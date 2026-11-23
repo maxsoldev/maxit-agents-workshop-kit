@@ -2,6 +2,7 @@
 
 Every part of the kit (UI, runner, tools, setup) reads its settings from here, not from os.environ directly.
 """
+
 from __future__ import annotations
 
 import os
@@ -40,22 +41,22 @@ def _env(name: str, default: str = "") -> str:
 class Settings:
     openai_api_key: str
     openai_base_url: str  # empty = OpenAI; else any OpenAI-compatible gateway (LiteLLM, Azure, company proxy)
-    model: str           # default model for scaffolds and engines that read it
-    judge_model: str      # model for `judge` checks
+    model: str  # default model for scaffolds and engines that read it
+    judge_model: str  # model for `judge` checks
     ui_port: int
     tools_port: int
-    n8n_mode: str         # local | hosted
-    n8n_url: str          # base URL, e.g. http://localhost:5702
-    n8n_api_key: str      # written by `kit setup` for local; given by the trainer for hosted
+    n8n_mode: str  # local | hosted
+    n8n_url: str  # base URL, e.g. http://localhost:5702
+    n8n_api_key: str  # written by `kit setup` for local; given by the trainer for hosted
     n8n_owner_email: str  # local: owner login that `kit setup` creates
     n8n_owner_password: str
     n8n_openai_credential_id: str  # written by `kit setup`: the n8n credential made from OPENAI_API_KEY
-    langfuse_mode: str    # local | hosted | off
+    langfuse_mode: str  # local | hosted | off
     langfuse_host: str
     langfuse_public_key: str
     langfuse_secret_key: str
     langfuse_user_email: str  # local: the login Langfuse creates at first start
-    trains_url: str       # our MOTIS; empty = use the fallback only
+    trains_url: str  # our MOTIS; empty = use the fallback only
     trains_fallback_url: str
     engines: tuple[str, ...]  # KIT_ENGINES: the engines this team uses (default all); setup and check skip the rest
 
@@ -118,4 +119,6 @@ def parse_engines(text: str) -> tuple[str, ...]:
 
 def usecases() -> list[str]:
     """Use case folders that have a cases.jsonl."""
-    return sorted(p.name for p in USECASES_DIR.iterdir() if (p / "cases.jsonl").exists()) if USECASES_DIR.exists() else []
+    return (
+        sorted(p.name for p in USECASES_DIR.iterdir() if (p / "cases.jsonl").exists()) if USECASES_DIR.exists() else []
+    )

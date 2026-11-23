@@ -1,4 +1,5 @@
 """German date ranges from the event overview, e.g. `14.01.2027`, `02.–03.02.2027`, `30.06.–02.07.2027`."""
+
 from __future__ import annotations
 
 import re

@@ -1,4 +1,5 @@
 """`kit eval UC ENGINE`: run an eval and print one line per case and the summary."""
+
 from __future__ import annotations
 
 import sys
@@ -13,8 +14,9 @@ def _label(check: dict) -> str:
     return f"{check['type']}{where}: {check['reason']}"
 
 
-def main(usecase: str, engine: str, case_ids: list[str] | None = None, name: str | None = None,
-         holdout: bool = False) -> int:
+def main(
+    usecase: str, engine: str, case_ids: list[str] | None = None, name: str | None = None, holdout: bool = False
+) -> int:
     """Exit 0 when the run ran (also if cases fail); 1 only if it could not start."""
     lock, done = threading.Lock(), [0]
 
@@ -79,6 +81,7 @@ def run_one(usecase: str, engine: str, case_id: str) -> int:
     print(f"Running {usecase}/{case_id} on {engine} ...", file=sys.stderr, flush=True)
     res = run_case(usecase, engine, case, schema, run_id, "run-case")
     from kit.runner import tracing
+
     tracing.flush()
 
     def block(title: str, value) -> None:
@@ -99,5 +102,8 @@ def run_one(usecase: str, engine: str, case_id: str) -> int:
     for c in res["checks"]:
         mark = "–" if c.get("skipped") else ("✓" if c["passed"] else "✗")
         print(f"{mark} {_label(c)}")
-    print(f"\n{'PASS' if res['passed'] else 'FAIL'}  {res['seconds']} s" + (f"  trace: {res['trace_url']}" if res.get("trace_url") else ""))
+    print(
+        f"\n{'PASS' if res['passed'] else 'FAIL'}  {res['seconds']} s"
+        + (f"  trace: {res['trace_url']}" if res.get("trace_url") else "")
+    )
     return 0

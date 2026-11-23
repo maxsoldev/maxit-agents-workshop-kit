@@ -2,6 +2,7 @@
 
 Start it with `uv run kit serve` (port 5700). All case and run data goes through `kit.runner`.
 """
+
 from __future__ import annotations
 
 import email
@@ -11,8 +12,8 @@ import importlib
 import json
 import re
 import threading
-from urllib.parse import quote
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -39,6 +40,7 @@ def runner():
 
 # ---------- helpers ----------
 
+
 def usecases() -> list[str]:
     """Use case folders: each one with a cases.jsonl or a data/ folder."""
     root = config.USECASES_DIR
@@ -56,11 +58,15 @@ def uc_dir(uc: str) -> Path:
 def data_files(uc: str) -> list[str]:
     """All files in usecases/<uc>/data, as paths relative to the use case folder."""
     base = uc_dir(uc)
-    return sorted(str(p.relative_to(base)) for p in (base / "data").rglob("*") if p.is_file() and not p.name.startswith("."))
+    return sorted(
+        str(p.relative_to(base)) for p in (base / "data").rglob("*") if p.is_file() and not p.name.startswith(".")
+    )
 
 
 # A chat message starts with a head line like "Priya Nair  18.11.2026, 10:30" (name, 2+ spaces, date, time).
-MESSAGE_HEAD = re.compile(r"^(?P<who>\S.*?)\s{2,}(?P<d>\d{1,2})\.(?P<m>\d{1,2})\.(?P<y>\d{4}),? (?P<t>\d{1,2}:\d{2})\s*$")
+MESSAGE_HEAD = re.compile(
+    r"^(?P<who>\S.*?)\s{2,}(?P<d>\d{1,2})\.(?P<m>\d{1,2})\.(?P<y>\d{4}),? (?P<t>\d{1,2}:\d{2})\s*$"
+)
 
 
 def chat_messages(path: Path) -> list[dict]:
@@ -103,11 +109,19 @@ def input_picks(uc: str) -> list[dict]:
             channel = path.stem.split("_")[0]  # mattermost_messages.txt -> mattermost
             for m in messages:
                 first = " ".join(m["text"].splitlines()[1:])[:70]
-                picks.append({"label": f"{channel}: {m['who']}, {m['date']}: {first}", "kind": "message",
-                              "channel": channel, "text": m["text"], "date": m["date"]})
+                picks.append(
+                    {
+                        "label": f"{channel}: {m['who']}, {m['date']}: {first}",
+                        "kind": "message",
+                        "channel": channel,
+                        "text": m["text"],
+                        "date": m["date"],
+                    }
+                )
             continue
-        picks.append({"label": rel, "kind": "file", "path": rel,
-                      "date": email_date(path) if path.suffix == ".eml" else ""})
+        picks.append(
+            {"label": rel, "kind": "file", "path": rel, "date": email_date(path) if path.suffix == ".eml" else ""}
+        )
     return picks
 
 
@@ -126,6 +140,7 @@ def field_words(path: str) -> str:
 
 def check_words(c: dict, expected: dict) -> str:
     """One check in words, e.g. `is "leave"`, `has 1 to 3 items`, `does not contain "@"`."""
+
     def v(x):
         return json.dumps(x, ensure_ascii=False)
 
@@ -135,8 +150,11 @@ def check_words(c: dict, expected: dict) -> str:
             return f"is {v(c['value'])}"
         want = expected
         for part in (c.get("field") or "").split("."):
-            want = want.get(part) if isinstance(want, dict) else (
-                want[int(part)] if isinstance(want, list) and part.isdigit() and int(part) < len(want) else None)
+            want = (
+                want.get(part)
+                if isinstance(want, dict)
+                else (want[int(part)] if isinstance(want, list) and part.isdigit() and int(part) < len(want) else None)
+            )
         return f"is {v(want)} (from expected)" if want is not None else "is … (no expected value: add one)"
     if t == "in":
         return "is one of " + ", ".join(v(x) for x in c.get("values") or [])
@@ -183,8 +201,13 @@ def safe_file(uc: str, rel: str) -> Path | None:
 def read_email(path: Path) -> dict:
     msg = email.message_from_bytes(path.read_bytes(), policy=email.policy.default)
     body = msg.get_body(preferencelist=("plain", "html"))
-    return {"from": str(msg["from"] or ""), "to": str(msg["to"] or ""), "date": str(msg["date"] or ""),
-            "subject": str(msg["subject"] or ""), "body": body.get_content() if body else ""}
+    return {
+        "from": str(msg["from"] or ""),
+        "to": str(msg["to"] or ""),
+        "date": str(msg["date"] or ""),
+        "subject": str(msg["subject"] or ""),
+        "body": body.get_content() if body else "",
+    }
 
 
 def file_previews(uc: str, data: dict | None) -> list[dict]:
@@ -226,8 +249,14 @@ templates.env.globals["check_words"] = check_words
 
 def page(request: Request, name: str, uc: str | None = None, status: int = 200, **ctx) -> HTMLResponse:
     s = config.settings()
-    ctx.update(request=request, uc=uc, usecases=usecases(), engines=config.ENGINES, settings=s,
-               langfuse_link=s.langfuse_mode != "off")
+    ctx.update(
+        request=request,
+        uc=uc,
+        usecases=usecases(),
+        engines=config.ENGINES,
+        settings=s,
+        langfuse_link=s.langfuse_mode != "off",
+    )
     response = templates.TemplateResponse(request, name, ctx, status_code=status)
     if uc and uc in ctx["usecases"]:
         response.set_cookie(LAST_UC_COOKIE, uc, max_age=60 * 60 * 24 * 365, samesite="lax")  # `/` opens it next time
@@ -249,6 +278,7 @@ def load_cases_safe(uc: str) -> tuple[list[dict], str | None]:
 
 # ---------- pages ----------
 
+
 @app.get("/")
 def index(request: Request):
     """The use case you used last (a cookie), else the first one."""
@@ -261,8 +291,14 @@ def index(request: Request):
 @app.get("/uc/{uc}/cases", response_class=HTMLResponse)
 def cases_page(request: Request, uc: str):
     cases, error = load_cases_safe(uc)
-    rows = [{"case": c, "files": file_previews(uc, c.get("input")),
-             "rest": {k: v for k, v in (c.get("input") or {}).items() if not k.endswith("_file")}} for c in cases]
+    rows = [
+        {
+            "case": c,
+            "files": file_previews(uc, c.get("input")),
+            "rest": {k: v for k, v in (c.get("input") or {}).items() if not k.endswith("_file")},
+        }
+        for c in cases
+    ]
     return page(request, "cases.html", uc, rows=rows, error=error)
 
 
@@ -287,18 +323,33 @@ def case_edit(request: Request, uc: str, case_id: str):
 
 def case_form(request, uc, case, original_id, errors=None, raw=None, status=200):
     """The add / edit form. `raw` keeps the text the user typed when it did not parse."""
-    raw = raw or {"input": json.dumps(case.get("input", {}), indent=2, ensure_ascii=False),
-                  "expected": json.dumps(case.get("expected", {}), indent=2, ensure_ascii=False)}
-    checks = [{"type": c.get("type", "equals"), "field": c.get("field", ""), "arg": check_arg(c),
-               "min": c.get("min", "")} for c in case.get("checks", [])] \
-        or [{"type": "equals", "field": "", "arg": "", "min": ""}]  # one empty row to start with
+    raw = raw or {
+        "input": json.dumps(case.get("input", {}), indent=2, ensure_ascii=False),
+        "expected": json.dumps(case.get("expected", {}), indent=2, ensure_ascii=False),
+    }
+    checks = [
+        {"type": c.get("type", "equals"), "field": c.get("field", ""), "arg": check_arg(c), "min": c.get("min", "")}
+        for c in case.get("checks", [])
+    ] or [{"type": "equals", "field": "", "arg": "", "min": ""}]  # one empty row to start with
     cases = load_cases_safe(uc)[0]
     picks = input_picks(uc)
     has_messages = any(p["kind"] == "message" for p in picks) or any("message" in (c.get("input") or {}) for c in cases)
-    return page(request, "case_form.html", uc, status=status, case=case, original_id=original_id, raw=raw,
-                checks=checks, errors=errors or [], picks=picks, has_messages=has_messages, check_types=CHECK_TYPES,
-                hints=case_hints(uc, cases),
-                previews=file_previews(uc, case.get("input") if isinstance(case.get("input"), dict) else {}))
+    return page(
+        request,
+        "case_form.html",
+        uc,
+        status=status,
+        case=case,
+        original_id=original_id,
+        raw=raw,
+        checks=checks,
+        errors=errors or [],
+        picks=picks,
+        has_messages=has_messages,
+        check_types=CHECK_TYPES,
+        hints=case_hints(uc, cases),
+        previews=file_previews(uc, case.get("input") if isinstance(case.get("input"), dict) else {}),
+    )
 
 
 def check_arg(c: dict) -> str:
@@ -343,7 +394,9 @@ def parse_check(t: str, field: str, arg: str, min_: str) -> dict:
         except json.JSONDecodeError:
             data = arg  # validate_case reports it
         if t == "count":
-            c.update({"equals": data} if isinstance(data, int) else data if isinstance(data, dict) else {"equals": data})
+            c.update(
+                {"equals": data} if isinstance(data, int) else data if isinstance(data, dict) else {"equals": data}
+            )
         elif isinstance(data, dict) and not ({"where", "contains"} & set(data)):
             c["where"] = data
         elif isinstance(data, dict):
@@ -367,17 +420,23 @@ async def case_save(request: Request, uc: str):
         try:
             case[key] = json.loads(raw[key] or "{}")
         except json.JSONDecodeError as e:
-            errors.append(f"{key.capitalize()} is not valid JSON (line {e.lineno}, column {e.colno}). Put double "
-                          f'quotes " around names and texts, e.g. {{"category": "spam"}}, and a comma between two '
-                          f"items. (Detail: {e.msg})")
+            errors.append(
+                f"{key.capitalize()} is not valid JSON (line {e.lineno}, column {e.colno}). Put double "
+                f'quotes " around names and texts, e.g. {{"category": "spam"}}, and a comma between two '
+                f"items. (Detail: {e.msg})"
+            )
             case[key] = {}
     if not case["title"]:
-        errors.append("Title is empty: give the case a short name, e.g. \"Unknown fund wants a call\"")
+        errors.append('Title is empty: give the case a short name, e.g. "Unknown fund wants a call"')
     if raw["input"].strip() in ("", "{}"):
         errors.append("Input is empty: pick an email or a message and click Add to input, or paste a message")
-    case["checks"] = [parse_check(str(t), str(fl), str(a), str(m)) for t, fl, a, m in
-                      zip(f.getlist("check_type"), f.getlist("check_field"), f.getlist("check_arg"), f.getlist("check_min"))
-                      if str(t) and (str(fl).strip() or str(a).strip())]
+    case["checks"] = [
+        parse_check(str(t), str(fl), str(a), str(m))
+        for t, fl, a, m in zip(
+            f.getlist("check_type"), f.getlist("check_field"), f.getlist("check_arg"), f.getlist("check_min")
+        )
+        if str(t) and (str(fl).strip() or str(a).strip())
+    ]
     original_id = str(f.get("original_id", ""))
 
     cases, load_error = load_cases_safe(uc)
@@ -429,12 +488,13 @@ async def input_previews(request: Request, uc: str):
 
 # ---------- run ----------
 
-JOBS: dict[tuple[str, str], dict] = {}   # (uc, engine) -> live state of the last run
+JOBS: dict[tuple[str, str], dict] = {}  # (uc, engine) -> live state of the last run
 JOBS_LOCK = threading.Lock()
 
 
-def start_job(uc: str, engine: str, case_ids: list[str] | None, name: str | None, cases: list[dict],
-              holdout: bool = False) -> str | None:
+def start_job(
+    uc: str, engine: str, case_ids: list[str] | None, name: str | None, cases: list[dict], holdout: bool = False
+) -> str | None:
     """Start a run in a background thread. Returns an error text if one runs already."""
     with JOBS_LOCK:
         old = JOBS.get((uc, engine))
@@ -444,8 +504,14 @@ def start_job(uc: str, engine: str, case_ids: list[str] | None, name: str | None
             picked = [c for c in cases if c.get("id") in case_ids]
         else:  # the runner skips holdout cases unless asked
             picked = [c for c in cases if holdout or not c.get("holdout")]
-        job = {"engine": engine, "name": name or "", "done": False, "error": None, "run_id": None,
-               "cases": [{"id": c.get("id"), "title": c.get("title", ""), "status": "waiting"} for c in picked]}
+        job = {
+            "engine": engine,
+            "name": name or "",
+            "done": False,
+            "error": None,
+            "run_id": None,
+            "cases": [{"id": c.get("id"), "title": c.get("title", ""), "status": "waiting"} for c in picked],
+        }
         JOBS[(uc, engine)] = job
 
     def on_progress(ev: dict):
@@ -457,8 +523,7 @@ def start_job(uc: str, engine: str, case_ids: list[str] | None, name: str | None
 
     def work():
         try:
-            run = runner().run_eval(uc, engine, case_ids=case_ids, name=name, on_progress=on_progress,
-                                    holdout=holdout)
+            run = runner().run_eval(uc, engine, case_ids=case_ids, name=name, on_progress=on_progress, holdout=holdout)
             job["run_id"] = run.get("run_id")
         except Exception as e:
             job["error"] = f"{type(e).__name__}: {e}"
@@ -484,8 +549,16 @@ def default_engine(uc: str) -> str:
 def run_page(request: Request, uc: str, engine: str = "", error: str = ""):
     cases, load_error = load_cases_safe(uc)
     jobs = {e: JOBS[(uc, e)] for e in config.ENGINES if (uc, e) in JOBS}
-    return page(request, "run.html", uc, cases=cases, error=error or load_error, jobs=jobs,
-                engine=engine or default_engine(uc), run_engines=config.settings().engines)
+    return page(
+        request,
+        "run.html",
+        uc,
+        cases=cases,
+        error=error or load_error,
+        jobs=jobs,
+        engine=engine or default_engine(uc),
+        run_engines=config.settings().engines,
+    )
 
 
 @app.post("/uc/{uc}/run")
@@ -497,8 +570,9 @@ async def run_start(request: Request, uc: str):
     cases, error = load_cases_safe(uc)
     ids = [str(i) for i in f.getlist("case")] or None
     if not error:
-        error = start_job(uc, engine, ids, str(f.get("name", "")).strip() or None, cases,
-                          holdout=bool(f.get("holdout")))
+        error = start_job(
+            uc, engine, ids, str(f.get("name", "")).strip() or None, cases, holdout=bool(f.get("holdout"))
+        )
     url = f"/uc/{uc}/run?engine={engine}" + (f"&error={quote(error)}" if error else "")
     return RedirectResponse(url, status_code=303)
 
@@ -549,8 +623,11 @@ def compare_cases(run: dict, other: dict | None) -> dict:
 def changed_cases(run: dict, other: dict | None) -> set:
     """Ids of cases that are not the same case in both runs (input, expected or checks changed)."""
     before = {c.get("id"): c.get("case_hash") for c in (other or {}).get("cases", [])}
-    return {c.get("id") for c in run.get("cases", [])
-            if c.get("case_hash") and before.get(c.get("id")) and before[c.get("id")] != c["case_hash"]}
+    return {
+        c.get("id")
+        for c in run.get("cases", [])
+        if c.get("case_hash") and before.get(c.get("id")) and before[c.get("id")] != c["case_hash"]
+    }
 
 
 def default_compare(run: dict, others: list[dict]) -> str:
@@ -586,13 +663,25 @@ def results_page(request: Request, run_id: str, vs: str = ""):
     counts["changed"] = len(changed)
     for c in run.get("cases", []):
         c["_first_fail"] = c.get("error") or next(
-            (ch.get("reason") for ch in c.get("checks", []) if ch.get("passed") is False), None)
+            (ch.get("reason") for ch in c.get("checks", []) if ch.get("passed") is False), None
+        )
         c["_files"] = file_previews(uc, c.get("input")) if uc in usecases() else []
-    return page(request, "results.html", uc if uc in usecases() else None, run=run, others=others, vs=vs,
-                other=other, changes=changes, counts=counts, changed=changed)
+    return page(
+        request,
+        "results.html",
+        uc if uc in usecases() else None,
+        run=run,
+        others=others,
+        vs=vs,
+        other=other,
+        changes=changes,
+        counts=counts,
+        changed=changed,
+    )
 
 
 # ---------- docs ----------
+
 
 def doc_files() -> dict[str, Path]:
     """Readable docs: README, docs/*.md and each use case BRIEF.md."""
@@ -624,8 +713,10 @@ def serve() -> int:
         with socket.socket() as sock:
             sock.settimeout(1)
             if sock.connect_ex(("127.0.0.1", port)) == 0:
-                print(f"ERROR: port {port} ({what}) is taken. Is another `make serve`, `make check` or `kit tools` "
-                      f"running? Stop it, then run make serve again.")
+                print(
+                    f"ERROR: port {port} ({what}) is taken. Is another `make serve`, `make check` or `kit tools` "
+                    f"running? Stop it, then run make serve again."
+                )
                 return 1
     try:
         tools.start_background()

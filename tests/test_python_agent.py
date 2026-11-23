@@ -1,4 +1,5 @@
 """The Python scaffold agents with a fake OpenAI server (no network): the Responses API tool loop."""
+
 from __future__ import annotations
 
 import asyncio
@@ -28,8 +29,11 @@ class FakeTools:
         self.calls = []
 
     async def list_tools(self):
-        tool = types.SimpleNamespace(name="rules_get", description="Read a rule file.",
-                                     input_schema={"type": "object", "properties": {"name": {"type": "string"}}})
+        tool = types.SimpleNamespace(
+            name="rules_get",
+            description="Read a rule file.",
+            input_schema={"type": "object", "properties": {"name": {"type": "string"}}},
+        )
         return types.SimpleNamespace(tools=[tool])
 
     async def call_tool(self, name, args):
@@ -45,17 +49,42 @@ def fake_openai(requests: list[dict]):
         requests.append(body)
         n = len(requests)
         if n == 1:
-            output = [{"type": "function_call", "id": "fc_1", "call_id": "call_1", "name": "rules_get",
-                       "arguments": '{"name": "process"}', "status": "completed"}]
+            output = [
+                {
+                    "type": "function_call",
+                    "id": "fc_1",
+                    "call_id": "call_1",
+                    "name": "rules_get",
+                    "arguments": '{"name": "process"}',
+                    "status": "completed",
+                }
+            ]
         else:
             text = "done" if n == 2 else '{"ok": true}'
-            output = [{"type": "message", "id": f"msg_{n}", "role": "assistant", "status": "completed",
-                       "content": [{"type": "output_text", "text": text, "annotations": []}]}]
-        return httpx.Response(200, json={"id": f"resp_{n}", "object": "response", "created_at": 0,
-                                         "model": body["model"], "status": "completed", "output": output})
+            output = [
+                {
+                    "type": "message",
+                    "id": f"msg_{n}",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [{"type": "output_text", "text": text, "annotations": []}],
+                }
+            ]
+        return httpx.Response(
+            200,
+            json={
+                "id": f"resp_{n}",
+                "object": "response",
+                "created_at": 0,
+                "model": body["model"],
+                "status": "completed",
+                "output": output,
+            },
+        )
 
-    return openai.OpenAI(api_key="test", base_url="http://fake/v1",
-                         http_client=httpx.Client(transport=httpx.MockTransport(handle)))
+    return openai.OpenAI(
+        api_key="test", base_url="http://fake/v1", http_client=httpx.Client(transport=httpx.MockTransport(handle))
+    )
 
 
 @pytest.mark.parametrize("uc", ["marketing", "travel"])
@@ -86,13 +115,28 @@ def test_agent_without_tools_sends_no_tool_list(monkeypatch):
 
     def handle(request: httpx.Request) -> httpx.Response:
         requests.append(json.loads(request.content))
-        msg = {"type": "message", "id": "m", "role": "assistant", "status": "completed",
-               "content": [{"type": "output_text", "text": '{"ok": 1}', "annotations": []}]}
-        return httpx.Response(200, json={"id": "r", "object": "response", "created_at": 0, "model": "m",
-                                         "status": "completed", "output": [msg]})
+        msg = {
+            "type": "message",
+            "id": "m",
+            "role": "assistant",
+            "status": "completed",
+            "content": [{"type": "output_text", "text": '{"ok": 1}', "annotations": []}],
+        }
+        return httpx.Response(
+            200,
+            json={
+                "id": "r",
+                "object": "response",
+                "created_at": 0,
+                "model": "m",
+                "status": "completed",
+                "output": [msg],
+            },
+        )
 
-    client = openai.OpenAI(api_key="test", base_url="http://fake/v1",
-                           http_client=httpx.Client(transport=httpx.MockTransport(handle)))
+    client = openai.OpenAI(
+        api_key="test", base_url="http://fake/v1", http_client=httpx.Client(transport=httpx.MockTransport(handle))
+    )
     monkeypatch.setattr(agent, "OpenAI", lambda: client)
     assert asyncio.run(agent.run({"today": "x", "input": {}, "output_schema": {}}, None)) == {"ok": 1}
     assert all("tools" not in r and "tool_choice" not in r for r in requests)

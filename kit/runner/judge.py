@@ -1,4 +1,5 @@
 """LLM judge: an OpenAI model scores one result field 1-5 against a rubric."""
+
 from __future__ import annotations
 
 import json
@@ -18,8 +19,11 @@ OUTPUT_LIMIT = 1500  # characters of one tool result
 
 def tools_text(tool_calls: list[dict] | None) -> str:
     """The tool calls as short text for the judge: name, input, start of the result. Cut to TOOLS_LIMIT."""
-    parts = [f"- {t.get('name')} {json.dumps(t.get('input'), ensure_ascii=False)}\n  -> "
-             f"{str(t.get('output') or '')[:OUTPUT_LIMIT]}" for t in tool_calls or []]
+    parts = [
+        f"- {t.get('name')} {json.dumps(t.get('input'), ensure_ascii=False)}\n  -> "
+        f"{str(t.get('output') or '')[:OUTPUT_LIMIT]}"
+        for t in tool_calls or []
+    ]
     return "\n".join(parts)[:TOOLS_LIMIT]
 
 
@@ -35,11 +39,16 @@ def score(value, rubric: str, case_input: dict, tool_calls: list[dict] | None = 
     text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, indent=1)
     case_input = {k: v for k, v in case_input.items() if not k.endswith("_raw")}  # the decoded text is enough
     tools = tools_text(tool_calls)
-    user = (f"Rubric:\n{rubric}\n\nCase input:\n{json.dumps(case_input, ensure_ascii=False)[:8000]}\n\n"
-            + (f"Tool calls of the agent (input -> result):\n{tools}\n\n" if tools else "")
-            + f"Field value:\n{text[:8000]}")
-    args = dict(model=s.judge_model, response_format={"type": "json_object"},
-                messages=[{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}])
+    user = (
+        f"Rubric:\n{rubric}\n\nCase input:\n{json.dumps(case_input, ensure_ascii=False)[:8000]}\n\n"
+        + (f"Tool calls of the agent (input -> result):\n{tools}\n\n" if tools else "")
+        + f"Field value:\n{text[:8000]}"
+    )
+    args = dict(
+        model=s.judge_model,
+        response_format={"type": "json_object"},
+        messages=[{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
+    )
     try:
         r = client.chat.completions.create(temperature=0, **args)
     except BadRequestError as e:

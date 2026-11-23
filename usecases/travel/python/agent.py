@@ -3,6 +3,7 @@
 The runner sends the case on stdin and reads the result JSON from stdout (docs/contracts.md §4).
 Logs go to stderr. Change the prompt, the model or the steps here: this file is yours.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -48,8 +49,13 @@ def log(*args) -> None:
 def to_openai_tool(tool) -> dict:
     """An MCP tool description in the format of the OpenAI Responses API.
     strict=False: MCP schemas do not follow the strict rules (the Responses API default is strict)."""
-    return {"type": "function", "name": tool.name, "description": tool.description or "",
-            "parameters": tool.input_schema, "strict": False}
+    return {
+        "type": "function",
+        "name": tool.name,
+        "description": tool.description or "",
+        "parameters": tool.input_schema,
+        "strict": False,
+    }
 
 
 async def call_tool(client: Client, name: str, args: dict) -> str:
@@ -63,8 +69,12 @@ async def run(case: dict, client: Client | None) -> dict:
     tools = [to_openai_tool(t) for t in (await client.list_tools()).tools] if client else []
     with_tools = {"tools": tools} if tools else {}  # some APIs refuse an empty tool list
     # The conversation: our messages, then the model's output items and our tool results.
-    items = [{"role": "user", "content": f"Today is {case.get('today')}.\n\n"
-                                         + json.dumps(case["input"], ensure_ascii=False)}]
+    items = [
+        {
+            "role": "user",
+            "content": f"Today is {case.get('today')}.\n\n" + json.dumps(case["input"], ensure_ascii=False),
+        }
+    ]
     # Tool turns first, WITHOUT a result format: with it, many models never call a tool.
     # When the model stops calling tools, one last call WITH the result format gives the result JSON.
     for _ in range(MAX_STEPS):
@@ -77,8 +87,10 @@ async def run(case: dict, client: Client | None) -> dict:
             args = json.loads(call.arguments or "{}")
             text = await call_tool(client, call.name, args)
             # One line per tool call: the runner reads these lines and gives them to the judge.
-            log(f"tool {call.name} {json.dumps(args, ensure_ascii=False)} -> "
-                f"{json.dumps(text[:2000], ensure_ascii=False)}")
+            log(
+                f"tool {call.name} {json.dumps(args, ensure_ascii=False)} -> "
+                f"{json.dumps(text[:2000], ensure_ascii=False)}"
+            )
             items.append({"type": "function_call_output", "call_id": call.call_id, "output": text})
     else:
         log(f"still calling tools after {MAX_STEPS} steps: asking for the result now")
@@ -86,7 +98,10 @@ async def run(case: dict, client: Client | None) -> dict:
     if tools:
         with_tools["tool_choice"] = "none"  # the last turn gives the result, no more tool calls
     final = llm.responses.create(
-        model=MODEL, instructions=PROMPT, input=items, **with_tools,
+        model=MODEL,
+        instructions=PROMPT,
+        input=items,
+        **with_tools,
         text={"format": {"type": "json_schema", "name": "result", "schema": schema, "strict": False}},
     )
     return json.loads(final.output_text)

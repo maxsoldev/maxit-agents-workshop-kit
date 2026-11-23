@@ -1,4 +1,5 @@
 """Run files in `runs/<run_id>.json` (contracts §5)."""
+
 from __future__ import annotations
 
 import json

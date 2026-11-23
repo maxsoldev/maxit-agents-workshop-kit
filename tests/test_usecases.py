@@ -1,4 +1,5 @@
 """Checks that every use case folder is complete and every case in cases.jsonl is valid (contracts §2, §3)."""
+
 from __future__ import annotations
 
 import datetime as dt
@@ -10,8 +11,15 @@ import pytest
 
 USECASES = Path(__file__).resolve().parent.parent / "usecases"
 UCS = sorted(p.name for p in USECASES.iterdir() if (p / "cases.jsonl").exists())
-CHECK_KEYS = {"equals": set(), "in": {"values"}, "contains": {"value"}, "not_contains": {"value"},
-              "judge": {"rubric"}, "count": set(), "any": set()}
+CHECK_KEYS = {
+    "equals": set(),
+    "in": {"values"},
+    "contains": {"value"},
+    "not_contains": {"value"},
+    "judge": {"rubric"},
+    "count": set(),
+    "any": set(),
+}
 MISSING = object()
 
 
@@ -39,8 +47,15 @@ def test_there_are_use_cases():
 @pytest.mark.parametrize("uc", UCS)
 def test_folder_has_all_parts(uc):
     folder = USECASES / uc
-    for name in ["BRIEF.md", "output.schema.json", "n8n/workflow.json", "claude/CLAUDE.md",
-                 "claude/.mcp.json", "claude/.claude/settings.json", "python/agent.py"]:
+    for name in [
+        "BRIEF.md",
+        "output.schema.json",
+        "n8n/workflow.json",
+        "claude/CLAUDE.md",
+        "claude/.mcp.json",
+        "claude/.claude/settings.json",
+        "python/agent.py",
+    ]:
         assert (folder / name).exists(), f"{uc}: missing {name}"
     jsonschema.Draft202012Validator.check_schema(json.loads((folder / "output.schema.json").read_text()))
 
@@ -67,8 +82,9 @@ def test_cases_are_valid(uc):
             for key in CHECK_KEYS[chk["type"]]:
                 assert key in chk, f"{where}: {chk['type']} check needs '{key}'"
             if chk["type"] == "equals" and "value" not in chk:
-                assert get_path(c["expected"], chk["field"]) is not MISSING, \
+                assert get_path(c["expected"], chk["field"]) is not MISSING, (
                     f"{where}: expected has no '{chk['field']}'"
+                )
 
 
 @pytest.mark.parametrize("uc", UCS)

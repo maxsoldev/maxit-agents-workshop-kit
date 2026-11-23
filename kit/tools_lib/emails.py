@@ -1,4 +1,5 @@
 """Read .eml files with the standard `email` package."""
+
 from __future__ import annotations
 
 import email
@@ -54,5 +55,4 @@ def read_eml(path: Path) -> dict:
         date = parsedate_to_datetime(msg["Date"]).isoformat()
     except (TypeError, ValueError):
         date = ""
-    return {"from": str(msg["From"] or ""), "date": date, "subject": str(msg["Subject"] or ""),
-            "text": body_text(msg)}
+    return {"from": str(msg["From"] or ""), "date": date, "subject": str(msg["Subject"] or ""), "text": body_text(msg)}

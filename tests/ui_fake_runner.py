@@ -2,6 +2,7 @@
 
 `install()` puts it in sys.modules as `kit.runner`. Cases live in config.USECASES_DIR, runs in config.RUNS_DIR.
 """
+
 from __future__ import annotations
 
 import json
@@ -70,13 +71,30 @@ def run_eval(usecase, engine, case_ids=None, name=None, on_progress=None, holdou
             on_progress({"case_id": c["id"], "status": "running"})
         time.sleep(DELAY)
         ok = _passes(run_id, c["id"])
-        checks = [{"type": k["type"], "field": k["field"], "passed": ok or n > 0,
-                   "reason": "ok" if ok or n > 0 else f"got other_value, expected {c.get('expected', {}).get(k['field'])}"}
-                  for n, k in enumerate(c.get("checks", []))]
-        results.append({"id": c["id"], "title": c.get("title", ""), "passed": ok, "seconds": 1.5, "error": None,
-                        "input": c.get("input", {}), "expected": c.get("expected", {}),
-                        "output": {"category": "other_value", "reply": "Thank you."}, "checks": checks,
-                        "trace_url": "http://localhost:5703/trace/x", "n8n_execution_url": None})
+        checks = [
+            {
+                "type": k["type"],
+                "field": k["field"],
+                "passed": ok or n > 0,
+                "reason": "ok" if ok or n > 0 else f"got other_value, expected {c.get('expected', {}).get(k['field'])}",
+            }
+            for n, k in enumerate(c.get("checks", []))
+        ]
+        results.append(
+            {
+                "id": c["id"],
+                "title": c.get("title", ""),
+                "passed": ok,
+                "seconds": 1.5,
+                "error": None,
+                "input": c.get("input", {}),
+                "expected": c.get("expected", {}),
+                "output": {"category": "other_value", "reply": "Thank you."},
+                "checks": checks,
+                "trace_url": "http://localhost:5703/trace/x",
+                "n8n_execution_url": None,
+            }
+        )
         if on_progress:
             on_progress({"case_id": c["id"], "status": "done", "passed": ok})
     by_check: dict = {}
@@ -85,10 +103,16 @@ def run_eval(usecase, engine, case_ids=None, name=None, on_progress=None, holdou
             pair = by_check.setdefault(k["type"], [0, 0])
             pair[0] += k["passed"]
             pair[1] += 1
-    run = {"run_id": run_id, "name": name or run_id, "usecase": usecase, "engine": engine, "started_at": started,
-           "ended_at": datetime.now().isoformat(timespec="seconds"),
-           "summary": {"cases": len(results), "passed": sum(r["passed"] for r in results), "by_check": by_check},
-           "cases": results}
+    run = {
+        "run_id": run_id,
+        "name": name or run_id,
+        "usecase": usecase,
+        "engine": engine,
+        "started_at": started,
+        "ended_at": datetime.now().isoformat(timespec="seconds"),
+        "summary": {"cases": len(results), "passed": sum(r["passed"] for r in results), "by_check": by_check},
+        "cases": results,
+    }
     config.RUNS_DIR.mkdir(parents=True, exist_ok=True)
     (config.RUNS_DIR / f"{run_id}.json").write_text(json.dumps(run, ensure_ascii=False, indent=2), encoding="utf-8")
     return run
@@ -102,12 +126,20 @@ def load_run(run_id):
 
 
 def list_runs(usecase=None):
-    runs = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(config.RUNS_DIR.glob("*.json"), reverse=True)] \
-        if config.RUNS_DIR.exists() else []
-    return [{**{k: r.get(k) for k in ("run_id", "name", "usecase", "engine", "started_at", "ended_at", "summary")},
-             "case_ids": sorted(c["id"] for c in r.get("cases", [])),
-             "case_hashes": {c["id"]: c.get("case_hash") for c in r.get("cases", [])}}
-            for r in runs if usecase in (None, r.get("usecase"))]
+    runs = (
+        [json.loads(p.read_text(encoding="utf-8")) for p in sorted(config.RUNS_DIR.glob("*.json"), reverse=True)]
+        if config.RUNS_DIR.exists()
+        else []
+    )
+    return [
+        {
+            **{k: r.get(k) for k in ("run_id", "name", "usecase", "engine", "started_at", "ended_at", "summary")},
+            "case_ids": sorted(c["id"] for c in r.get("cases", [])),
+            "case_hashes": {c["id"]: c.get("case_hash") for c in r.get("cases", [])},
+        }
+        for r in runs
+        if usecase in (None, r.get("usecase"))
+    ]
 
 
 def compare(a, b):

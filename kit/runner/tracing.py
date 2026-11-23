@@ -1,4 +1,5 @@
 """Langfuse tracing: one trace per case (contracts §6). Does nothing when `settings().langfuse_on` is false."""
+
 from __future__ import annotations
 
 import base64
@@ -73,16 +74,19 @@ class CaseTrace(NoTrace):
         Claude's own OTel tool spans have no input, so these are the ones to read."""
         try:
             for c in calls:
-                self.span.start_observation(name=f"tool:{c['name']}", as_type="tool", input=c.get("input"),
-                                            output=c.get("output")).end()
+                self.span.start_observation(
+                    name=f"tool:{c['name']}", as_type="tool", input=c.get("input"), output=c.get("output")
+                ).end()
         except Exception:
             pass  # tracing must never break a run
 
     def finish(self, output, error, checks, passed) -> None:
         """Write the output and one score per check (1/0) plus `passed`."""
         try:
-            self.span.update(output=output if error is None else {"error": error, "output": output},
-                             level="ERROR" if error else "DEFAULT")
+            self.span.update(
+                output=output if error is None else {"error": error, "output": output},
+                level="ERROR" if error else "DEFAULT",
+            )
             for c in checks:
                 if c.get("skipped"):
                     continue

@@ -3,6 +3,7 @@
 Each engine function returns `(output, error, meta)`:
 output = the result dict (or None), error = a text that says what to do (or None), meta = extra facts (cost, turns).
 """
+
 from __future__ import annotations
 
 import json
@@ -104,9 +105,18 @@ def _as_result(value):
 
 def _run(cmd: list[str], cwd, stdin: str, env: dict, timeout: int):
     """Run a command; on timeout kill it and its children. Return (code, stdout, stderr), code None = timeout."""
-    p = subprocess.Popen(cmd, cwd=cwd, env=env, text=True, encoding="utf-8", errors="replace",
-                         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                         start_new_session=True)
+    p = subprocess.Popen(
+        cmd,
+        cwd=cwd,
+        env=env,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+    )
     try:
         out, err = p.communicate(stdin, timeout=timeout)
         return p.returncode, out, err
@@ -148,8 +158,10 @@ def n8n_execution_url(uc: str, call_id: str) -> str | None:
     api = httpx.Client(base_url=f"{s.n8n_url}/api/v1", headers={"X-N8N-API-KEY": s.n8n_api_key}, timeout=10)
     wid = None
     for w in api.get("/workflows", params={"active": "true", "limit": 100}).json().get("data", []):
-        if any(n.get("type") == "n8n-nodes-base.webhook" and n.get("parameters", {}).get("path") == uc
-               for n in w.get("nodes", [])):
+        if any(
+            n.get("type") == "n8n-nodes-base.webhook" and n.get("parameters", {}).get("path") == uc
+            for n in w.get("nodes", [])
+        ):
             wid = w["id"]
     if not wid:
         return None
@@ -169,22 +181,33 @@ def _post_n8n(uc: str, engine_input: dict, call_id: str):
     try:
         # n8n sends nothing until the workflow ends, so the read timeout is the total time.
         # call_with_deadline adds a hard wall-clock limit on top.
-        r = httpx.post(url, json=engine_input, headers={"x-kit-call": call_id},
-                       timeout=httpx.Timeout(TIMEOUTS["n8n"], connect=10))
+        r = httpx.post(
+            url, json=engine_input, headers={"x-kit-call": call_id}, timeout=httpx.Timeout(TIMEOUTS["n8n"], connect=10)
+        )
     except httpx.ConnectError:
         return None, f"cannot reach n8n at {s.n8n_url}: is it running? run `make up` (or check N8N_URL in .env)", meta
     except httpx.TimeoutException:
         return None, f"n8n did not answer in {TIMEOUTS['n8n']} s: look at the execution in n8n (Executions)", meta
     meta["status"] = r.status_code
     if r.status_code == 404:
-        return None, (f"n8n answered 404 for /webhook/{uc}: is the workflow active and is its webhook path "
-                      f"'{uc}'? run `make setup`"), meta
+        return (
+            None,
+            (
+                f"n8n answered 404 for /webhook/{uc}: is the workflow active and is its webhook path "
+                f"'{uc}'? run `make setup`"
+            ),
+            meta,
+        )
     if r.status_code >= 400:
         return None, f"n8n answered {r.status_code}: {r.text[:300]} (look at Executions in n8n)", meta
     try:
         value = r.json()
     except ValueError:
-        return None, f"n8n answered text, not JSON: {r.text[:200]!r}. End the workflow with Respond to Webhook (JSON)", meta
+        return (
+            None,
+            f"n8n answered text, not JSON: {r.text[:200]!r}. End the workflow with Respond to Webhook (JSON)",
+            meta,
+        )
     output, error = _as_result(value)
     return output, error, meta
 
@@ -205,13 +228,19 @@ def read_stream(out: str, limit: int = 4000):
         content = (ev.get("message") or {}).get("content") if ev.get("type") in ("assistant", "user") else None
         for c in content if isinstance(content, list) else []:
             if c.get("type") == "tool_use" and c.get("name") != "ToolSearch":
-                by_id[c.get("id")] = {"name": c.get("name", "").removeprefix("mcp__kit__"), "input": c.get("input"),
-                                      "output": None}
+                by_id[c.get("id")] = {
+                    "name": c.get("name", "").removeprefix("mcp__kit__"),
+                    "input": c.get("input"),
+                    "output": None,
+                }
                 calls.append(by_id[c.get("id")])
             elif c.get("type") == "tool_result" and c.get("tool_use_id") in by_id:
                 parts = c.get("content")
-                text = parts if isinstance(parts, str) else "\n".join(
-                    p.get("text", "") for p in parts or [] if isinstance(p, dict))
+                text = (
+                    parts
+                    if isinstance(parts, str)
+                    else "\n".join(p.get("text", "") for p in parts or [] if isinstance(p, dict))
+                )
                 by_id[c["tool_use_id"]]["output"] = text[:limit]
     return result, calls
 
@@ -223,27 +252,53 @@ def call_claude(uc: str, engine_input: dict, extra_env: dict):
     if not (folder / ".mcp.json").exists():
         return None, f"usecases/{uc}/claude/.mcp.json not found: the Claude agent folder needs it", {}
     prompt = CLAUDE_PROMPT + json.dumps(engine_input, ensure_ascii=False)
-    cmd = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose",
-           "--mcp-config", ".mcp.json", "--strict-mcp-config",
-           "--permission-mode", "dontAsk", "--allowedTools", "mcp__kit",
-           "--setting-sources", "project", "--no-session-persistence"]
+    cmd = [
+        "claude",
+        "-p",
+        prompt,
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--mcp-config",
+        ".mcp.json",
+        "--strict-mcp-config",
+        "--permission-mode",
+        "dontAsk",
+        "--allowedTools",
+        "mcp__kit",
+        "--setting-sources",
+        "project",
+        "--no-session-persistence",
+    ]
     code, out, err = _run(cmd, folder, "", engine_env(extra_env), TIMEOUTS["claude"])
     if code is None:
         return None, f"Claude did not finish in {TIMEOUTS['claude']} s: make the task smaller or check the tools", {}
     data, tool_calls = read_stream(out)
     if data is None:
-        return None, f"claude exit {code}, no JSON answer: {_tail(err or out)} (is Claude logged in? run `claude`)", {
-            "stderr": _tail(err, 20)}
-    meta = {"cost_usd": data.get("total_cost_usd"), "turns": data.get("num_turns"),
-            "duration_ms": data.get("duration_ms"), "models": list(data.get("modelUsage", {})),
-            "tool_calls": tool_calls, "stderr": _tail(err, 20)}
+        return (
+            None,
+            f"claude exit {code}, no JSON answer: {_tail(err or out)} (is Claude logged in? run `claude`)",
+            {"stderr": _tail(err, 20)},
+        )
+    meta = {
+        "cost_usd": data.get("total_cost_usd"),
+        "turns": data.get("num_turns"),
+        "duration_ms": data.get("duration_ms"),
+        "models": list(data.get("modelUsage", {})),
+        "tool_calls": tool_calls,
+        "stderr": _tail(err, 20),
+    }
     text = data.get("result") or ""
     if data.get("is_error") or code != 0:
         return None, f"Claude failed ({data.get('subtype', f'exit {code}')}): {text[:300] or _tail(err)}", meta
     try:
         value = parse_json_text(text)
     except ValueError:
-        return None, f"Claude's answer has no valid JSON: {text[:200]!r}. Tell it in CLAUDE.md to answer only JSON", meta
+        return (
+            None,
+            f"Claude's answer has no valid JSON: {text[:200]!r}. Tell it in CLAUDE.md to answer only JSON",
+            meta,
+        )
     output, error = _as_result(value)
     return output, error, meta
 
@@ -269,11 +324,11 @@ def call_python(uc: str, engine_input: dict, extra_env: dict):
     if not (folder / "agent.py").exists():
         return None, f"usecases/{uc}/python/agent.py not found", {}
     cmd = ["uv", "run", "--project", str(config.ROOT), "python", "agent.py"]
-    code, out, err = _run(cmd, folder, json.dumps(engine_input, ensure_ascii=False), engine_env(extra_env),
-                          TIMEOUTS["python"])
+    code, out, err = _run(
+        cmd, folder, json.dumps(engine_input, ensure_ascii=False), engine_env(extra_env), TIMEOUTS["python"]
+    )
     # The last log lines of agent.py (long lines cut), and its tool calls for the results page and the judge.
-    meta = {"stderr": "\n".join(line[:300] for line in _tail(err, 40).splitlines()),
-            "tool_calls": read_tool_log(err)}
+    meta = {"stderr": "\n".join(line[:300] for line in _tail(err, 40).splitlines()), "tool_calls": read_tool_log(err)}
     if code is None:
         return None, f"agent.py did not finish in {TIMEOUTS['python']} s", meta
     if code != 0:

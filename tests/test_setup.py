@@ -1,4 +1,5 @@
 """Unit tests for the pure parts of kit/setup.py (no Docker, no network)."""
+
 import json
 import sys
 import types
@@ -18,8 +19,12 @@ def test_check_with_a_fake_runner(tmp_path, monkeypatch, capsys):
 
     def run_eval(usecase, engine, case_ids=None, name=None, on_progress=None):
         calls.append((usecase, engine, case_ids))
-        case = {"id": "d1", "passed": engine == "python", "error": "HTTP 404" if engine == "n8n" else None,
-                "checks": []}
+        case = {
+            "id": "d1",
+            "passed": engine == "python",
+            "error": "HTTP 404" if engine == "n8n" else None,
+            "checks": [],
+        }
         return {"cases": [case]}
 
     monkeypatch.setitem(sys.modules, "kit.runner", types.SimpleNamespace(run_eval=run_eval))
@@ -78,11 +83,16 @@ def test_compose_profiles():
 
 def test_service_notes():
     from kit.setup import service_notes
+
     assert service_notes({}) == []
     assert service_notes({"KIT_ENGINES": "claude", "LANGFUSE": "hosted"}) == [
-        "n8n: not used (KIT_ENGINES=claude), not started", "Langfuse: LANGFUSE=hosted in .env, not started here"]
+        "n8n: not used (KIT_ENGINES=claude), not started",
+        "Langfuse: LANGFUSE=hosted in .env, not started here",
+    ]
     assert service_notes({"N8N": "hosted", "LANGFUSE": "off"}) == [
-        "n8n: N8N=hosted in .env, not started here", "Langfuse: LANGFUSE=off in .env, no traces"]
+        "n8n: N8N=hosted in .env, not started here",
+        "Langfuse: LANGFUSE=off in .env, no traces",
+    ]
 
 
 def test_fill_placeholders_keeps_n8n_expressions():
@@ -92,10 +102,16 @@ def test_fill_placeholders_keeps_n8n_expressions():
 
 
 def test_workflow_body_and_same_workflow():
-    wf = {"name": "Kit: marketing agent", "id": "x", "active": True, "pinData": {},
-          "nodes": [{"name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 2,
-                     "parameters": {"path": "marketing"}}],
-          "connections": {}}
+    wf = {
+        "name": "Kit: marketing agent",
+        "id": "x",
+        "active": True,
+        "pinData": {},
+        "nodes": [
+            {"name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "parameters": {"path": "marketing"}}
+        ],
+        "connections": {},
+    }
     body = workflow_body(wf)
     assert set(body) == {"name", "nodes", "connections", "settings"}
     # n8n adds ids and positions: still the same workflow.
@@ -125,6 +141,7 @@ def test_model_key_check_names_the_error(monkeypatch):
 
 def test_settings_read_env_file_each_time(tmp_path, monkeypatch):
     from kit import config
+
     monkeypatch.delenv("KIT_JUDGE_MODEL", raising=False)
     monkeypatch.setattr(config, "ROOT", tmp_path)
     (tmp_path / ".env").write_text("KIT_JUDGE_MODEL=first\n")
@@ -137,6 +154,7 @@ def test_settings_read_env_file_each_time(tmp_path, monkeypatch):
 
 def test_export_puts_the_placeholders_back():
     from kit.config import ROOT, settings
+
     text = (ROOT / "usecases/travel/n8n/workflow.json").read_text()
     url = "http://host.docker.internal:5701/mcp"
     filled = json.loads(fill_placeholders(text, "cred123", url))
@@ -147,6 +165,7 @@ def test_export_puts_the_placeholders_back():
 
 def test_kit_engines_limits_profiles_and_engines():
     from kit.config import parse_engines
+
     assert parse_engines("") == ("n8n", "claude", "python")
     assert parse_engines("python, Claude") == ("claude", "python")
     assert compose_profiles({"KIT_ENGINES": "claude,python"}) == ["langfuse"]

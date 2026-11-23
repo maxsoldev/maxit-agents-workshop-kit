@@ -4,6 +4,7 @@ Each tool is a plain function with a docstring; the docstring is the tool descri
 To add a tool, add a function with `@mcp.tool()`. Tools only read `usecases/*/data/` and send nothing.
 On bad input a tool returns {"error": ..., "hint": ...}; it does not raise.
 """
+
 from __future__ import annotations
 
 import csv
@@ -21,8 +22,11 @@ from kit.tools_lib import emails, events, trains
 
 HOST = "127.0.0.1"  # Docker Desktop (macOS) reaches this as host.docker.internal; see docs/contracts.md §1
 
-mcp = MCPServer("kit", instructions="Tools for the MaxIT workshop use cases. They read data; they send nothing.",
-                log_level="WARNING")
+mcp = MCPServer(
+    "kit",
+    instructions="Tools for the MaxIT workshop use cases. They read data; they send nothing.",
+    log_level="WARNING",
+)
 
 
 def _data(usecase: str):
@@ -44,6 +48,7 @@ def _iso(value: str | None, name: str) -> date | None | dict:
 
 
 # ---------- marketing ----------
+
 
 @mcp.tool()
 def contacts_lookup(query: str) -> dict:
@@ -91,6 +96,7 @@ def inbox_history(sender: str, before: str | None = None) -> dict:
 
 # ---------- travel ----------
 
+
 @mcp.tool()
 def events_list(date_from: str | None = None, date_to: str | None = None) -> dict:
     """Events of the Digital Labs annual overview (2027), from the event sheet.
@@ -118,8 +124,14 @@ def events_list(date_from: str | None = None, date_to: str | None = None) -> dic
 
 
 @mcp.tool()
-def trains_search(from_place: str, to_place: str, date: str, arrive_by: str | None = None,
-                  depart_after: str | None = None, modes: str = "rail") -> dict:
+def trains_search(
+    from_place: str,
+    to_place: str,
+    date: str,
+    arrive_by: str | None = None,
+    depart_after: str | None = None,
+    modes: str = "rail",
+) -> dict:
     """Train connections between two places on one day (Germany and Europe), up to 5. No prices.
 
     `from_place`, `to_place`: station or city, e.g. "München Hbf", "Heidelberg Hbf".
@@ -141,14 +153,17 @@ def trains_search(from_place: str, to_place: str, date: str, arrive_by: str | No
         hhmm = arrive_by or depart_after or (text[11:16] if len(text) >= 16 else "06:00")  # "YYYY-MM-DD HH:MM" too
         when = datetime.combine(day.date(), datetime.strptime(hhmm.strip(), "%H:%M").time(), trains.TZ)
     except ValueError:
-        return _error(f"bad date or time: {date!r}, arrive_by={arrive_by!r}, depart_after={depart_after!r}",
-                      "Use date YYYY-MM-DD and times HH:MM, e.g. '2026-12-07', arrive_by='10:00'.")
+        return _error(
+            f"bad date or time: {date!r}, arrive_by={arrive_by!r}, depart_after={depart_after!r}",
+            "Use date YYYY-MM-DD and times HH:MM, e.g. '2026-12-07', arrive_by='10:00'.",
+        )
     s = config.settings()
     servers = list(dict.fromkeys(u for u in (s.trains_url, s.trains_fallback_url) if u))
     return trains.search(servers, from_place.strip(), to_place.strip(), when, bool(arrive_by), modes or "rail")
 
 
 # ---------- both ----------
+
 
 @mcp.tool()
 def rules_get(usecase: str, name: str = "") -> dict:
@@ -165,11 +180,14 @@ def rules_get(usecase: str, name: str = "") -> dict:
         return _error(f"unknown use case: {uc!r}", f"Use one of: {', '.join(known)}.")
     names = sorted(p.stem for p in _data(uc).glob("*.md"))
     if nm not in names:
-        return _error(f"unknown document: {nm!r}" if nm else "no document name given", f"Use one of: {', '.join(names)}.")
+        return _error(
+            f"unknown document: {nm!r}" if nm else "no document name given", f"Use one of: {', '.join(names)}."
+        )
     return {"usecase": uc, "name": nm, "text": (_data(uc) / f"{nm}.md").read_text(encoding="utf-8")}
 
 
 # ---------- try a tool by hand: kit tool <name> key=value ... ----------
+
 
 def try_tool(name: str, args: list[str]) -> int:
     """`kit tool trains_search from_place="München Hbf" to_place="Berlin Hbf" date=2026-12-08 arrive_by=10:00`:
@@ -201,6 +219,7 @@ def try_tool(name: str, args: list[str]) -> int:
 
 
 # ---------- server ----------
+
 
 def _server(log_level: str) -> uvicorn.Server:
     # The MCP SDK accepts only known Host headers; n8n in Docker sends host.docker.internal.

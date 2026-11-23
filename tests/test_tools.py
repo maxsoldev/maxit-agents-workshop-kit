@@ -1,4 +1,5 @@
 """Tests for kit/tools.py. No network, except the test marked `live` (run: uv run pytest -q -m live)."""
+
 from __future__ import annotations
 
 import asyncio
@@ -35,19 +36,25 @@ def test_inbox_history_before_and_folded_header():
 
 
 def test_html_only_part_to_text():
-    msg = (b"From: A <a@x.example>\nSubject: Hi\nDate: Mon, 02 Nov 2026 09:00:00 +0100\n"
-           b"Content-Type: text/html; charset=utf-8\n\n<html><style>p{}</style><p>Hello <b>there</b></p></html>")
+    msg = (
+        b"From: A <a@x.example>\nSubject: Hi\nDate: Mon, 02 Nov 2026 09:00:00 +0100\n"
+        b"Content-Type: text/html; charset=utf-8\n\n<html><style>p{}</style><p>Hello <b>there</b></p></html>"
+    )
     import email
     from email import policy
+
     assert tools.emails.body_text(email.message_from_bytes(msg, policy=policy.default)) == "Hello there"
 
 
-@pytest.mark.parametrize("text, start, end", [
-    ("14.01.2027", date(2027, 1, 14), date(2027, 1, 14)),
-    ("02.–03.02.2027", date(2027, 2, 2), date(2027, 2, 3)),
-    ("30.06.–02.07.2027", date(2027, 6, 30), date(2027, 7, 2)),
-    ("noch offen", None, None),
-])
+@pytest.mark.parametrize(
+    "text, start, end",
+    [
+        ("14.01.2027", date(2027, 1, 14), date(2027, 1, 14)),
+        ("02.–03.02.2027", date(2027, 2, 2), date(2027, 2, 3)),
+        ("30.06.–02.07.2027", date(2027, 6, 30), date(2027, 7, 2)),
+        ("noch offen", None, None),
+    ],
+)
 def test_parse_range(text, start, end):
     assert events.parse_range(text) == (start, end)
 
@@ -83,13 +90,33 @@ def test_rules_get():
 
 # ---------- trains, with a fake MOTIS ----------
 
-PLAN = {"itineraries": [
-    {"duration": 10860, "startTime": "2026-12-07T05:20:00Z", "endTime": "2026-12-07T08:21:00Z", "transfers": 0,
-     "legs": [{"mode": "WALK", "from": {"name": "a"}, "to": {"name": "b"},
-               "startTime": "2026-12-07T05:20:00Z", "endTime": "2026-12-07T05:23:00Z"},
-              {"mode": "HIGHSPEED_RAIL", "displayName": "ICE 1096", "from": {"name": "München Hbf"},
-               "to": {"name": "Heidelberg Hbf"}, "startTime": "2026-12-07T05:23:00Z", "endTime": "2026-12-07T08:21:00Z"}]},
-]}
+PLAN = {
+    "itineraries": [
+        {
+            "duration": 10860,
+            "startTime": "2026-12-07T05:20:00Z",
+            "endTime": "2026-12-07T08:21:00Z",
+            "transfers": 0,
+            "legs": [
+                {
+                    "mode": "WALK",
+                    "from": {"name": "a"},
+                    "to": {"name": "b"},
+                    "startTime": "2026-12-07T05:20:00Z",
+                    "endTime": "2026-12-07T05:23:00Z",
+                },
+                {
+                    "mode": "HIGHSPEED_RAIL",
+                    "displayName": "ICE 1096",
+                    "from": {"name": "München Hbf"},
+                    "to": {"name": "Heidelberg Hbf"},
+                    "startTime": "2026-12-07T05:23:00Z",
+                    "endTime": "2026-12-07T08:21:00Z",
+                },
+            ],
+        },
+    ]
+}
 
 
 def fake_get(fail_hosts=()):
@@ -102,6 +129,7 @@ def fake_get(fail_hosts=()):
             raise httpx.ConnectTimeout("timeout")
         body = [{"id": "S1", "name": params["text"]}] if "geocode" in url else PLAN
         return httpx.Response(200, json=body, request=httpx.Request("GET", url))
+
     return get, calls
 
 
@@ -116,8 +144,12 @@ def test_trains_search_parses_plan(monkeypatch):
     monkeypatch.setenv("TRAINS_URL", "")
     r = tools.trains_search("München Hbf", "Heidelberg Hbf", "2026-12-07", arrive_by="10:00")
     c = r["connections"][0]
-    assert (c["departure"], c["arrival"], c["duration"], c["changes"]) == \
-        ("2026-12-07 06:20", "2026-12-07 09:21", "3h01", 0)
+    assert (c["departure"], c["arrival"], c["duration"], c["changes"]) == (
+        "2026-12-07 06:20",
+        "2026-12-07 09:21",
+        "3h01",
+        0,
+    )
     assert c["trains"] == ["ICE 1096"]
     assert r["source"] == "https://api.transitous.org"
     assert len(calls) == 3  # geocode, geocode, plan
@@ -135,16 +167,33 @@ def test_trains_search_falls_back(monkeypatch):
 
 
 def _it(start: str, end: str, name: str) -> dict:
-    return {"duration": 3600, "startTime": start, "endTime": end, "transfers": 0,
-            "legs": [{"mode": "HIGHSPEED_RAIL", "displayName": name, "from": {"name": "A"}, "to": {"name": "B"},
-                      "startTime": start, "endTime": end}]}
+    return {
+        "duration": 3600,
+        "startTime": start,
+        "endTime": end,
+        "transfers": 0,
+        "legs": [
+            {
+                "mode": "HIGHSPEED_RAIL",
+                "displayName": name,
+                "from": {"name": "A"},
+                "to": {"name": "B"},
+                "startTime": start,
+                "endTime": end,
+            }
+        ],
+    }
 
 
 def test_trains_search_filters_to_the_day_and_time(monkeypatch):
-    plan = {"itineraries": [_it("2026-12-07T21:00:00Z", "2026-12-07T23:00:00Z", "day before"),
-                            _it("2026-12-08T05:00:00Z", "2026-12-08T07:00:00Z", "early"),
-                            _it("2026-12-08T06:00:00Z", "2026-12-08T08:30:00Z", "late"),
-                            _it("2026-12-08T08:00:00Z", "2026-12-08T09:30:00Z", "too late")]}
+    plan = {
+        "itineraries": [
+            _it("2026-12-07T21:00:00Z", "2026-12-07T23:00:00Z", "day before"),
+            _it("2026-12-08T05:00:00Z", "2026-12-08T07:00:00Z", "early"),
+            _it("2026-12-08T06:00:00Z", "2026-12-08T08:30:00Z", "late"),
+            _it("2026-12-08T08:00:00Z", "2026-12-08T09:30:00Z", "too late"),
+        ]
+    }
     seen = []
 
     def get(url, params=None, headers=None, timeout=None):
@@ -184,10 +233,12 @@ def test_trains_search_live(monkeypatch):
 
 # ---------- through MCP ----------
 
+
 def test_tools_listed_over_mcp():
     from mcp import Client
 
     async def names():
         async with Client(tools.mcp) as c:
             return {t.name for t in (await c.list_tools()).tools}
+
     assert asyncio.run(names()) >= {"contacts_lookup", "inbox_history", "events_list", "trains_search", "rules_get"}

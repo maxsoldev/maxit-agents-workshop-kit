@@ -1,4 +1,5 @@
 """Runner tests on the fake use case in tests/fixtures (fake engines, judge mocked, Langfuse off)."""
+
 from __future__ import annotations
 
 import json
@@ -10,8 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from kit import config
-from kit import runner
+from kit import config, runner
 from kit.runner import cases, checks, cli, engines, judge, store
 
 FIX = Path(__file__).parent / "fixtures"
@@ -23,8 +23,9 @@ def kit_env(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "RUNS_DIR", tmp_path / "runs")
     monkeypatch.setenv("LANGFUSE", "off")
     monkeypatch.setenv("PATH", f"{FIX / 'bin'}{os.pathsep}{os.environ['PATH']}")
-    monkeypatch.setattr(judge, "score", lambda value, rubric, inp, tools=None: (5, "polite") if "Thanks" in value
-                        else (2, "rude"))
+    monkeypatch.setattr(
+        judge, "score", lambda value, rubric, inp, tools=None: (5, "polite") if "Thanks" in value else (2, "rude")
+    )
 
 
 class FakeN8n(BaseHTTPRequestHandler):
@@ -38,7 +39,7 @@ class FakeN8n(BaseHTTPRequestHandler):
         inp = body["input"]
         if inp.get("mode") == "sleep":
             time.sleep(3)
-        answer =[{"category": inp.get("want", "zzz"), "reply": inp.get("note", "hi"), "tags": ["z"]}]
+        answer = [{"category": inp.get("want", "zzz"), "reply": inp.get("note", "hi"), "tags": ["z"]}]
         data = json.dumps(answer).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -72,10 +73,14 @@ def test_load_cases_and_resolve_files():
 
 def test_eml_files_are_decoded(tmp_path, monkeypatch):
     (tmp_path / "x" / "data").mkdir(parents=True)
-    qp = ("From: Anna <a@x.example>\nDate: Tue, 03 Nov 2026 11:22:00 +0100\nSubject: =?utf-8?q?Gr=C3=BC=C3=9Fe?=\n"
-          "Content-Type: text/plain; charset=utf-8\nContent-Transfer-Encoding: quoted-printable\n\nVielen Dank f=C3=BCr Ihre Mail.\n")
-    html = ("From: B <b@x.example>\nSubject: Only HTML\nContent-Type: text/html; charset=utf-8\n\n"
-            "<html><style>p {color: red}</style><body><p>Hello <b>team</b></p><p>Second line</p></body></html>\n")
+    qp = (
+        "From: Anna <a@x.example>\nDate: Tue, 03 Nov 2026 11:22:00 +0100\nSubject: =?utf-8?q?Gr=C3=BC=C3=9Fe?=\n"
+        "Content-Type: text/plain; charset=utf-8\nContent-Transfer-Encoding: quoted-printable\n\nVielen Dank f=C3=BCr Ihre Mail.\n"
+    )
+    html = (
+        "From: B <b@x.example>\nSubject: Only HTML\nContent-Type: text/html; charset=utf-8\n\n"
+        "<html><style>p {color: red}</style><body><p>Hello <b>team</b></p><p>Second line</p></body></html>\n"
+    )
     (tmp_path / "x" / "data" / "qp.eml").write_text(qp)
     (tmp_path / "x" / "data" / "html.eml").write_text(html)
     monkeypatch.setattr(config, "USECASES_DIR", tmp_path)
@@ -96,7 +101,9 @@ def test_bad_line_has_line_number(tmp_path, monkeypatch):
 
 def test_validate_case():
     assert cases.validate_case({"id": "a", "checks": [{"type": "equals", "field": "x"}]}) == []
-    errors = cases.validate_case({"id": "", "today": "4 Nov", "checks": [{"type": "magic"}, {"type": "in", "field": "x"}]})
+    errors = cases.validate_case(
+        {"id": "", "today": "4 Nov", "checks": [{"type": "magic"}, {"type": "in", "field": "x"}]}
+    )
     assert len(errors) == 4
 
 
@@ -131,8 +138,13 @@ def test_checks_reasons():
 
 
 def test_count_and_any_checks():
-    out = {"tasks": [{"kind": "trip", "event": "E-Science-Tage, Heidelberg", "who": {"name": "Jonas"}},
-                     {"kind": "Leave", "event": "Holiday", "who": {"name": "Elena"}}], "reply": "x"}
+    out = {
+        "tasks": [
+            {"kind": "trip", "event": "E-Science-Tage, Heidelberg", "who": {"name": "Jonas"}},
+            {"kind": "Leave", "event": "Holiday", "who": {"name": "Elena"}},
+        ],
+        "reply": "x",
+    }
     run = lambda c: checks.run_check(c, out, {}, {})  # noqa: E731
     assert run({"type": "count", "field": "tasks", "equals": 2})["reason"] == "2 items"
     assert run({"type": "count", "field": "tasks", "min": 1, "max": 2})["passed"]
@@ -140,20 +152,35 @@ def test_count_and_any_checks():
     assert not bad["passed"] and bad["reason"] == "2 items, expected max 1"
     assert not run({"type": "count", "field": "reply", "min": 1})["passed"]
     assert run({"type": "any", "field": "tasks", "where": {"kind": "leave"}})["reason"].startswith("item 2 of 2")
-    assert run({"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "heidelberg"}})["passed"]
+    assert run({"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "heidelberg"}})[
+        "passed"
+    ]
     assert run({"type": "any", "field": "tasks", "where": {"who.name": "elena"}})["passed"]
     miss = run({"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "Riga"}})
-    assert not miss["passed"] and miss["reason"] == ('no item of 2 matches {"kind": "trip", "event": "~Riga"}; '
-                                                     'closest is item 1: `event` is "E-Science-Tage, Heidelberg"')
+    assert not miss["passed"] and miss["reason"] == (
+        'no item of 2 matches {"kind": "trip", "event": "~Riga"}; '
+        'closest is item 1: `event` is "E-Science-Tage, Heidelberg"'
+    )
     out["tasks"][1]["who"]["name"] = "Elena Popescu"  # `where` text = contains, case-insensitive
     assert run({"type": "any", "field": "tasks", "where": {"who.name": "elena", "kind": "LEAVE"}})["passed"]
     out["tasks"][0]["n"] = 12
     assert not run({"type": "any", "field": "tasks", "where": {"n": 1}})["passed"]  # numbers: equal
     assert "`n` is missing" in run({"type": "any", "field": "tasks", "where": {"n": 1, "kind": "leave"}})["reason"]
-    assert cases.validate_case({"id": "a", "checks": [{"type": "count", "field": "tasks", "min": 1},
-                                                      {"type": "any", "field": "tasks", "where": {"k": "v"}}]}) == []
-    errors = cases.validate_case({"id": "a", "checks": [{"type": "count", "field": "t"},
-                                                        {"type": "any", "field": "t", "where": "trip"}]})
+    assert (
+        cases.validate_case(
+            {
+                "id": "a",
+                "checks": [
+                    {"type": "count", "field": "tasks", "min": 1},
+                    {"type": "any", "field": "tasks", "where": {"k": "v"}},
+                ],
+            }
+        )
+        == []
+    )
+    errors = cases.validate_case(
+        {"id": "a", "checks": [{"type": "count", "field": "t"}, {"type": "any", "field": "t", "where": "trip"}]}
+    )
     assert len(errors) == 2
 
 
@@ -191,14 +218,24 @@ def test_schema_check():
 
 
 def test_schema_errors_in_words():
-    schema = {"type": "object", "required": ["kind", "tasks"], "additionalProperties": False,
-              "properties": {"kind": {"enum": ["a", "b"]}, "n": {"type": "integer"},
-                             "tasks": {"type": "array", "items": {"type": "object", "additionalProperties": False,
-                                                                  "properties": {"x": {}}}}}}
+    schema = {
+        "type": "object",
+        "required": ["kind", "tasks"],
+        "additionalProperties": False,
+        "properties": {
+            "kind": {"enum": ["a", "b"]},
+            "n": {"type": "integer"},
+            "tasks": {
+                "type": "array",
+                "items": {"type": "object", "additionalProperties": False, "properties": {"x": {}}},
+            },
+        },
+    }
     reason = lambda out: checks.schema_check(out, schema)["reason"]  # noqa: E731
     assert reason({"kind": "a", "tasks": [], "draft_to_note": 1}) == (
         "the agent added a field that is not in the schema: `draft_to_note`. Tell the agent to use only the "
-        "fields of output_schema, or add the field to output.schema.json")
+        "fields of output_schema, or add the field to output.schema.json"
+    )
     assert reason({"kind": "a"}) == "the field `tasks` is missing"
     assert reason({"kind": "c", "tasks": []}).startswith('`kind` must be one of ["a", "b"]')
     assert reason({"kind": "a", "tasks": [], "n": "1"}).startswith("`n` must be of type integer")
@@ -206,13 +243,27 @@ def test_schema_errors_in_words():
 
 
 def test_read_claude_stream():
-    lines = [{"type": "system", "subtype": "init"},
-             {"type": "assistant", "message": {"content": [
-                 {"type": "tool_use", "id": "t0", "name": "ToolSearch", "input": {"query": "x"}},
-                 {"type": "tool_use", "id": "t1", "name": "mcp__kit__rules_get", "input": {"name": "routing"}}]}},
-             {"type": "user", "message": {"content": [
-                 {"type": "tool_result", "tool_use_id": "t1", "content": [{"type": "text", "text": "# Routing"}]}]}},
-             {"type": "result", "result": "{}", "num_turns": 2}]
+    lines = [
+        {"type": "system", "subtype": "init"},
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {"type": "tool_use", "id": "t0", "name": "ToolSearch", "input": {"query": "x"}},
+                    {"type": "tool_use", "id": "t1", "name": "mcp__kit__rules_get", "input": {"name": "routing"}},
+                ]
+            },
+        },
+        {
+            "type": "user",
+            "message": {
+                "content": [
+                    {"type": "tool_result", "tool_use_id": "t1", "content": [{"type": "text", "text": "# Routing"}]}
+                ]
+            },
+        },
+        {"type": "result", "result": "{}", "num_turns": 2},
+    ]
     result, calls = engines.read_stream("\n".join(json.dumps(x) for x in lines) + "\nnot json\n")
     assert result["num_turns"] == 2
     assert calls == [{"name": "rules_get", "input": {"name": "routing"}, "output": "# Routing"}]
@@ -225,15 +276,19 @@ def test_parse_json_text():
 
 def test_read_python_tool_log():
     err = 'hello\ntool contacts_lookup {"query": "a -> b"} -> "x\\n\\"y\\""\ntool rules_get {} -> "r"\ntool broken'
-    assert engines.read_tool_log(err) == [{"name": "contacts_lookup", "input": {"query": "a -> b"}, "output": 'x\n"y"'},
-                                          {"name": "rules_get", "input": {}, "output": "r"}]
+    assert engines.read_tool_log(err) == [
+        {"name": "contacts_lookup", "input": {"query": "a -> b"}, "output": 'x\n"y"'},
+        {"name": "rules_get", "input": {}, "output": "r"},
+    ]
 
 
 def test_judge_gets_tool_calls(monkeypatch):
     seen = {}
     monkeypatch.setattr(judge, "score", lambda value, rubric, inp, tools=None: seen.update(tools=tools) or (5, "ok"))
     run = runner.run_eval("fake", "python", case_ids=["f01"])
-    assert seen["tools"] == [{"name": "rules_get", "input": {"name": "routing"}, "output": "# Routing\nVendor declined"}]
+    assert seen["tools"] == [
+        {"name": "rules_get", "input": {"name": "routing"}, "output": "# Routing\nVendor declined"}
+    ]
     assert run["cases"][0]["meta"]["tool_calls"] == seen["tools"]
     text = judge.tools_text([{"name": "t", "input": {}, "output": "z" * 5000}] * 9)
     assert len(text) == judge.TOOLS_LIMIT and "z" * judge.OUTPUT_LIMIT in text and "z" * 1501 not in text
@@ -299,13 +354,22 @@ def test_hard_deadline_when_the_engine_hangs(monkeypatch):
 
 def test_compare():
     def case(cid, passed, checks_passed):
-        return {"id": cid, "title": cid, "passed": passed,
-                "checks": [{"type": "equals", "field": "x", "passed": i < checks_passed, "reason": ""} for i in range(3)]}
+        return {
+            "id": cid,
+            "title": cid,
+            "passed": passed,
+            "checks": [{"type": "equals", "field": "x", "passed": i < checks_passed, "reason": ""} for i in range(3)],
+        }
 
-    store.save_run({"run_id": "a", "cases": [case("c1", False, 1), case("c2", True, 3), case("c3", False, 1),
-                                               case("c4", False, 0)]})
-    store.save_run({"run_id": "b", "cases": [case("c1", True, 3), case("c2", False, 2), case("c3", False, 2),
-                                               case("c5", True, 3)]})
+    store.save_run(
+        {
+            "run_id": "a",
+            "cases": [case("c1", False, 1), case("c2", True, 3), case("c3", False, 1), case("c4", False, 0)],
+        }
+    )
+    store.save_run(
+        {"run_id": "b", "cases": [case("c1", True, 3), case("c2", False, 2), case("c3", False, 2), case("c5", True, 3)]}
+    )
     changes = {r["id"]: r["change"] for r in runner.compare("a", "b")["cases"]}
     assert changes == {"c1": "better", "c2": "worse", "c3": "better", "c4": "removed", "c5": "new"}
 

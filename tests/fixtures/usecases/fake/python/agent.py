@@ -1,4 +1,5 @@
 """Fake Python agent for the runner tests: stdin JSON -> stdout JSON."""
+
 import json
 import sys
 

@@ -1,4 +1,5 @@
 """Eval cases: load, check, save `usecases/<uc>/cases.jsonl` (contracts §3)."""
+
 from __future__ import annotations
 
 import email
@@ -17,7 +18,7 @@ CHECK_TYPES = {
     "not_contains": ["value"],
     "judge": ["rubric"],
     "count": [],  # needs one of equals / min / max (checked below)
-    "any": [],    # needs where and/or contains (checked below)
+    "any": [],  # needs where and/or contains (checked below)
 }
 
 
@@ -78,9 +79,9 @@ def validate_case(case) -> list[str]:
         if kind == "any":
             parts = [k for k in ("where", "contains") if k in check]
             if not parts:
-                errors.append(f"check {i} (any): give `where` and/or `contains`, e.g. {{\"where\": {{\"kind\": \"trip\"}}}}")
+                errors.append(f'check {i} (any): give `where` and/or `contains`, e.g. {{"where": {{"kind": "trip"}}}}')
             elif not all(isinstance(check[k], dict) and check[k] for k in parts):
-                errors.append(f"check {i} (any): `where` and `contains` must be JSON objects like {{\"key\": \"value\"}}")
+                errors.append(f'check {i} (any): `where` and `contains` must be JSON objects like {{"key": "value"}}')
     return errors
 
 
