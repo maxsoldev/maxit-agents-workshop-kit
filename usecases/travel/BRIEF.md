@@ -64,8 +64,8 @@ reasons (for example it does not look at the event overview). One gap is on purp
 
 The n8n scaffold (`Kit: travel workflow`) is a **workflow**: code decides the path, the model fills in the
 steps. Case in → **Read the rules** (tool) → **Read message** (AI: what, who, which days) → **Look up events on
-those days** (tool: the event overview) → **Find tasks** (AI: the result; the main prompt) → Result out. Case in
-has a pinned sample case (t02): **Execute** in the editor runs it and shows the data on every node. It does not
+those days** (tool: the event overview) → **Find tasks** (AI: the result; the main prompt) → Result out. To see the
+data of one case on every node: kit results → the case → **n8n execution ↗**. It does not
 search trains yet: add a step. `Kit: travel agent (example)` is the same job as one AI Agent node (the model
 picks the tools): engine `n8n-agent`, to compare.
 

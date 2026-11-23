@@ -66,8 +66,8 @@ The n8n scaffold (`Kit: marketing workflow`) is a **workflow**, like the slides:
 model fills in the steps. Case in → **Read the rules** (tool) → **Triage** (AI: category, flags, sender) →
 **Junk?** (code: spam, newsletter, phishing or off_target → **Result: no reply**, no more model calls) →
 **Look up the sender in the contact sheet** and **Find earlier emails from the sender** (tools, plain HTTP) →
-**Decide and draft** (AI: the result; the main prompt) → Result out. Case in has a pinned sample case (m14):
-**Execute** in the editor runs it and shows the data on every node. Next steps from the slides: a Contact change step, a check before the result.
+**Decide and draft** (AI: the result; the main prompt) → Result out. To see the data of one case on
+every node: kit results → the case → **n8n execution ↗**. Next steps from the slides: a Contact change step, a check before the result.
 `Kit: marketing agent (example)` is the same job as one AI Agent node (the model picks the tools): engine
 `n8n-agent`, to compare.
 

@@ -155,10 +155,37 @@ def test_workflow_body_and_same_workflow():
     assert same_workflow(stored, body)
     changed = {**body, "nodes": [{**body["nodes"][0], "parameters": {"path": "other"}}]}
     assert not same_workflow(changed, body)
-    # only the sample case on the trigger is kept (Debug in editor pins every node); pins are not part of the hash
+    # all pins go (Debug in editor pins every node; an export must not save that); pins are not part of the hash
     pins = {"Case in": [{"json": {"body": {"case_id": "m14"}}}], "Triage": [{"json": {"text": "old answer"}}]}
     body = workflow_body({**wf, "pinData": pins})
-    assert body["pinData"] == {"Case in": pins["Case in"]} and same_workflow(body, workflow_body(wf))
+    assert "pinData" not in body and same_workflow({**body, "pinData": pins}, workflow_body(wf))
+
+
+def test_setup_removes_pins_from_an_unchanged_workflow(tmp_path, monkeypatch):
+    """The n8n copy is the same as the file but has pinned data (an old kit file, or Debug in editor):
+    setup updates it with pinData {} (without the key, n8n keeps the pins)."""
+    wf = {"name": "Kit: x workflow", "nodes": [{"name": "Case in", "type": "webhook", "parameters": {}}]}
+    (tmp_path / "usecases/x/n8n").mkdir(parents=True)
+    (tmp_path / "usecases/x/n8n/workflow.json").write_text(json.dumps(wf))
+    for name, value in [("ROOT", tmp_path), ("RUNS_DIR", tmp_path / "runs"), ("USECASES_DIR", tmp_path / "usecases")]:
+        monkeypatch.setattr(setup, name, value)
+    monkeypatch.setattr(setup, "IMPORTED_FILE", tmp_path / "runs/n8n-imported.json")
+    monkeypatch.setattr(setup, "free_webhook_paths", lambda *a: None)
+    calls = []
+    stored = {**workflow_body(wf), "id": "w1", "active": True, "pinData": {"Case in": [{"json": {}}]}}
+
+    def api(method, path, body=None):
+        calls.append((method, path, body))
+        return httpx.Response(200, json=stored if method == "GET" else {})
+
+    fake = types.SimpleNamespace(workflows=lambda: [stored], api=api)
+    assert setup.import_workflows(fake, "cred")
+    puts = [b for m, _, b in calls if m == "PUT"]
+    assert len(puts) == 1 and puts[0]["pinData"] == {}
+    calls.clear()
+    stored.pop("pinData")
+    assert setup.import_workflows(fake, "cred")
+    assert not [c for c in calls if c[0] == "PUT"]  # no pins: unchanged, no update
 
 
 def test_model_key_check_names_the_error(monkeypatch):

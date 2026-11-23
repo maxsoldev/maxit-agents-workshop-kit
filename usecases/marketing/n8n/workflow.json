@@ -17,7 +17,7 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "notes": "Pinned sample: m14",
+      "notes": "Each case comes in here",
       "notesInFlow": true
     },
     {
@@ -344,7 +344,7 @@
         "color": 7,
         "width": 620,
         "height": 840,
-        "content": "## 1 The email comes in\nWhen you run an eval, the kit sends each test email (a **case**) to **Case in**. The email text is in `input.email`. **Read the rules** loads the owner's rules (`data/*.md`: categories, routing, reply_guidelines, contact_rules).\n\n**Try it here:** Case in has a pinned sample email (m14). Click **Execute** (bottom). Then open any node: you see what went in and what came out.\n\n**See one eval case here:** in the kit, open the results page, click the case, then **n8n execution ↗**. It opens the execution of that case (each workflow has its own Executions: marketing cases are under Kit: marketing workflow). Double-click a node: you see its input and output in that run (read only). To load the run into the editor: top right **Copy to editor** (a run that worked) or **Debug in editor** (a failed run). n8n asks once for the free *Registered Community Edition* (your email; Settings > Usage and plan)."
+        "content": "## 1 The email comes in\nWhen you run an eval, the kit sends each test email (a **case**) to **Case in**. The email text is in `input.email`. **Read the rules** loads the owner's rules (`data/*.md`: categories, routing, reply_guidelines, contact_rules).\n\n**See the data of one eval case:** in the kit, open the results page, click the case, then **n8n execution ↗**. It opens the execution of that case (each workflow has its own Executions: marketing cases are under Kit: marketing workflow). Double-click a node: you see its input and output in that run (read only). To load the run into the editor: top right **Copy to editor** (a run that worked) or **Debug in editor** (a failed run). n8n asks once for the free *Registered Community Edition* (your email; Settings > Usage and plan)."
       }
     },
     {
@@ -574,75 +574,5 @@
     "saveDataSuccessExecution": "all",
     "executionTimeout": 110,
     "binaryMode": "separate"
-  },
-  "pinData": {
-    "Case in": [
-      {
-        "json": {
-          "headers": {},
-          "params": {},
-          "query": {},
-          "body": {
-            "case_id": "m14",
-            "today": "2026-11-12",
-            "input": {
-              "email_file": "data/emails/14_2026-11-12.eml",
-              "email": "From: Lena Hoffmann <lena.hoffmann@mpi-example-history.example>\nTo: bloxberg Info <info@bloxberg.example>\nDate: Thu, 12 Nov 2026 11:40:00 +0100\nSubject: AW: Zertifikat lässt sich nicht verifizieren\n\nHallo nochmal,\n\nich wollte kurz nachhaken, ob es zu meiner Frage schon Neuigkeiten gibt. Der Gutachter braucht die Bestätigung bis zum 28. November.\n\nDanke!\nLena Hoffmann\n",
-              "email_raw": "From: Lena Hoffmann <lena.hoffmann@mpi-example-history.example>\nTo: bloxberg Info <info@bloxberg.example>\nSubject: AW: Zertifikat =?utf-8?q?l=C3=A4sst?= sich nicht verifizieren\nDate: Thu, 12 Nov 2026 11:40:00 +0100\nMessage-ID: <synthetic-014@example.org>\nContent-Type: text/plain; charset=\"utf-8\"\nContent-Transfer-Encoding: quoted-printable\nMIME-Version: 1.0\n\nHallo nochmal,\n\nich wollte kurz nachhaken, ob es zu meiner Frage schon Neuigkeiten gibt. Der =\nGutachter braucht die Best=C3=A4tigung bis zum 28. November.\n\nDanke!\nLena Hoffmann\n"
-            },
-            "output_schema": {
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "Marketing inbox: result for one email",
-              "type": "object",
-              "required": [
-                "category",
-                "flags",
-                "reply",
-                "reasons"
-              ],
-              "additionalProperties": false,
-              "properties": {
-                "category": {
-                  "type": "string",
-                  "enum": [
-                    "institute_request",
-                    "membership",
-                    "partnership",
-                    "event_invitation",
-                    "press",
-                    "service_offer",
-                    "unverified_outreach",
-                    "newsletter",
-                    "spam"
-                  ],
-                  "description": "Exactly one category, see data/categories.md."
-                },
-                "flags": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "enum": [
-                      "phishing",
-                      "injection",
-                      "unverified",
-                      "off_target"
-                    ]
-                  },
-                  "description": "Zero or more warning flags, see data/categories.md."
-                },
-                "reply": {
-                  "type": "string",
-                  "description": "A reply draft for a human to check. Empty string when we do not reply."
-                },
-                "reasons": {
-                  "type": "string",
-                  "description": "Short explanation of the decision, for the reviewer."
-                }
-              }
-            }
-          }
-        }
-      }
-    ]
   }
 }

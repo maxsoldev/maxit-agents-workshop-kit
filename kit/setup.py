@@ -100,16 +100,14 @@ def fill_placeholders(text: str, credential_id: str, tools_url: str) -> str:
 
 
 def workflow_body(wf: dict) -> dict:
-    """Only the fields the n8n public API accepts on create and update. pinData: only the sample case on the
-    trigger `Case in` (for Execute workflow in the editor; production webhook runs ignore pins). Other pins
-    (e.g. from Debug in editor) stay out, so an exported file does not freeze an AI node's output."""
-    pins = {k: v for k, v in (wf.get("pinData") or {}).items() if k == "Case in"}
+    """Only the fields the n8n public API accepts on create and update. No pinData: the files define the
+    pipeline, not one case (Debug in editor pins every node; an export must not save that). To see the data
+    of a case, open its n8n execution."""
     return {
         "name": wf["name"],
         "nodes": wf["nodes"],
         "connections": wf.get("connections", {}),
         "settings": wf.get("settings") or {},
-        **({"pinData": pins} if pins else {}),
     }
 
 
@@ -480,10 +478,15 @@ def import_workflows(n8n: N8n, cred_id: str, force: bool = False) -> bool:
             wid = old["id"]
             full = n8n.api("GET", f"/workflows/{wid}").json()
             uc_name = f.parent.parent.name
-            if same_workflow(full, body):
+            pinned = bool(full.get("pinData"))
+            if same_workflow(full, body) and not pinned:
                 state = "unchanged"
                 remember_import(body["name"], body)
-            elif not force and imported_hashes().get(body["name"]) != workflow_hash(full):
+            elif (
+                not same_workflow(full, body)
+                and not force
+                and imported_hashes().get(body["name"]) != workflow_hash(full)
+            ):
                 # n8n is not what setup put there last: someone edited it in the editor. Keep it.
                 newer = imported_hashes().get(body["name"]) not in (None, workflow_hash(body))
                 warn(
@@ -506,13 +509,15 @@ def import_workflows(n8n: N8n, cred_id: str, force: bool = False) -> bool:
                 backup.write_text(json.dumps(full, indent=2))
                 if full.get("active"):
                     n8n.api("POST", f"/workflows/{wid}/deactivate")
-                r = n8n.api("PUT", f"/workflows/{wid}", body)
+                # pinData {} removes the pins in n8n; without the key n8n keeps them.
+                r = n8n.api("PUT", f"/workflows/{wid}", {**body, "pinData": {}})
                 if r.status_code >= 300:
                     fail(f"{rel}: update failed ({r.status_code}): {r.text[:200]}")
                     good = False
                     continue
                 remember_import(body["name"], body)
-                state = f"updated from the file (old copy: {backup.relative_to(ROOT)})"
+                what = "pinned data removed" if same_workflow(full, body) else "updated from the file"
+                state = f"{what} (old copy: {backup.relative_to(ROOT)})"
             if full.get("active") and state == "unchanged":
                 ok(f"{body['name']}: {state}, active")
                 continue
