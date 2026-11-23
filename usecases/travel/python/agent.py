@@ -58,6 +58,27 @@ def to_openai_tool(tool) -> dict:
     }
 
 
+def result_format(schema: dict) -> dict:
+    """The result schema as an OpenAI result format. Only the shape goes to the model: with "title"
+    in it, the model may copy "title" into the result. strict=True makes the API keep to the shape;
+    it needs every field in "required" and "additionalProperties": false. Else strict=False."""
+    shape = {k: v for k, v in schema.items() if k not in ("$schema", "$id", "title")}
+    return {"type": "json_schema", "name": "result", "schema": shape, "strict": strict_ok(shape)}
+
+
+def strict_ok(node) -> bool:
+    """True if every object in the schema has all its fields required and no other fields allowed."""
+    if isinstance(node, list):
+        return all(strict_ok(x) for x in node)
+    if not isinstance(node, dict):
+        return True
+    if node.get("type") == "object":
+        fields = node.get("properties", {})
+        if node.get("additionalProperties") is not False or set(node.get("required", [])) != set(fields):
+            return False
+    return all(strict_ok(v) for v in node.values())
+
+
 async def call_tool(client: Client, name: str, args: dict) -> str:
     result = await client.call_tool(name, args)
     return "\n".join(getattr(c, "text", "") for c in result.content)
@@ -102,7 +123,7 @@ async def run(case: dict, client: Client | None) -> dict:
         instructions=PROMPT,
         input=items,
         **with_tools,
-        text={"format": {"type": "json_schema", "name": "result", "schema": schema, "strict": False}},
+        text={"format": result_format(schema)},
     )
     return json.loads(final.output_text)
 

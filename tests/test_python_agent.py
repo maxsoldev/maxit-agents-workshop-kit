@@ -109,6 +109,20 @@ def test_agent_runs_the_tool_loop_on_the_responses_api(uc, monkeypatch):
     assert last["text"]["format"]["type"] == "json_schema"
 
 
+@pytest.mark.parametrize("uc", ["marketing", "travel"])
+def test_result_format_sends_only_the_shape_strict_when_it_can(uc, monkeypatch):
+    agent = load_agent(uc)
+    requests: list[dict] = []
+    monkeypatch.setattr(agent, "OpenAI", lambda: fake_openai(requests))
+    schema = json.loads((USECASES / uc / "output.schema.json").read_text())
+    asyncio.run(agent.run({"today": "x", "input": {}, "output_schema": schema}, FakeTools()))
+    fmt = requests[-1]["text"]["format"]
+    assert "title" not in fmt["schema"] and "$schema" not in fmt["schema"]  # else the model copies "title"
+    assert fmt["strict"] is True and fmt["schema"]["properties"] == schema["properties"]
+    loose = {"type": "object", "properties": {"a": {"type": "string"}}, "additionalProperties": False}
+    assert agent.result_format(loose)["strict"] is False  # "a" is not required: strict would refuse it
+
+
 def test_agent_without_tools_sends_no_tool_list(monkeypatch):
     agent = load_agent("marketing")
     requests: list[dict] = []
