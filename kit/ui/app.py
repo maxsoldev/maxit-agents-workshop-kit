@@ -433,7 +433,11 @@ async def case_save(request: Request, uc: str):
     case["checks"] = [
         parse_check(str(t), str(fl), str(a), str(m))
         for t, fl, a, m in zip(
-            f.getlist("check_type"), f.getlist("check_field"), f.getlist("check_arg"), f.getlist("check_min")
+            f.getlist("check_type"),
+            f.getlist("check_field"),
+            f.getlist("check_arg"),
+            f.getlist("check_min"),
+            strict=False,
         )
         if str(t) and (str(fl).strip() or str(a).strip())
     ]
@@ -597,7 +601,7 @@ def runs_page(request: Request, uc: str, checks: int = 0):
     hidden = sum(1 for r in runs if r.get("name") == CHECK_RUN)
     if not checks:
         runs = [r for r in runs if r.get("name") != CHECK_RUN]
-    for r, prev in zip(runs, runs[1:]):  # against the run before it: "13 cases (2 new, 1 changed)"
+    for r, prev in zip(runs, runs[1:], strict=False):  # against the run before it: "13 cases (2 new, 1 changed)"
         now, before = r.get("case_hashes") or {}, prev.get("case_hashes") or {}
         r["new_cases"] = sum(1 for i in now if i not in before)
         r["changed_cases"] = sum(1 for i, h in now.items() if h and before.get(i) and before[i] != h)
@@ -646,7 +650,7 @@ def results_page(request: Request, run_id: str, vs: str = ""):
     try:
         run = runner().load_run(run_id)
     except (FileNotFoundError, KeyError):
-        raise HTTPException(404, f"No run '{run_id}'")
+        raise HTTPException(404, f"No run '{run_id}'") from None
     uc = run.get("usecase")
     # Compare list: no `make check` runs; the same engine first; mark runs with other cases.
     ids = sorted(c.get("id", "") for c in run.get("cases", []))

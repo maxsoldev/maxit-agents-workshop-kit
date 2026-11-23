@@ -216,7 +216,8 @@ def check_host() -> bool:
             ok(f"OPENAI_API_KEY works ({text})")
         else:
             fail(
-                f"OPENAI_API_KEY does not work: {text}. Fix the key (or OPENAI_BASE_URL) in .env, then run make setup again"
+                f"OPENAI_API_KEY does not work: {text}. "
+                "Fix the key (or OPENAI_BASE_URL) in .env, then run make setup again"
             )
             good = False
     else:
@@ -565,7 +566,8 @@ def summary() -> None:
         print(f"  n8n        {s.n8n_url}   (hosted)")
     if s.langfuse_mode == "local":
         print(
-            f"  Langfuse   {s.langfuse_host}   login {s.langfuse_user_email}, password LANGFUSE_INIT_USER_PASSWORD in .env"
+            f"  Langfuse   {s.langfuse_host}   login {s.langfuse_user_email}, "
+            "password LANGFUSE_INIT_USER_PASSWORD in .env"
         )
     elif s.langfuse_mode == "hosted":
         print(f"  Langfuse   {s.langfuse_host}   (hosted)")

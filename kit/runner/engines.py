@@ -165,7 +165,7 @@ def n8n_execution_url(uc: str, call_id: str) -> str | None:
             wid = w["id"]
     if not wid:
         return None
-    for attempt in range(3):  # n8n saves the execution just after it answers
+    for _attempt in range(3):  # n8n saves the execution just after it answers
         data = api.get("/executions", params={"workflowId": wid, "limit": 10, "includeData": "true"}).json()
         for e in data.get("data", []):
             if call_id in json.dumps((e.get("data") or {}).get("resultData", {}).get("runData", {}).get("Case in", [])):

@@ -75,7 +75,8 @@ def test_eml_files_are_decoded(tmp_path, monkeypatch):
     (tmp_path / "x" / "data").mkdir(parents=True)
     qp = (
         "From: Anna <a@x.example>\nDate: Tue, 03 Nov 2026 11:22:00 +0100\nSubject: =?utf-8?q?Gr=C3=BC=C3=9Fe?=\n"
-        "Content-Type: text/plain; charset=utf-8\nContent-Transfer-Encoding: quoted-printable\n\nVielen Dank f=C3=BCr Ihre Mail.\n"
+        "Content-Type: text/plain; charset=utf-8\nContent-Transfer-Encoding: quoted-printable\n\n"
+        "Vielen Dank f=C3=BCr Ihre Mail.\n"
     )
     html = (
         "From: B <b@x.example>\nSubject: Only HTML\nContent-Type: text/html; charset=utf-8\n\n"

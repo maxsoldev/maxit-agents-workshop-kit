@@ -35,7 +35,9 @@ def _load_schema(uc: str) -> dict:
         schema = json.loads(path.read_text(encoding="utf-8"))
         checks.jsonschema.validators.validator_for(schema).check_schema(schema)
     except (ValueError, checks.jsonschema.SchemaError) as e:
-        raise CaseError(f"usecases/{uc}/output.schema.json is not a valid JSON Schema: {str(e).splitlines()[0]}")
+        raise CaseError(
+            f"usecases/{uc}/output.schema.json is not a valid JSON Schema: {str(e).splitlines()[0]}"
+        ) from None
     return schema
 
 
