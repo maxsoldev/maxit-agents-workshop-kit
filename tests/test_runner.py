@@ -651,3 +651,11 @@ def test_engine_env_drops_empty_base_url(monkeypatch):
     assert "OPENAI_BASE_URL" not in engines.engine_env()
     monkeypatch.setenv("OPENAI_BASE_URL", "http://gw:4000/v1/")
     assert engines.engine_env()["OPENAI_BASE_URL"] == "http://gw:4000/v1"
+
+
+def test_one_list_of_check_types():
+    """The case form offers the same check types as the runner checks (and case validation knows)."""
+    from kit.ui import app
+
+    assert set(app.CHECK_TYPES) == set(checks.CHECK_TYPES) == set(cases.CHECK_TYPES)
+    assert set(engines.ENGINES) == set(config.ALL_ENGINES)

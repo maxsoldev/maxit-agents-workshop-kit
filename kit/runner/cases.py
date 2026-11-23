@@ -13,16 +13,9 @@ from pathlib import Path
 import jsonschema
 
 from kit import config
+from kit.runner import checks
 
-CHECK_TYPES = {
-    "equals": [],
-    "in": ["values"],
-    "contains": ["value"],
-    "not_contains": ["value"],
-    "judge": ["rubric"],
-    "count": [],  # needs one of equals / min / max (checked below)
-    "any": [],  # needs where and/or contains (checked below)
-}
+CHECK_TYPES = {name: t.needs for name, t in checks.CHECK_TYPES.items()}  # type -> keys it must have
 
 
 class CaseError(ValueError):

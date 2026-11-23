@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
+from dataclasses import dataclass
 
 import jsonschema
 
@@ -97,6 +99,90 @@ def _item_misses(item, where: dict, contains: dict) -> list[str]:
     return misses
 
 
+@dataclass(frozen=True)
+class Ctx:
+    """What a check may use besides the field value."""
+
+    field: str
+    expected: dict
+    case_input: dict
+    tool_calls: list | None
+
+
+def _equals(check: dict, got, ctx: Ctx):
+    want = check["value"] if "value" in check else get_field(ctx.expected, ctx.field)
+    if want is MISSING:
+        return False, f"no expected `{ctx.field}` in the case and no `value` in the check"
+    ok = got == want
+    return ok, f"got {short(got)}" if ok else f"got {short(got)}, expected {short(want)}"
+
+
+def _in(check: dict, got, ctx: Ctx):
+    values = check.get("values", [])
+    ok = got in values
+    return ok, f"got {short(got)}" if ok else f"got {short(got)}, expected one of {short(values)}"
+
+
+def _has(check: dict, got, want_found: bool):
+    value = check.get("value")
+    found = _contains(got, value)
+    return found == want_found, f"{'has' if found else 'does not have'} {short(value)}"
+
+
+def _count(check: dict, got, ctx: Ctx):
+    if not isinstance(got, list):
+        return False, f"`{ctx.field}` is not a list: {short(got)}"
+    n, want = len(got), check.get("equals")
+    ok = (want is None or n == want) and n >= check.get("min", n) and n <= check.get("max", n)
+    limits = ", ".join(f"{k} {check[k]}" for k in ("equals", "min", "max") if k in check)
+    return ok, f"{n} items" + ("" if ok else f", expected {limits}")
+
+
+def _any(check: dict, got, ctx: Ctx):
+    if not isinstance(got, list):
+        return False, f"`{ctx.field}` is not a list: {short(got)}"
+    where, contains = check.get("where") or {}, check.get("contains") or {}
+    misses = [_item_misses(item, where, contains) for item in got]
+    want = short({**where, **{k: f"~{v}" for k, v in contains.items()}}, 200)
+    hits = [i for i, m in enumerate(misses) if not m]
+    if hits:
+        return True, f"item {hits[0] + 1} of {len(got)} matches {want}"  # 1 = the first
+    if not got:
+        return False, f"`{ctx.field}` is empty, so no item matches {want}"
+    best = min(range(len(got)), key=lambda i: len(misses[i]))  # the item that is closest
+    return False, f"no item of {len(got)} matches {want}; closest is item {best + 1}: " + ", ".join(misses[best])
+
+
+def _judge(check: dict, got, ctx: Ctx):
+    """passed None = skipped (no key, API error, timeout): the judge did not run, so it neither passes nor fails."""
+    minimum = check.get("min", 4)
+    try:
+        score, reason = with_deadline(
+            lambda: judge.score(got, check.get("rubric", ""), ctx.case_input, ctx.tool_calls), JUDGE_DEADLINE_S
+        )
+    except Exception as e:
+        return None, f"judge skipped: {e}"
+    return score >= minimum, f"score {score}/5 (min {minimum}): {reason}"
+
+
+@dataclass(frozen=True)
+class CheckType:
+    run: Callable[[dict, object, Ctx], tuple[bool | None, str]]  # (check, field value, ctx) -> (passed, reason)
+    needs: tuple[str, ...] = ()  # keys the check must have (cases.validate_case)
+
+
+# The check types of cases.jsonl (contracts §3). A new type: one function and one line here.
+CHECK_TYPES = {
+    "equals": CheckType(_equals),
+    "in": CheckType(_in, ("values",)),
+    "contains": CheckType(lambda c, got, ctx: _has(c, got, True), ("value",)),
+    "not_contains": CheckType(lambda c, got, ctx: _has(c, got, False), ("value",)),
+    "judge": CheckType(_judge, ("rubric",)),
+    "count": CheckType(_count),  # needs one of equals / min / max (cases.validate_case)
+    "any": CheckType(_any),  # needs where and/or contains (cases.validate_case)
+}
+
+
 def run_check(check: dict, output, expected: dict, case_input: dict, tool_calls: list | None = None) -> dict:
     """Run one check on the output. Never raises: a problem is a failed check with a reason.
     `tool_calls` of the engine (if any) go to the judge: facts from tool results are allowed."""
@@ -112,60 +198,10 @@ def run_check(check: dict, output, expected: dict, case_input: dict, tool_calls:
         )
     if got is MISSING:
         return result(kind, field, False, f"`{field}` is missing in the result")
-
-    if kind == "equals":
-        want = check["value"] if "value" in check else get_field(expected, field)
-        if want is MISSING:
-            return result(kind, field, False, f"no expected `{field}` in the case and no `value` in the check")
-        ok = got == want
-        return result(kind, field, ok, f"got {short(got)}" if ok else f"got {short(got)}, expected {short(want)}")
-    if kind == "in":
-        values = check.get("values", [])
-        ok = got in values
-        return result(
-            kind, field, ok, f"got {short(got)}" if ok else f"got {short(got)}, expected one of {short(values)}"
-        )
-    if kind in ("contains", "not_contains"):
-        value = check.get("value")
-        found = _contains(got, value)
-        ok = found if kind == "contains" else not found
-        verb = "has" if found else "does not have"
-        return result(kind, field, ok, f"{verb} {short(value)}")
-    if kind == "count":
-        if not isinstance(got, list):
-            return result(kind, field, False, f"`{field}` is not a list: {short(got)}")
-        n, want = len(got), check.get("equals")
-        ok = (want is None or n == want) and n >= check.get("min", n) and n <= check.get("max", n)
-        limits = ", ".join(f"{k} {check[k]}" for k in ("equals", "min", "max") if k in check)
-        return result(kind, field, ok, f"{n} items" + ("" if ok else f", expected {limits}"))
-    if kind == "any":
-        if not isinstance(got, list):
-            return result(kind, field, False, f"`{field}` is not a list: {short(got)}")
-        where, contains = check.get("where") or {}, check.get("contains") or {}
-        misses = [_item_misses(item, where, contains) for item in got]
-        want = short({**where, **{k: f"~{v}" for k, v in contains.items()}}, 200)
-        hits = [i for i, m in enumerate(misses) if not m]
-        if hits:
-            return result(kind, field, True, f"item {hits[0] + 1} of {len(got)} matches {want}")  # 1 = the first
-        if not got:
-            return result(kind, field, False, f"`{field}` is empty, so no item matches {want}")
-        best = min(range(len(got)), key=lambda i: len(misses[i]))  # the item that is closest
-        return result(
-            kind,
-            field,
-            False,
-            f"no item of {len(got)} matches {want}; closest is item {best + 1}: " + ", ".join(misses[best]),
-        )
-    if kind == "judge":
-        minimum = check.get("min", 4)
-        try:
-            score, reason = with_deadline(
-                lambda: judge.score(got, check.get("rubric", ""), case_input, tool_calls), JUDGE_DEADLINE_S
-            )
-        except Exception as e:  # no key, API error, timeout: the judge did not run, so it neither passes nor fails
-            return {**result(kind, field, None, f"judge skipped: {e}"), "skipped": True}
-        return result(kind, field, score >= minimum, f"score {score}/5 (min {minimum}): {reason}")
-    return result(kind, field, False, f"unknown check type {kind!r}")
+    if kind not in CHECK_TYPES:
+        return result(kind, field, False, f"unknown check type {kind!r}")
+    passed, reason = CHECK_TYPES[kind].run(check, got, Ctx(field, expected, case_input, tool_calls))
+    return result(kind, field, passed, reason) | ({"skipped": True} if passed is None else {})
 
 
 def _every_item(check: dict, output, expected: dict, case_input: dict, tool_calls: list | None = None) -> dict:
