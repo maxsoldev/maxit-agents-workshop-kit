@@ -1,0 +1,271 @@
+{
+ "id": "127",
+ "data": {
+  "resultData": {
+   "runData": {
+    "OpenAI model": [
+     {
+      "startTime": 1795432250414,
+      "executionTime": 1969,
+      "executionIndex": 2,
+      "executionStatus": "success",
+      "source": [
+       {
+        "previousNode": "Agent",
+        "previousNodeRun": 0
+       }
+      ],
+      "data": {
+       "ai_languageModel": [
+        [
+         {
+          "json": {
+           "response": {
+            "generations": [
+             [
+              {
+               "text": "",
+               "generationInfo": {
+                "finish_reason": "tool_calls",
+                "model_name": "fast"
+               }
+              }
+             ]
+            ]
+           },
+           "tokenUsage": {
+            "completionTokens": 164,
+            "promptTokens": 1776,
+            "totalTokens": 1940
+           }
+          }
+         }
+        ]
+       ]
+      },
+      "inputOverride": {
+       "ai_languageModel": [
+        [
+         {
+          "json": {
+           "messages": [
+            "System: (cut)"
+           ]
+          }
+         }
+        ]
+       ]
+      },
+      "metadata": {
+       "tracing": {
+        "gen_ai.operation.name": "chat",
+        "gen_ai.provider.name": "openai",
+        "gen_ai.request.model": "fast",
+        "gen_ai.response.model": "fast",
+        "gen_ai.usage.input_tokens": 1776,
+        "gen_ai.usage.output_tokens": 164
+       },
+       "subRun": [
+        {
+         "node": "OpenAI model",
+         "runIndex": 0
+        }
+       ]
+      }
+     }
+    ],
+    "Kit tools (MCP)": [
+     {
+      "inputOverride": {
+       "ai_tool": [
+        [
+         {
+          "json": {
+           "usecase": "marketing",
+           "name": "reply_guidelines",
+           "tool": "Kit_tools__MCP__rules_get"
+          },
+          "pairedItem": {
+           "item": 0,
+           "input": 0,
+           "sourceOverwrite": {
+            "previousNode": "Case in",
+            "previousNodeOutput": 0,
+            "previousNodeRun": 0
+           }
+          }
+         }
+        ]
+       ]
+      },
+      "source": [
+       {
+        "previousNode": "Agent",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      ],
+      "executionIndex": 5,
+      "executionTime": 3,
+      "startTime": 1795432252401,
+      "hints": [],
+      "metadata": {
+       "preserveSourceOverwrite": true,
+       "preservedSourceOverwrite": {
+        "previousNode": "Case in",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      },
+      "executionStatus": "success",
+      "data": {
+       "ai_tool": [
+        [
+         {
+          "json": {
+           "response": [
+            {
+             "type": "text",
+             "text": "{\n  \"usecase\": \"marketing\",\n  \"name\": \"reply_guidelines\",\n  \"text\": \"# Reply guidelines\\n\\n## Language and tone\\n\\n- Reply in the sender's language (German or English).\\n- German: \\\"Sie\\\" form, friendly and professional (\\\"Liebe Frau …\\\", \\\"Viele Grüße\\\").\\n- English: friendly and professional (\\\"De"
+            }
+           ]
+          },
+          "pairedItem": {
+           "item": 0
+          }
+         }
+        ]
+       ]
+      }
+     },
+     {
+      "inputOverride": {
+       "ai_tool": [
+        [
+         {
+          "json": {
+           "usecase": "marketing",
+           "name": "routing",
+           "tool": "Kit_tools__MCP__rules_get"
+          },
+          "pairedItem": {
+           "item": 0,
+           "input": 0,
+           "sourceOverwrite": {
+            "previousNode": "Case in",
+            "previousNodeOutput": 0,
+            "previousNodeRun": 0
+           }
+          }
+         }
+        ]
+       ]
+      },
+      "source": [
+       {
+        "previousNode": "Agent",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      ],
+      "executionIndex": 4,
+      "executionTime": 4,
+      "startTime": 1795432252397,
+      "hints": [],
+      "metadata": {
+       "preserveSourceOverwrite": true,
+       "preservedSourceOverwrite": {
+        "previousNode": "Case in",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      },
+      "executionStatus": "success",
+      "data": {
+       "ai_tool": [
+        [
+         {
+          "json": {
+           "response": [
+            {
+             "type": "text",
+             "text": "{\n  \"usecase\": \"marketing\",\n  \"name\": \"routing\",\n  \"text\": \"# Routing: who gets what\\n\\n## Actions\\n\\n| Action | When |\\n|---|---|\\n| `reply` | We answer the sender ourselves (marketing & communication). |\\n| `forward` | Someone else in the department must handle it. Write who in \\\"route to\\\". |\\n| "
+            }
+           ]
+          },
+          "pairedItem": {
+           "item": 0
+          }
+         }
+        ]
+       ]
+      }
+     },
+     {
+      "inputOverride": {
+       "ai_tool": [
+        [
+         {
+          "json": {
+           "usecase": "marketing",
+           "name": "categories",
+           "tool": "Kit_tools__MCP__rules_get"
+          },
+          "pairedItem": {
+           "item": 0,
+           "input": 0,
+           "sourceOverwrite": {
+            "previousNode": "Case in",
+            "previousNodeOutput": 0,
+            "previousNodeRun": 0
+           }
+          }
+         }
+        ]
+       ]
+      },
+      "source": [
+       {
+        "previousNode": "Agent",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      ],
+      "executionIndex": 3,
+      "executionTime": 10,
+      "startTime": 1795432252387,
+      "hints": [],
+      "metadata": {
+       "preserveSourceOverwrite": true,
+       "preservedSourceOverwrite": {
+        "previousNode": "Case in",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      },
+      "executionStatus": "success",
+      "data": {
+       "ai_tool": [
+        [
+         {
+          "json": {
+           "response": [
+            {
+             "type": "text",
+             "text": "{\n  \"usecase\": \"marketing\",\n  \"name\": \"categories\",\n  \"text\": \"# Categories for the bloxberg info inbox\\n\\nGive every email exactly one category. If two fit, take the one that best describes what the sender wants from us.\\n\\n| Category | What it is | Typical examples |\\n|---|---|---|\\n| `institute_r"
+            }
+           ]
+          },
+          "pairedItem": {
+           "item": 0
+          }
+         }
+        ]
+       ]
+      }
+     }
+    ]
+   }
+  }
+ }
+}

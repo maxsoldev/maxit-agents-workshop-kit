@@ -291,6 +291,18 @@ def test_read_python_tool_log():
     ]
 
 
+def test_n8n_tool_calls_from_execution():
+    # a real (trimmed) n8n 2.x execution: 3 MCP tool runs (saved in reverse order) and one model run
+    execution = json.loads((FIX / "n8n_execution.json").read_text(encoding="utf-8"))
+    calls = engines.n8n_tool_calls(execution, limit=50)
+    assert [c["name"] for c in calls] == ["rules_get"] * 3
+    assert [c["input"] for c in calls] == [
+        {"usecase": "marketing", "name": n} for n in ["categories", "routing", "reply_guidelines"]
+    ]
+    assert '"name": "categories"' in calls[0]["output"] and len(calls[0]["output"]) == 50
+    assert engines.n8n_tool_calls(None) == [] and engines.n8n_tool_calls({"data": {}}) == []
+
+
 def test_judge_gets_tool_calls(monkeypatch):
     seen = {}
     monkeypatch.setattr(judge, "score", lambda value, rubric, inp, tools=None: seen.update(tools=tools) or (5, "ok"))

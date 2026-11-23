@@ -145,35 +145,67 @@ def _tail(text: str, lines: int = 5) -> str:
 
 
 def call_n8n(uc: str, engine_input: dict):
-    """POST the case to the webhook. meta["execution_url"] links to the n8n execution (if found)."""
+    """POST the case to the webhook. meta["execution_url"] links to the n8n execution (if found);
+    meta["tool_calls"] are read from that execution's data."""
     call_id = uuid.uuid4().hex
     output, error, meta = _post_n8n(uc, engine_input, call_id)
     if meta.get("status"):  # n8n answered, so there is an execution
         try:
-            meta["execution_url"] = n8n_execution_url(uc, call_id)
+            meta["execution_url"], execution = n8n_execution(uc, call_id)
+            meta["tool_calls"] = n8n_tool_calls(execution)
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             meta["execution_url"] = None  # a link is nice to have; never fail the case for it
     return output, error, meta
 
 
-def n8n_execution_url(uc: str, call_id: str) -> str | None:
+def n8n_execution(uc: str, call_id: str) -> tuple[str | None, dict | None]:
     """Find our execution: the newest ones of the workflow, matched by our `x-kit-call` header.
-    Falls back to the workflow's Executions list. Needs N8N_API_KEY."""
+    Return (its URL, the execution with data). Falls back to the workflow's Executions list and None.
+    Needs N8N_API_KEY."""
     s = settings()
     if not s.n8n_api_key:
-        return None
+        return None, None
     api = _n8n_api()
     w = _n8n_workflow(api, uc)
     if not w:
-        return None
+        return None, None
     wid = w["id"]
     for _attempt in range(3):  # n8n saves the execution just after it answers
         data = api.get("/executions", params={"workflowId": wid, "limit": 10, "includeData": "true"}).json()
         for e in data.get("data", []):
             if call_id in json.dumps((e.get("data") or {}).get("resultData", {}).get("runData", {}).get("Case in", [])):
-                return f"{s.n8n_url}/workflow/{wid}/executions/{e['id']}"
+                return f"{s.n8n_url}/workflow/{wid}/executions/{e['id']}", e
         time.sleep(1)
-    return f"{s.n8n_url}/workflow/{wid}/executions"
+    return f"{s.n8n_url}/workflow/{wid}/executions", None
+
+
+def n8n_tool_calls(execution: dict | None, limit: int = 4000) -> list[dict]:
+    """Tool calls [{"name", "input", "output"}] from an n8n execution: every run of a tool node
+    (output `ai_tool`), in the order they ran. The MCP node names a tool `<node>__<tool>`: keep `<tool>`."""
+
+    def first_json(part) -> dict | None:  # {"ai_tool": [[{"json": {...}}]]} -> {...}
+        items = ((part or {}).get("ai_tool") or [[]])[0] or [{}]
+        return items[0].get("json") if isinstance(items[0], dict) else None
+
+    run_data = ((execution or {}).get("data") or {}).get("resultData", {}).get("runData", {})
+    runs = []
+    for node, node_runs in run_data.items():
+        for r in node_runs:
+            if "ai_tool" not in (r.get("data") or {}) and "ai_tool" not in (r.get("inputOverride") or {}):
+                continue
+            args = dict(first_json(r.get("inputOverride")) or {})
+            name = str(args.pop("tool", "") or node).split("__")[-1]
+            out = (first_json(r.get("data")) or {}).get("response")
+            if isinstance(out, list):  # MCP content: [{"type": "text", "text": ...}]
+                out = "\n".join(str(x.get("text", x)) if isinstance(x, dict) else str(x) for x in out)
+            elif not isinstance(out, str):
+                out = (
+                    json.dumps(out, ensure_ascii=False)
+                    if out is not None
+                    else (r.get("error") or {}).get("message", "")
+                )
+            runs.append((r.get("executionIndex", 0), {"name": name, "input": args, "output": str(out)[:limit]}))
+    return [call for _, call in sorted(runs, key=lambda x: x[0])]
 
 
 def _n8n_api() -> httpx.Client:

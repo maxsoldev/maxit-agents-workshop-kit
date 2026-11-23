@@ -128,7 +128,8 @@ Run file `runs/<run_id>.json`, `run_id` = `<YYYYmmdd-HHMMSS>-<uc>-<engine>`:
 Each case result also has `today` (the agent's date) and, for claude and python, `meta.stderr` (the last lines
 of the engine's stderr; the results page shows it as "Engine log"). `meta.tool_calls` (`[{"name", "input",
 "output"}]`): claude from its stream-json, python from the `tool <name> <args JSON> -> <result JSON string>` lines
-that `agent.py` writes to stderr; n8n has none (see the execution in n8n). `kit run-case <uc> <engine> <case_id>` runs
+that `agent.py` writes to stderr; n8n from the execution data (found by the `x-kit-call` header, needs
+`N8N_API_KEY`): every run of a tool node (output `ai_tool`), name without the `<node>__` prefix. `kit run-case <uc> <engine> <case_id>` runs
 one case without a run file and prints the engine input, output, tool calls, stderr and checks.
 
 `case_hash` (each case result): a short hash of the case's `today`, `input`, `expected` and `checks`. Compare

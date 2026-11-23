@@ -35,7 +35,7 @@ link **Open this experiment in Langfuse** on the results page). It shows the sco
   **Result shape** node needs no edit: it reads the schema from the case.
 - **Read the trace, not only the score.** The trace shows which tools the agent called, what it read and
   where it went wrong. Claude: Langfuse (the `tool:<name>` spans have the input and output; the results page
-  lists the same tool calls). n8n: Executions (the results page links to each one). Python: the `tool ...`
+  lists the same tool calls, for all engines). n8n: Executions (the results page links to each one). Python: the `tool ...`
   lines it logs on stderr (the results page shows them under **Engine log**).
   To look at one case closely: `make run-case UC=marketing ENGINE=python CASE=m14` (or `uv run kit run-case
   marketing python m14`) prints the engine input, the output, the tool calls, the log and the checks.
@@ -92,9 +92,9 @@ not offer a call". For a must-not-say rule with a condition ("no meeting offer",
 approves"), use a `judge` with that rule as the rubric.
 A judge that cannot run (no key, API error) is **skipped**: the case passes or fails on its other checks.
 
-**What the judge sees:** the rubric, the case input, the field, and (Claude and Python) the agent's tool calls
-with their results. So a fact the agent looked up (a contact note, a rule, an event date) is not "invented".
-n8n sends no tool calls: there, or when a fact is not in a tool result, write the allowed facts into the
+**What the judge sees:** the rubric, the case input, the field, and the agent's tool calls with their results
+(all 3 engines; n8n through its execution data). So a fact the agent looked up (a contact note, a rule, an
+event date) is not "invented". When a fact is not in a tool result, write the allowed facts into the
 rubric ("The contact sheet says we declined NodeHost Pro in March 2026").
 
 ## How business people write cases (in the UI)
