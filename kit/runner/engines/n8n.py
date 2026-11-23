@@ -14,11 +14,12 @@ import uuid
 import httpx
 
 from kit import n8n_files
+from kit.config import N8N_ENGINES as ENGINES
 from kit.config import settings
 from kit.runner.engines import n8n_execution
 from kit.runner.engines.common import TIMEOUTS, Answer, as_result
 
-ENGINES = ("n8n", "n8n-agent")
+__all__ = ["ENGINES", "call", "warning", "before_run", "version_hash", "hook"]
 
 
 def hook(uc: str, engine: str = "n8n") -> str:

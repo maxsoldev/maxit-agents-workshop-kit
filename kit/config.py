@@ -19,6 +19,7 @@ ENGINES = ("n8n", "claude", "python")  # the main engines: setup, check and the 
 # The Run page offers it when n8n is used; `make check` runs it only if KIT_ENGINES lists it.
 EXAMPLE_ENGINES = ("n8n-agent",)
 ALL_ENGINES = ENGINES + EXAMPLE_ENGINES
+N8N_ENGINES = ("n8n", "n8n-agent")  # the engines that run an n8n workflow
 
 
 def _read_env_file() -> dict[str, str]:

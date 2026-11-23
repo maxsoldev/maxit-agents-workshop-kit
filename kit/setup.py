@@ -22,7 +22,7 @@ from pathlib import Path
 import httpx
 
 from kit import n8n_files
-from kit.config import ROOT, RUNS_DIR, USECASES_DIR, parse_engines, settings, usecases
+from kit.config import N8N_ENGINES, ROOT, RUNS_DIR, USECASES_DIR, parse_engines, settings, usecases
 
 ENV_FILE = ROOT / ".env"
 OPENAI_CRED_NAME = "Kit OpenAI"
@@ -748,7 +748,7 @@ def check() -> int:
         print(f"{SKIP}{', '.join(unused)}: not in KIT_ENGINES")
     n8n_warning = getattr(sys.modules["kit.runner"], "n8n_warning", lambda uc, engine: None)
     for uc in usecases():  # e.g. after git pull: the kit has a newer workflow than n8n
-        for engine in (e for e in s.engines if e in ("n8n", "n8n-agent")):
+        for engine in (e for e in s.engines if e in N8N_ENGINES):
             if warning := n8n_warning(uc, engine):
                 print(f"WARN     {uc}/{engine}: {warning}")
     # One row per use case × engine, in print order: (uc, engine, first case id, a line known before any run).
@@ -785,7 +785,7 @@ def _check_before_run(uc: str, engine: str, first: str, s) -> str | None:
     part = "n8n/agent.json" if engine == "n8n-agent" else engine
     if not (USECASES_DIR / uc / part).exists():
         return f"{SKIP}{label}: no usecases/{uc}/{part}"
-    n8n = engine in ("n8n", "n8n-agent")
+    n8n = engine in N8N_ENGINES
     if n8n and not s.n8n_api_key and s.n8n_mode == "local":
         return f"{ERROR}{label}: n8n is not set up. Next: make up, make setup"
     if n8n and not s.openai_api_key and s.n8n_mode == "local":

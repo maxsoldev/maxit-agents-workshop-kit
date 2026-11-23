@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 import threading
 
+from kit.config import N8N_ENGINES
 from kit.runner import CaseError, run_eval
 
 
@@ -82,7 +83,7 @@ def compare_cli(run_a: str, run_b: str) -> int:
         s = d[side]["summary"] or {}
         print(f"{side.upper()}: {d[side]['run_id']} ({d[side]['engine']}) {s.get('passed')}/{s.get('cases')} passed")
     if d["agent_changed"]:
-        print("workflow changed" if d["b"]["engine"] in ("n8n", "n8n-agent") else "agent files changed")
+        print("workflow changed" if d["b"]["engine"] in N8N_ENGINES else "agent files changed")
     marks = {"better": "▲", "worse": "▼", "same": " ", "new": "+", "removed": "-"}
     for r in d["cases"]:
         note = "  (case changed)" if r["case_changed"] else ""
