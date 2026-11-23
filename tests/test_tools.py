@@ -63,6 +63,14 @@ def test_events_list_filter():
     assert "error" in tools.events_list("März")
 
 
+def test_kit_tool_by_hand(capsys):
+    assert tools.try_tool("rules_get", ["usecase=travel", "name=team"]) == 0
+    assert '"name": "team"' in capsys.readouterr().out
+    assert tools.try_tool("", []) == 0 and "trains_search(" in capsys.readouterr().out
+    assert tools.try_tool("nope", []) == 1
+    assert tools.try_tool("rules_get", ["travel"]) == 1  # not key=value
+
+
 def test_rules_get():
     r = tools.rules_get("travel", "travel_rules")
     assert r["text"].strip()

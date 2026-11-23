@@ -5,6 +5,7 @@
   kit n8n-export [UC]  save the n8n workflows (your editor changes) to usecases/<uc>/n8n/workflow.json
   kit serve            UI on :5700 and tools MCP on :5701 in one process (kit/ui, kit/tools.py)
   kit tools            only the tools MCP server (kit/tools.py)
+  kit tool NAME k=v    try one tool by hand and print its JSON (no name: list the tools)
   kit eval UC ENGINE   run the cases of a use case on one engine (kit/runner)
   kit run-case UC ENGINE CASE   run one case; print the engine input, output, log (stderr) and checks
 """
@@ -29,6 +30,9 @@ def main(argv: list[str] | None = None) -> int:
     ev.add_argument("engine", choices=["n8n", "claude", "python"])
     ev.add_argument("--cases", default="", help="comma-separated case ids (default: all)")
     ev.add_argument("--name", default="", help="run name (default: timestamp)")
+    tl = sub.add_parser("tool", help="try a tool by hand: kit tool trains_search from_place=... date=...")
+    tl.add_argument("name", nargs="?", default="", help="tool name (empty: list the tools)")
+    tl.add_argument("args", nargs="*", help="key=value")
     rc = sub.add_parser("run-case", help="run one case; print the engine input, output, log and checks")
     rc.add_argument("usecase")
     rc.add_argument("engine", choices=["n8n", "claude", "python"])
@@ -47,6 +51,9 @@ def main(argv: list[str] | None = None) -> int:
     if a.cmd == "eval":
         from kit.runner import cli as runner_cli
         return runner_cli.main(a.usecase, a.engine, [c for c in a.cases.split(",") if c], a.name)
+    if a.cmd == "tool":
+        from kit import tools
+        return tools.try_tool(a.name, a.args)
     if a.cmd == "run-case":
         from kit.runner import cli as runner_cli
         return runner_cli.run_one(a.usecase, a.engine, a.case_id)

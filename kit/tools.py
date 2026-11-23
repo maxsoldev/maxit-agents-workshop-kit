@@ -169,6 +169,37 @@ def rules_get(usecase: str, name: str = "") -> dict:
     return {"usecase": uc, "name": nm, "text": (_data(uc) / f"{nm}.md").read_text(encoding="utf-8")}
 
 
+# ---------- try a tool by hand: kit tool <name> key=value ... ----------
+
+def try_tool(name: str, args: list[str]) -> int:
+    """`kit tool trains_search from_place="München Hbf" to_place="Berlin Hbf" date=2026-12-08 arrive_by=10:00`:
+    call the tool function and print its JSON. Without a name: list the tools and their parameters."""
+    import asyncio
+    import inspect
+    import json
+
+    names = [t.name for t in asyncio.run(mcp.list_tools())]
+    if name not in names:
+        print(f"Unknown tool {name!r}. Tools:" if name else "Tools:")
+        for n in names:
+            print(f"  {n}{inspect.signature(globals()[n])}")
+        return 0 if not name else 1
+    kwargs = {}
+    for a in args:
+        if "=" not in a:
+            print(f"Give each argument as key=value, got {a!r}")
+            return 1
+        key, value = a.split("=", 1)
+        kwargs[key] = value
+    try:
+        out = globals()[name](**kwargs)
+    except TypeError as e:
+        print(f"{e}. Parameters: {name}{inspect.signature(globals()[name])}")
+        return 1
+    print(json.dumps(out, ensure_ascii=False, indent=2))
+    return 0
+
+
 # ---------- server ----------
 
 def _server(log_level: str) -> uvicorn.Server:

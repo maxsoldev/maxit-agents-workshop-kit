@@ -29,6 +29,9 @@ then measure every change.**
   lines it logs on stderr (the results page shows them under **Engine log**).
   To look at one case closely: `make run-case UC=marketing ENGINE=python CASE=m14` (or `uv run kit run-case
   marketing python m14`) prints the engine input, the output, the tool calls, the log and the checks.
+- **Try a tool by hand** before you blame the agent: `uv run kit tool` lists the tools;
+  `uv run kit tool trains_search "from_place=München Hbf" "to_place=Berlin Hbf" date=2026-12-08 arrive_by=10:00`
+  prints what the agent gets.
 - **Do not fit the cases.** A rule like "if the sender is Lara Venn, say unverified" makes the case pass and
   the agent worse. Write rules that hold for the next email too.
 - **Run it twice** before you trust a small change. Models are not fully deterministic.
