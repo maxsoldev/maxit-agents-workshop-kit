@@ -244,6 +244,42 @@ def check_label(c: dict) -> str:
     return f"{t} {f}"
 
 
+def check_target(c: dict) -> str:
+    """What a check wants when it is not in `expected`: `off_target` for contains, the list for in, the limits
+    for count. "" for equals without a value (it uses expected) and for judge (min and rubric show apart)."""
+
+    def v(x):
+        return x if isinstance(x, str) else json.dumps(x, ensure_ascii=False)
+
+    t = c.get("type")
+    if t in ("contains", "not_contains") or (t == "equals" and "value" in c):
+        return v(c.get("value"))
+    if t == "in":
+        return ", ".join(v(x) for x in c.get("values") or [])
+    if t == "count":
+        return ", ".join(f"{k} {c[k]}" for k in ("equals", "min", "max") if k in c)
+    if t == "any":
+        return v({k: c[k] for k in ("where", "contains") if k in c})
+    return ""
+
+
+def pair_check_defs(run_case: dict, case: dict | None) -> None:
+    """Put the check definition from cases.jsonl on each check result (`_def`), so the page can show the target.
+    Only when the case is still the same as in the run (same case_hash) and type and field match."""
+    if not case:
+        return
+    hash_fn = getattr(runner(), "case_hash", None)  # the fake runner of the tests has none
+    if hash_fn and run_case.get("case_hash") and run_case["case_hash"] != hash_fn(case):
+        return  # the case changed after the run: its checks may want other things now
+    defs = iter(case.get("checks") or [])
+    for k in run_case.get("checks") or []:
+        if k.get("type") == "schema":
+            continue
+        d = next(defs, None)
+        if d and d.get("type") == k.get("type") and d.get("field") == k.get("field"):
+            k["_def"] = d
+
+
 def uc_name(uc: str) -> str:
     """A use case as the UI shows it: `marketing` -> `Marketing`. URLs, ids and files stay lower case."""
     return uc[:1].upper() + uc[1:]
@@ -251,6 +287,7 @@ def uc_name(uc: str) -> str:
 
 templates.env.filters["uc_name"] = uc_name
 templates.env.filters["check_label"] = check_label
+templates.env.filters["check_target"] = check_target
 templates.env.filters["field_words"] = field_words
 templates.env.globals["check_words"] = check_words
 
@@ -632,7 +669,13 @@ def runs_page(request: Request, uc: str, checks: int = 0):
             if r.get("usecase") != uc and r.get("usecase") in usecases() and r.get("name") != CHECK_RUN:
                 elsewhere[r["usecase"]] = elsewhere.get(r["usecase"], 0) + 1
     return page(
-        request, "runs.html", uc, runs=runs, hidden=hidden, show_checks=bool(checks), elsewhere=dict(sorted(elsewhere.items()))
+        request,
+        "runs.html",
+        uc,
+        runs=runs,
+        hidden=hidden,
+        show_checks=bool(checks),
+        elsewhere=dict(sorted(elsewhere.items())),
     )
 
 
@@ -693,7 +736,14 @@ def results_page(request: Request, run_id: str, vs: str = ""):
     counts = {k: sum(1 for v in changes.values() if v == k) for k in ("better", "worse", "same", "new")}
     changed = changed_cases(run, other)
     counts["changed"] = len(changed)
+    now = {c.get("id"): c for c in load_cases_safe(uc)[0]} if uc in usecases() else {}
     for c in run.get("cases", []):
+        pair_check_defs(c, now.get(c.get("id")))
+        c["_also_want"] = [
+            f"{d['field']} {check_words(d, {})}"
+            for k in c.get("checks") or []
+            if (d := k.get("_def")) and check_target(d)
+        ]
         c["_first_fail"] = c.get("error") or next(
             (ch.get("reason") for ch in c.get("checks", []) if ch.get("passed") is False), None
         )

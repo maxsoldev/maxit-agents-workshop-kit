@@ -160,6 +160,9 @@ table.checks-res .mark { width: 2rem; font-weight: 700; text-align: center; }
 table.checks-res tr.pass .mark { color: var(--pass); }
 table.checks-res tr.fail .mark { color: var(--fail); }
 table.checks-res tr.fail { background: #fff8f7; }
+table.checks-res code.target { background: var(--warn-bg); border-radius: 4px; padding: 0 0.25rem; }
+table.checks-res .rubric { max-width: 40rem; }
+.also-want { margin-top: -0.4rem; color: var(--muted); }
 .links { margin: 0.6rem 0; display: flex; gap: 1.2rem; }
 
 /* docs */

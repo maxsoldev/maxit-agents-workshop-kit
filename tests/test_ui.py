@@ -337,8 +337,8 @@ def test_use_case_names_are_capitalised(client):
     (config.USECASES_DIR / "foo" / "cases.jsonl").write_text("", encoding="utf-8")
     page = client.get("/uc/demo/cases").text
     assert '<a href="/uc/foo/cases" class="">Foo</a>' in page and ">Demo</a>" in page
-    assert "Cases <span class=\"muted\">· Demo ·" in page and ">demo<" not in page
-    assert "Runs <span class=\"muted\">· Foo ·" in client.get("/uc/foo/runs").text
+    assert 'Cases <span class="muted">· Demo ·' in page and ">demo<" not in page
+    assert 'Runs <span class="muted">· Foo ·' in client.get("/uc/foo/runs").text
 
 
 def test_active_use_case_and_empty_runs_page(client):
@@ -361,6 +361,35 @@ def test_header_is_sticky(client):
     assert '<header class="top sticky">' in client.get("/docs").text
     top = client.get("/static/style.css").text.split(".top {", 1)[1].split("}", 1)[0]
     assert "position: sticky" in top and "top: 0" in top and "z-index" in top and "background" in top
+
+
+def test_results_show_check_targets(client):
+    """A check row shows what the check wants (finding #22), and a line under Expected lists those targets."""
+    from kit.ui.app import check_target
+
+    assert check_target({"type": "contains", "field": "flags", "value": "off_target"}) == "off_target"
+    assert check_target({"type": "in", "field": "category", "values": ["spam", "phishing"]}) == "spam, phishing"
+    assert check_target({"type": "equals", "field": "category"}) == ""  # it uses expected
+    assert check_target({"type": "equals", "field": "n", "value": 2}) == "2"
+    checks = [
+        {"type": "equals", "field": "category"},
+        {"type": "contains", "field": "flags", "value": "off_target"},
+        {"type": "not_contains", "field": "reply", "value": "@"},
+        {"type": "judge", "field": "reply", "rubric": "Polite no.", "min": 3},
+    ]
+    case = {"id": "m06", "title": "Service offer", "input": {}, "expected": {"category": "x"}, "checks": checks}
+    (config.USECASES_DIR / "demo" / "cases.jsonl").write_text(json.dumps(case) + "\n", encoding="utf-8")
+    results = [{"type": "schema", "field": "", "passed": True, "reason": "ok"}]
+    results += [{"type": c["type"], "field": c["field"], "passed": True, "reason": "ok"} for c in checks]
+    run = {"run_id": "20261124-100000-demo-python", "usecase": "demo", "engine": "python", "name": "t", "summary": {}}
+    run["cases"] = [{**case, "passed": True, "output": {}, "checks": results}]
+    config.RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    (config.RUNS_DIR / f"{run['run_id']}.json").write_text(json.dumps(run))
+    page = client.get(f"/runs/{run['run_id']}").text
+    assert '<code>flags</code> → <code class="target">off_target</code>' in page
+    assert '<code>reply</code> → <code class="target">@</code>' in page
+    assert '(min 3)</span><div class="muted small rubric">Polite no.</div>' in page
+    assert "The checks also want: flags contains &#34;off_target&#34; · reply does not contain &#34;@&#34;" in page
 
 
 def test_docs_names_order_and_file_path(client, tmp_path, monkeypatch):

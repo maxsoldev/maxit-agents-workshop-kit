@@ -53,7 +53,11 @@
       <table class="checks-res">
         {% for k in c.checks or [] %}
         <tr class="{{ 'skip muted' if k.skipped else ('pass' if k.passed else 'fail') }}"><td class="mark">{{ '–' if k.skipped else ('✓' if k.passed else '✗') }}</td>
-          <td><b>{{ k.type }}</b> <code>{{ k.field }}</code></td><td>{{ k.reason }}</td></tr>
+          <td><b>{{ k.type }}</b> <code>{{ k.field }}</code>{% set d = k._def %}
+            {%- if d and d|check_target %} → <code class="target">{{ d|check_target }}</code>{% endif %}
+            {%- if k.type == 'judge' %} <span class="muted">(min {{ (d or {}).min or 4 }})</span>
+              {%- if d and d.rubric %}<div class="muted small rubric">{{ d.rubric }}</div>{% endif %}{% endif %}</td>
+          <td>{{ k.reason }}</td></tr>
         {% endfor %}
       </table>
       <div class="links">
@@ -62,7 +66,8 @@
       </div>
       <div class="cols">
         <div><h3>Output</h3><pre>{{ c.output|pretty }}</pre></div>
-        <div><h3>Expected</h3><pre>{{ c.expected|pretty }}</pre></div>
+        <div><h3>Expected</h3><pre>{{ c.expected|pretty }}</pre>
+          {% if c._also_want %}<div class="small also-want">The checks also want: {{ c._also_want|join(' · ') }}</div>{% endif %}</div>
       </div>
       {% if (c.meta or {}).tool_calls %}
       <details class="tool-calls"><summary>Tool calls ({{ c.meta.tool_calls|length }})</summary>
