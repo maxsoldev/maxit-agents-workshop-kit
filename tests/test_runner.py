@@ -150,6 +150,21 @@ def test_count_and_any_checks():
     assert len(errors) == 2
 
 
+def test_star_means_every_item_and_not_contains_on_missing():
+    out = {"options": [{"trains": ["ICE 1"]}, {"trains": ["FlixBus N1"]}], "empty": [], "draft": ""}
+    run = lambda c, exp={}: checks.run_check(c, out, exp, {})  # noqa: E731
+    bad = run({"type": "not_contains", "field": "options.*.trains", "value": "FlixBus N1"})
+    assert not bad["passed"] and bad["reason"].startswith("item 2 of 2")
+    assert run({"type": "count", "field": "options.*.trains", "equals": 1})["reason"] == "all 2 items pass"
+    assert run({"type": "contains", "field": "empty.*", "value": "x"})["passed"]  # no items: nothing fails
+    exp = {"options": [{"trains": ["ICE 1"]}, {"trains": ["FlixBus N1"]}]}
+    assert run({"type": "equals", "field": "options.*.trains"}, exp)["passed"]  # expected item by item
+    assert run({"type": "not_contains", "field": "options.5.trains", "value": "Bus"})["passed"]  # missing
+    assert run({"type": "not_contains", "field": "nothing.*.trains", "value": "Bus"})["passed"]
+    assert run({"type": "not_contains", "field": "draft", "value": "Bus"})["passed"]  # empty
+    assert not run({"type": "contains", "field": "nothing.*", "value": "x"})["passed"]
+
+
 def test_judge_without_key_is_skipped(monkeypatch, capsys):
     monkeypatch.setattr(judge, "score", lambda *a: (_ for _ in ()).throw(RuntimeError("no OPENAI_API_KEY")))
     r = checks.run_check({"type": "judge", "field": "r", "rubric": "x"}, {"r": "hi"}, {}, {})

@@ -44,7 +44,8 @@ then measure every change.**
 | `equals` | one right value | `category` is `newsletter` |
 | `in` | a few right values | `category` is `partnership` or `press` |
 | `contains` | a word in a text, an item in a list | `flags` has `injection`; the reply names "28" |
-| `not_contains` | things that must never appear | no `@` in the reply (no leaked addresses) |
+| `not_contains` | things that must never appear (a missing or empty field passes) | no `@` in the reply (no leaked addresses) |
+| any check with `*` | every item of a list must pass | `not_contains` `options.*.trains` "FlixBus": no option is a bus |
 | `count` | how many items a list has | `tasks` has exactly 1 item (no duplicates): `{"equals": 1}` |
 | `any` | "there is an item where ...", in any order | a task with `kind` `trip` whose `event` contains "Riga" |
 | `judge` | quality you cannot check with a word: tone, "asks for details, no call" | rubric in one or two sentences |

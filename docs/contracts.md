@@ -46,14 +46,16 @@ usecases/<uc>/
   then the plain body; an HTML-only body becomes text), and `email_raw` = the raw file. More files of one kind:
   `email_2_file` → `email_2`, and so on.
 - `expected`: free JSON, used by checks.
-- `checks`: list. `field` is a dotted path into the result (`reply`, `flags`, `options.0.price`).
+- `checks`: list. `field` is a dotted path into the result (`reply`, `flags`, `options.0.price`; `0` = the first
+  item). `*` = every item: `options.*.trains` runs the check on `trains` of each option, and all must pass (an
+  empty list passes); for `equals` without `value`, item i compares with `expected` at `options.i.trains`.
 
 | type | passes when | extra keys |
 |---|---|---|
 | `equals` | `result[field] == expected[field]` (or `value` if given) | `value` (optional) |
 | `in` | `result[field]` is one of `values` | `values` |
 | `contains` | `value` is in `result[field]` (substring for text, member for a list); case-insensitive for text | `value` |
-| `not_contains` | the opposite of `contains` | `value` |
+| `not_contains` | the opposite of `contains`; also passes when the field is missing or empty | `value` |
 | `count` | `result[field]` is a list, and its length is `equals` / at least `min` / at most `max` | one or more of `equals`, `min`, `max` (whole numbers) |
 | `any` | `result[field]` is a list of objects, and one item matches all of `where` (equal as text, case-insensitive) and all of `contains` (substring, case-insensitive); keys can be dotted paths in the item | `where` and/or `contains`, e.g. `{"where": {"kind": "trip"}, "contains": {"event": "Riga"}}` |
 | `judge` | an OpenAI model (`KIT_JUDGE_MODEL`) scores `result[field]` 1–5 against `rubric`, given the case input; pass ≥ `min` | `rubric`, `min` (default 4) |

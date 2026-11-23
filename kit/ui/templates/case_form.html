@@ -54,7 +54,8 @@
   </table>
   {% endif %}
   <p class="muted small"><b>field</b> is a path into the result: <code>reply</code>, <code>tasks.0.kind</code>
-    (<code>tasks.0</code> = the first task, <code>tasks.1</code> = the second). For "some task has ...", use <b>any</b> on <code>tasks</code>; for "how many", use <b>count</b>.
+    (<code>tasks.0</code> = the first task, <code>tasks.1</code> = the second). <code>tasks.*.status</code> = every
+    task must pass. For "some task has ...", use <b>any</b> on <code>tasks</code>; for "how many", use <b>count</b>.
     The text box is: <b>equals</b> value (empty = use expected), <b>in</b> values (<code>a, b</code> or a JSON list),
     <b>contains / not_contains</b> value, <b>count</b> the number of items in a list (<code>2</code>, or
     <code>{"min": 1, "max": 3}</code>), <b>any</b> one item of a list matches (<code>{"kind": "trip"}</code>, or
