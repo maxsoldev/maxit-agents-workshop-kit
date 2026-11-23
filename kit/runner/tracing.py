@@ -1,12 +1,15 @@
-"""Langfuse tracing: one trace per case (contracts §6). Does nothing when `settings().langfuse_on` is false."""
+"""Langfuse tracing: one trace per case, cases as a dataset, an eval run as a dataset run (contracts §6).
+Does nothing when `settings().langfuse_on` is false."""
 
 from __future__ import annotations
 
 import base64
+import json
+import subprocess
 import threading
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 
-from kit.config import settings
+from kit.config import ROOT, settings
 
 _client = None
 _lock = threading.Lock()
@@ -97,19 +100,108 @@ class CaseTrace(NoTrace):
             pass  # tracing must never break a run
 
 
+def item_id(uc: str, case_id: str) -> str:
+    """Dataset item id of a case. Langfuse item ids are unique in the project, so the use case is in it."""
+    return f"{uc}-{case_id}"
+
+
+def _item(case: dict) -> dict:
+    meta = {"title": case.get("title", ""), "today": case.get("today"), "checks": case.get("checks", [])}
+    meta["holdout"] = bool(case.get("holdout"))
+    return {"input": case.get("input", {}), "expected_output": case.get("expected", {}), "metadata": meta}
+
+
+def sync_dataset(uc: str, cases: list[dict]) -> str:
+    """Upsert one item per case into the dataset `<uc>` (cases.jsonl is the source); archive items of
+    removed cases. Writes only what changed. Returns the dataset id."""
+    lf = client()
+    try:
+        ds = lf.get_dataset(uc)
+        old, dataset_id = {i.id: i for i in ds.items}, ds.id
+    except Exception:  # not found
+        old, dataset_id = {}, lf.create_dataset(name=uc, description=f"Kit cases of usecases/{uc}/cases.jsonl").id
+    for case in cases:
+        new, was = _item(case), old.pop(item_id(uc, case["id"]), None)
+        if was and was.status == "ACTIVE" and (was.input, was.expected_output, was.metadata) == tuple(new.values()):
+            continue
+        lf.create_dataset_item(dataset_name=uc, id=item_id(uc, case["id"]), status="ACTIVE", **new)
+    for was in old.values():
+        if was.status == "ACTIVE" and was.id.startswith(f"{uc}-"):
+            lf.create_dataset_item(
+                dataset_name=uc, id=was.id, status="ARCHIVED", input=was.input,
+                expected_output=was.expected_output, metadata=was.metadata,
+            )  # fmt: skip
+    return dataset_id
+
+
+def start_experiment(uc: str, cases: list[dict], run: dict) -> dict:
+    """Sync the dataset and name the dataset run (experiment) of this eval run. Returns
+    `{id, name, dataset_id, metadata, url}`; `case_trace` links each case trace to its item."""
+    s = settings()
+    dataset_id = sync_dataset(uc, cases)
+    lf = client()
+    exp_id = lf.create_trace_id(seed=run["run_id"])
+    project_id = lf.api.projects.get().data[0].id
+    name = run["run_id"] if run["name"] == run["run_id"] else f"{run['name']} ({run['run_id']})"
+    return {
+        "id": exp_id,
+        "name": name,
+        "dataset_id": dataset_id,
+        "metadata": {"engine": run["engine"], "model": s.model, "judge_model": s.judge_model, "git": _git_commit()},
+        "url": f"{s.langfuse_host}/project/{project_id}/datasets/{dataset_id}/runs/{exp_id}",
+    }
+
+
+def _git_commit() -> str | None:
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True, timeout=5
+        )
+        return out.stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def _in_experiment(experiment: dict | None, span, uc: str, case: dict):
+    """Mark this case trace as the run item of `case` in the experiment (Langfuse experiment attributes,
+    the same ones that `Langfuse.run_experiment` sets). No experiment: does nothing."""
+    if not experiment:
+        return nullcontext()
+    from langfuse._client.attributes import LangfuseOtelSpanAttributes as A
+    from langfuse._client.propagation import _propagate_attributes
+
+    span._otel_span.set_attribute(A.EXPERIMENT_ITEM_EXPECTED_OUTPUT, json.dumps(case.get("expected", {})))
+    attrs = {
+        "experiment_id": experiment["id"],
+        "experiment_name": experiment["name"],
+        "experiment_metadata": json.dumps(experiment["metadata"]),
+        "experiment_dataset_id": experiment["dataset_id"],
+        "experiment_item_id": item_id(uc, case["id"]),
+        "experiment_item_metadata": json.dumps(_item(case)["metadata"]),
+        "experiment_item_root_observation_id": span.id,
+    }
+    return _propagate_attributes(experiment=attrs)
+
+
 @contextmanager
-def case_trace(uc: str, engine: str, run_id: str, run_name: str, case_id: str, engine_input: dict):
-    """Context for one case. Yields an object with `.url`, `.env(engine)` and `.finish(...)`."""
+def case_trace(uc: str, engine: str, run_id: str, run_name: str, case: dict, engine_input: dict, experiment=None):
+    """Context for one case. Yields an object with `.url`, `.env(engine)` and `.finish(...)`.
+    With `experiment` (from `start_experiment`), the trace is also the case's item in that dataset run."""
     if not settings().langfuse_on:
         yield NoTrace()
         return
     from langfuse import propagate_attributes
 
     lf = client()
-    name = f"{uc}/{case_id}"
+    name = f"{uc}/{case['id']}"
     with lf.start_as_current_observation(name=name, input=engine_input) as span:
         with propagate_attributes(trace_name=name, session_id=run_id, tags=[uc, engine, run_name]):
-            yield CaseTrace(lf, span, uc)
+            try:
+                ctx = _in_experiment(experiment, span, uc, case)
+            except Exception:
+                ctx = nullcontext()  # tracing must never break a run
+            with ctx:
+                yield CaseTrace(lf, span, uc)
 
 
 def flush() -> None:

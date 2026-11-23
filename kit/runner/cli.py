@@ -59,6 +59,8 @@ def main(
             print(f"   {why}")
             break
     print(f"Run file: runs/{run['run_id']}.json")
+    if run.get("experiment_url"):
+        print(f"Open this experiment in Langfuse: {run['experiment_url']}")
     return 0
 
 

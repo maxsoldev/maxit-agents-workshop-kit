@@ -72,8 +72,9 @@ def case_hash(case: dict) -> str:
     return hashlib.sha256(text.encode()).hexdigest()[:12]
 
 
-def run_case(uc: str, engine: str, case: dict, schema: dict, run_id: str, run_name: str) -> dict:
-    """Run one case and check it. Never raises: a crash is a failed case with `error`."""
+def run_case(uc: str, engine: str, case: dict, schema: dict, run_id: str, run_name: str, experiment=None) -> dict:
+    """Run one case and check it. Never raises: a crash is a failed case with `error`.
+    `experiment` (from `tracing.start_experiment`): link the case trace to the Langfuse dataset run."""
     t0 = time.time()  # wall clock: on macOS, monotonic time stops while the computer sleeps
     res = {
         "id": case["id"],
@@ -95,7 +96,7 @@ def run_case(uc: str, engine: str, case: dict, schema: dict, run_id: str, run_na
         inp = engine_input(uc, case)
         res["input"] = inp["input"]
         inp["output_schema"] = schema  # every engine sees the result shape (contracts §4)
-        with tracing.case_trace(uc, engine, run_id, run_name, case["id"], inp) as trace:
+        with tracing.case_trace(uc, engine, run_id, run_name, case, inp, experiment) as trace:
             res["trace_url"] = trace.url
             output, error, meta = engines.call_with_deadline(uc, engine, inp, trace.env(engine))
             res.update(output=output, error=error, meta=meta)
@@ -135,6 +136,18 @@ def summarize(case_results: list[dict]) -> dict:
     }
 
 
+def _start_experiment(uc: str, cases: list[dict], run: dict) -> dict | None:
+    """Langfuse on and not `make check` (a smoke test): sync the cases to the dataset `<uc>` and name the
+    dataset run. Langfuse down or slow (20 s): None, and the run goes on with plain traces."""
+    if not config.settings().langfuse_on or run["name"] == "check":
+        return None
+    try:
+        return engines.with_deadline(lambda: tracing.start_experiment(uc, cases, run), 20)
+    except Exception as e:
+        print(f"WARN  Langfuse dataset sync failed, no experiment for this run: {e}", file=sys.stderr, flush=True)
+        return None
+
+
 def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=None, holdout=False) -> dict:
     """Run the cases (all, or `case_ids`) and return the run dict. Blocks until all cases end.
     Cases with `"holdout": true` run only with holdout=True (or when you name them in case_ids).
@@ -145,7 +158,7 @@ def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=No
         raise ValueError(f"unknown engine {engine!r}; use one of {', '.join(config.ENGINES)}")
     if not usecase_dir(usecase).is_dir():
         raise ValueError(f"use case {usecase!r} not found in usecases/")
-    cases = load_cases(usecase)
+    cases = all_cases = load_cases(usecase)
     if case_ids:
         unknown = [i for i in case_ids if i not in {c["id"] for c in cases}]
         if unknown:
@@ -172,10 +185,12 @@ def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=No
     if engine == "n8n" and (warning := n8n_unpublished(usecase)):
         run["warning"] = warning  # the run used the published workflow, not the latest edits
     save_run(run)  # reserves the run id; ended_at = None means "still running"
+    experiment = _start_experiment(usecase, all_cases, run)
+    run["experiment_url"] = experiment["url"] if experiment else None
 
     def one(case):
         progress({"case_id": case["id"], "status": "running"})
-        res = run_case(usecase, engine, case, schema, run_id, run["name"])
+        res = run_case(usecase, engine, case, schema, run_id, run["name"], experiment)
         progress({"case_id": case["id"], "status": "done", "passed": res["passed"], "error": res["error"]})
         return res
 

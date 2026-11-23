@@ -6,6 +6,7 @@
   <h1>{{ run.name or run.run_id }} <span class="muted">· {{ run.engine }} · {{ run.started_at|when }}</span></h1>
 </div>
 {% if run.warning %}<div class="banner">This run: {{ run.warning }}</div>{% endif %}
+{% if run.experiment_url and langfuse_link %}<p><a href="{{ run.experiment_url }}" target="_blank">Open this experiment in Langfuse ↗</a> <span class="muted small">(dataset {{ run.usecase }}: compare runs per case, with the scores)</span></p>{% endif %}
 <div class="summary">
   <div class="score {{ 'all' if s.passed == s.cases else ('none' if not s.passed else '') }}">
     <span class="big">{{ s.passed }}/{{ s.cases }}</span><span class="muted">cases passed</span></div>
