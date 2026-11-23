@@ -382,12 +382,12 @@ def index(request: Request):
 
 
 def same_page(back: str, to: str) -> str:
-    """The page of the same kind for use case `to`: Runs -> Runs, a results page -> Runs, Guide stays."""
-    m = re.match(r"^/uc/[^/]+/(cases|runs|rules|run|try)\b", back)
+    """The page of the same kind for use case `to`: Evals -> Evals, a results page -> Evals, Guide stays."""
+    m = re.match(r"^/uc/[^/]+/(cases|evals|rules|try|runs|run)\b", back)
     if m:
-        return f"/uc/{to}/{m[1]}"
+        return f"/uc/{to}/{'evals' if m[1] in ('run', 'runs') else m[1]}"
     if back.startswith("/runs/"):
-        return f"/uc/{to}/runs"
+        return f"/uc/{to}/evals"
     if back.startswith("/docs"):
         return back
     return f"/uc/{to}/cases"
@@ -672,14 +672,21 @@ def default_engine(uc: str) -> str:
     return last or ("claude" if "claude" in used else used[0])
 
 
-@app.get("/uc/{uc}/run", response_class=HTMLResponse)
-def run_page(request: Request, uc: str, engine: str = "", error: str = ""):
+@app.get("/uc/{uc}/evals", response_class=HTMLResponse)
+def evals_page(request: Request, uc: str, engine: str = "", error: str = "", checks: int = 0):
+    """Run an eval (on top) and all runs of this use case (below). The `make check` runs only with ?checks=1."""
     cases, load_error = load_cases_safe(uc)
     jobs = visible_jobs(uc)
     run_engines = config.settings().engines
+    runs, hidden = run_list(uc, bool(checks))
+    elsewhere: dict[str, int] = {}  # no runs here: say which other use cases have runs ("Marketing has 1 run")
+    if not runs:
+        for r in runner().list_runs(None):
+            if r.get("usecase") != uc and r.get("usecase") in usecases() and r.get("name") != CHECK_RUN:
+                elsewhere[r["usecase"]] = elsewhere.get(r["usecase"], 0) + 1
     return page(
         request,
-        "run.html",
+        "evals.html",
         uc,
         cases=cases,
         error=error or load_error,
@@ -687,7 +694,20 @@ def run_page(request: Request, uc: str, engine: str = "", error: str = ""):
         engine=engine or default_engine(uc),
         run_engines=run_engines,
         n8n_warning=runner().n8n_warning(uc) if "n8n" in run_engines else None,
+        runs=runs,
+        hidden=hidden,
+        show_checks=bool(checks),
+        elsewhere=dict(sorted(elsewhere.items())),
+        just_done={j["run_id"] for j in jobs.values() if j.get("run_id")},
     )
+
+
+@app.get("/uc/{uc}/run")
+@app.get("/uc/{uc}/runs")
+def old_run_pages(request: Request, uc: str):
+    """The old Run and Runs pages are now one page: Evals (links in old notes and bookmarks still work)."""
+    query = f"?{request.url.query}" if request.url.query else ""
+    return RedirectResponse(f"/uc/{uc}/evals{query}", status_code=307)
 
 
 @app.post("/uc/{uc}/run")
@@ -702,7 +722,7 @@ async def run_start(request: Request, uc: str):
         error = start_job(
             uc, engine, ids, str(f.get("name", "")).strip() or None, cases, holdout=bool(f.get("holdout"))
         )
-    url = f"/uc/{uc}/run?engine={engine}" + (f"&error={quote(error)}" if error else "")
+    url = f"/uc/{uc}/evals?engine={engine}" + (f"&error={quote(error)}" if error else "")
     return RedirectResponse(url, status_code=303)
 
 
@@ -864,32 +884,19 @@ async def rules_preview(request: Request, uc: str):
 CHECK_RUN = "check"  # the name `make check` gives its runs
 
 
-@app.get("/uc/{uc}/runs", response_class=HTMLResponse)
-def runs_page(request: Request, uc: str, checks: int = 0):
-    """All runs; the `make check` runs only with ?checks=1."""
+def run_list(uc: str, with_checks: bool) -> tuple[list[dict], int]:
+    """The runs of a use case, newest first, and how many `make check` runs are hidden. Each run knows how its
+    cases differ from the run below it: "13 cases (2 new, 1 changed)"."""
     uc_dir(uc)
     runs = runner().list_runs(uc)
     hidden = sum(1 for r in runs if r.get("name") == CHECK_RUN)
-    if not checks:
+    if not with_checks:
         runs = [r for r in runs if r.get("name") != CHECK_RUN]
-    for r, prev in zip(runs, runs[1:], strict=False):  # against the run before it: "13 cases (2 new, 1 changed)"
+    for r, prev in zip(runs, runs[1:], strict=False):
         now, before = r.get("case_hashes") or {}, prev.get("case_hashes") or {}
         r["new_cases"] = sum(1 for i in now if i not in before)
         r["changed_cases"] = sum(1 for i, h in now.items() if h and before.get(i) and before[i] != h)
-    elsewhere: dict[str, int] = {}  # no runs here: say which other use cases have runs ("Marketing has 1 run")
-    if not runs:
-        for r in runner().list_runs(None):
-            if r.get("usecase") != uc and r.get("usecase") in usecases() and r.get("name") != CHECK_RUN:
-                elsewhere[r["usecase"]] = elsewhere.get(r["usecase"], 0) + 1
-    return page(
-        request,
-        "runs.html",
-        uc,
-        runs=runs,
-        hidden=hidden,
-        show_checks=bool(checks),
-        elsewhere=dict(sorted(elsewhere.items())),
-    )
+    return runs, hidden
 
 
 def compare_cases(run: dict, other: dict | None) -> dict:

@@ -33,7 +33,7 @@ then measure every change.**
 - **A flaky case is a finding.** It often means the agent skips a step on some runs. Compare the tool calls of
   both runs, make that step explicit in the prompt ("Step 2: call `inbox_history` for the sender"), run twice again.
 - **Keep 3 to 5 cases aside** as **holdout** (tick in the case form). The eval skips them; run them at the end
-  (the tick on the Run page, or `make eval ... HOLDOUT=1`).
+  (the tick on the Evals page, or `make eval ... HOLDOUT=1`).
 - **Read the score per field** (results page, "Per field"): it shows the weak part of the result.
 - **Fix the case** when the case is wrong. Ask the owner what is right; do not change it to make it pass.
 

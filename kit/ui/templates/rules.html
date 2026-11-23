@@ -14,7 +14,7 @@
   case, so a saved change counts from the next case
   {%- if engine == 'n8n' %} (no push: the node <i>Read the rules</i> gets the file; one file per AI step){% endif %}.
   The other engines have their own files. Change one thing, save, then
-  <a href="/uc/{{ uc }}/run?engine={{ engine }}">run the eval</a> on {{ engine }} and compare.</p>
+  <a href="/uc/{{ uc }}/evals?engine={{ engine }}">run the eval</a> on {{ engine }} and compare.</p>
 {% if not files %}<div class="alert">No business rules files in <code>usecases/{{ uc }}/{{ engine }}/</code>.</div>{% else %}
 <div class="rules">
   <nav class="rule-files">

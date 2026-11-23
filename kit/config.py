@@ -14,7 +14,7 @@ from dotenv import dotenv_values
 ROOT = Path(__file__).resolve().parent.parent
 USECASES_DIR = ROOT / "usecases"
 RUNS_DIR = ROOT / "runs"
-ENGINES = ("n8n", "claude", "python")  # setup, check, the Run page and the default KIT_ENGINES
+ENGINES = ("n8n", "claude", "python")  # setup, check, the Evals page and the default KIT_ENGINES
 # USD per 1M input / output tokens, OpenAI Standard tier (developers.openai.com/api/docs/pricing, 23 Nov 2026).
 DEFAULT_PRICES = "gpt-6-luna=0.10/0.50,gpt-6.1-terra=1.00/5.00"
 

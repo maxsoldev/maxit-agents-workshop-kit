@@ -18,8 +18,7 @@
     {% if nav_uc %}
     <a href="/uc/{{ nav_uc }}/rules" class="{{ 'on' if here.endswith('/rules') }}">Rules</a>
     <a href="/uc/{{ nav_uc }}/cases" class="{{ 'on' if '/cases' in here and not here.startswith('/runs/') }}">Cases</a>
-    <a href="/uc/{{ nav_uc }}/run" class="{{ 'on' if here.endswith('/run') }}">Run</a>
-    <a href="/uc/{{ nav_uc }}/runs" class="{{ 'on' if '/runs' in here }}">Runs</a>
+    <a href="/uc/{{ nav_uc }}/evals" class="{{ 'on' if here.endswith('/evals') or here.startswith('/runs/') }}">Evals</a>
     <a href="/uc/{{ nav_uc }}/try" class="{{ 'on' if here.endswith('/try') }}">Try</a>
     {% endif %}
   </nav>

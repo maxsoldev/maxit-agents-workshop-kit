@@ -232,3 +232,7 @@ html.gp-open .guide-panel { display: flex; }
 .rule-edit .banner { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
 .rule-edit [hidden] { display: none; } /* else display: flex above wins over the hidden attribute */
 #rule-preview { min-height: 65vh; border: 1px solid var(--line); border-radius: 6px; padding: 0.4rem 1rem; max-width: none; }
+
+/* Evals page: the case picker stays closed under the run form; the run that just ended is marked. */
+.pick-cases > summary { cursor: pointer; margin: 0.4rem 0; }
+tr.just-done td { background: var(--pass-bg); }

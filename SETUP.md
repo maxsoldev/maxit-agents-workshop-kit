@@ -4,7 +4,7 @@ Two parts: **before the day** (at home, about 30 min) and **on the day** (about 
 Each step has a **Check**. If the check fails, read **If it goes wrong**, or ask your trainer.
 
 > **If you only use the UI** (no terminal): you need no setup. A developer in your team does the steps on one
-> laptop and runs `make serve`. Open http://localhost:5700 on that laptop: **Cases**, **Run**, **Runs**.
+> laptop and runs `make serve`. Open http://localhost:5700 on that laptop: **Rules**, **Cases**, **Evals**, **Try**.
 
 ## Before the day
 
@@ -97,7 +97,7 @@ It tests your key, makes the n8n login and imports the workflows. It is safe to 
 
 - **Check:** the summary says OK for n8n and Langfuse and prints the logins. Log in to :5702 and :5703.
 - **If it goes wrong:** read the FAIL line; it names the next step.
-- **Later:** `make check`, `make eval` or the Run page say that n8n has an older workflow (for example after
+- **Later:** `make check`, `make eval` or the Evals page say that n8n has an older workflow (for example after
   `git pull`): run `make setup`. If you also changed it in n8n: `make setup FORCE=1` (your old copy goes to
   `runs/n8n-backup/`).
 

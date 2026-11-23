@@ -22,9 +22,9 @@ You need `make serve` running and http://localhost:5700 open, use case **Marketi
 
 **Do**
 
-1. Open **Run**. Pick your engine. Tick no case (= all 10 cases). Run name `start`. Click **Run eval**.
+1. Open **Evals**. Pick your engine. Run name `start`. Click **Run eval** (all 10 cases).
    Terminal: `make eval UC=marketing ENGINE=python NAME=start` (or `claude`, `n8n`).
-2. Click **Open results →**, then the row of a red case (✗).
+2. When it ends, the run is at the top of the list. Click **Open results →**, then the row of a red case (✗).
 3. Read from top to bottom: the **checks** (each with a reason), **Output** next to **Expected**, **Input**.
 
 **See**
@@ -115,7 +115,7 @@ hidden instruction also `phishing`?), or the check is too strict. Ask the owner,
 2. Is the answer right? Click **Make a case from this**. The case form opens with the email and the agent's
    answer as **Expected**. Fix Expected if the answer is wrong (a webinar reminder is a `newsletter`). Give an id
    (for example `m10`) and a title. Add the checks `equals` on `category` and `equals` on `flags`.
-3. **Save case**. On **Run**, tick only `m10` and run it.
+3. **Save case**. On **Evals**, open **Cases**, tick only `m10` and click **Run eval**.
 
 **See:** the case is green if the agent gets it right, red if it still makes the mistake.
 

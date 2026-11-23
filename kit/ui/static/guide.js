@@ -8,8 +8,8 @@
   const firstVisit = localStorage.getItem(KEY) === null;
   let state = {};
   try { state = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { state = {}; }
-  // First time on the Run page: open the tutorial, so people read it while they click.
-  if (firstVisit && /^\/uc\/[^/]+\/run$/.test(location.pathname)) {
+  // First time on the Evals page: open the tutorial, so people read it while they click.
+  if (firstVisit && /^\/uc\/[^/]+\/evals$/.test(location.pathname)) {
     state = { open: true, doc: "docs/tutorial.md", scroll: 0 };
   }
   const save = () => localStorage.setItem(KEY, JSON.stringify(state));

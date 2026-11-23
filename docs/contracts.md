@@ -48,7 +48,7 @@ usecases/<uc>/
 
 - `id` unique in the file; `title` short; `today` ISO date (the agent's "today"), optional.
 - `holdout`: optional, `true` = a case kept aside. `run_eval` skips it unless `holdout=True` (`kit eval
-  --holdout`, `make eval HOLDOUT=1`, the tick on the Run page) or its id is in `case_ids`.
+  --holdout`, `make eval HOLDOUT=1`, the tick on the Evals page) or its id is in `case_ids`.
 - `input`: free JSON. Every key that ends in `_file` is a path relative to the use case folder; the runner adds
   the file text under the same key without `_file` (for example `email_file` → `email`). Engines never read files.
   An `.eml` file is decoded: `email` = readable text ("From: …", "To: …", "Date: …", "Subject: …", a blank line,
@@ -129,7 +129,7 @@ The node's `text` (what it gets: the email, the case) is n8n wiring, in `workflo
   the run does not start (CaseError with the advice). The schema must be OpenAI-strict (every property in
   `required`, `additionalProperties: false` in each object), because the model nodes send it as strict
   json_schema: else the run does not start ("n8n needs a strict output.schema.json: …").
-- `n8n_warning` (shown by `make eval`, `make check`, the UI Run page; kept in the run file as `warning`): the
+- `n8n_warning` (shown by `make eval`, `make check`, the UI Evals page; kept in the run file as `warning`): the
   sync advice, and "has edits that are not published: Publish in n8n, or run make n8n-push to discard them".
 
 `make setup` first tests the key with one `GET {base}/models` (OpenAI or `OPENAI_BASE_URL`). Without a key it

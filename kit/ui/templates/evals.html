@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Evals · {{ uc|uc_name }}{% endblock %}
+{% block main %}
+<h1>Evals <span class="muted">· {{ uc|uc_name }}</span></h1>
+{% if error %}<div class="alert">{{ error }}</div>{% endif %}
+{% if n8n_warning %}<div class="banner">{{ n8n_warning }}</div>{% endif %}
+<form method="post" action="/uc/{{ uc }}/run" class="run-form">
+  <div class="row3">
+    <fieldset class="engines"><legend>Engine</legend>
+      {% for e in run_engines %}<label class="radio"><input type="radio" name="engine" value="{{ e }}" {{ 'checked' if e == engine }}> {{ e }}</label>{% endfor %}
+    </fieldset>
+    <label class="grow">Run name (optional) <input name="name" placeholder="e.g. stricter prompt for offers"></label>
+    <div class="go"><button class="btn primary big">Run eval</button></div>
+  </div>
+  {% set n_hold = cases|selectattr("holdout")|list|length %}
+  <details class="pick-cases"><summary>Cases: all {{ cases|length - n_hold }} (tick some to run only those)</summary>
+  <p class="muted small">Tick cases to run only those. Tick none to run all {{ cases|length - n_hold }} cases.
+    {% if n_hold %}<label><input type="checkbox" name="holdout" value="1"> also the {{ n_hold }} holdout case(s)</label>
+    (kept aside: run them at the end, to see if your agent works on cases it was not tuned on){% endif %}</p>
+  <table class="pick">
+    <thead><tr><th><input type="checkbox" onclick="document.querySelectorAll('input[name=case]').forEach(b => b.checked = this.checked)"></th><th>id</th><th>Title</th></tr></thead>
+    <tbody>
+    {% for c in cases %}
+    <tr><td><input type="checkbox" name="case" value="{{ c.id }}" id="pick-{{ c.id }}"></td>
+        <td><label for="pick-{{ c.id }}"><code>{{ c.id }}</code></label></td><td>{{ c.title }}{% if c.holdout %} <span class="chip">holdout</span>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </details>
+</form>
+<div id="progress">{% include "_progress.html" %}</div>
+<h2>Runs <span class="muted">· {{ runs|length }}</span></h2>
+{% if hidden %}
+<p class="muted small">{% if show_checks %}With the {{ hidden }} <code>make check</code> runs. <a href="/uc/{{ uc }}/evals">Hide checks</a>
+  {% else %}{{ hidden }} <code>make check</code> run(s) hidden. <a href="/uc/{{ uc }}/evals?checks=1">Show checks</a>{% endif %}</p>
+{% endif %}
+{% if not runs %}<p class="muted">No {{ uc|uc_name }} runs yet.{% for u, n in elsewhere.items() %}
+  <a href="/uc/{{ u }}/evals">{{ u|uc_name }} has {{ n }} run{{ 's' if n != 1 }} →</a>{% endfor %}</p>{% else %}
+<table class="runs">
+  <thead><tr><th>Score</th><th>Engine</th><th>Name</th><th>Started</th><th>Run id</th></tr></thead>
+  <tbody>
+  {% for r in runs %}{% set s = r.summary or {} %}
+  <tr onclick="location.href='/runs/{{ r.run_id }}'" class="{{ 'just-done' if r.run_id in just_done }}">
+    <td class="score-cell"><b>{{ s.passed }}/{{ s.cases }}</b>
+      <span class="bar"><span style="width: {{ (100 * (s.passed or 0) / (s.cases or 1))|round|int }}%"></span></span>
+      {% set notes = [] %}{% if r.new_cases %}{% set _ = notes.append(r.new_cases ~ ' new') %}{% endif %}
+      {% if r.changed_cases %}{% set _ = notes.append(r.changed_cases ~ ' changed') %}{% endif %}
+      <div class="muted small" title="against the run below">{{ s.cases }} cases{% if notes %} ({{ notes|join(', ') }}){% endif %}</div></td>
+    <td><span class="chip">{{ r.engine }}</span></td>
+    <td><a href="/runs/{{ r.run_id }}">{{ r.name or '—' }}</a></td>
+    <td>{{ r.started_at|when }}</td>
+    <td class="muted small"><code>{{ r.run_id }}</code></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+<script>
+// When a run ends (the progress stops polling), reload once: the new run shows at the top of the list.
+let wasBusy = !!document.querySelector("#progress [hx-get]");
+document.body.addEventListener("htmx:afterSwap", (e) => {
+  if (e.target.id !== "progress") return;
+  const busy = !!e.target.querySelector("[hx-get]");
+  if (wasBusy && !busy) location.reload();
+  wasBusy = busy;
+});
+</script>
+{% endblock %}
