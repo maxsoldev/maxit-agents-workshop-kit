@@ -43,6 +43,7 @@
      "field": "reply",
      "passed": true,
      "reason": "score 5/5 (min 4): r5",
+     "score": 5,
      "type": "judge"
     }
    ],
@@ -128,6 +129,7 @@
      "field": "reply",
      "passed": false,
      "reason": "score 2/5 (min 4): r2",
+     "score": 2,
      "type": "judge"
     }
    ],

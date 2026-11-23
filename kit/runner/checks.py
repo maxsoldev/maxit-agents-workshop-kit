@@ -162,12 +162,13 @@ def _judge(check: dict, got, ctx: Ctx):
         )
     except Exception as e:
         return None, f"judge skipped: {e}"
-    return score >= minimum, f"score {score}/5 (min {minimum}): {reason}"
+    return score >= minimum, f"score {score}/5 (min {minimum}): {reason}", {"score": score}
 
 
 @dataclass(frozen=True)
 class CheckType:
-    run: Callable[[dict, object, Ctx], tuple[bool | None, str]]  # (check, field value, ctx) -> (passed, reason)
+    # (check, field value, ctx) -> (passed, reason) or (passed, reason, extra keys for the result)
+    run: Callable[[dict, object, Ctx], tuple]
     needs: tuple[str, ...] = ()  # keys the check must have (cases.validate_case)
 
 
@@ -200,8 +201,8 @@ def run_check(check: dict, output, expected: dict, case_input: dict, tool_calls:
         return result(kind, field, False, f"`{field}` is missing in the result")
     if kind not in CHECK_TYPES:
         return result(kind, field, False, f"unknown check type {kind!r}")
-    passed, reason = CHECK_TYPES[kind].run(check, got, Ctx(field, expected, case_input, tool_calls))
-    return result(kind, field, passed, reason) | ({"skipped": True} if passed is None else {})
+    passed, reason, *extra = CHECK_TYPES[kind].run(check, got, Ctx(field, expected, case_input, tool_calls))
+    return result(kind, field, passed, reason) | ({"skipped": True} if passed is None else {}) | dict(*extra)
 
 
 def _every_item(check: dict, output, expected: dict, case_input: dict, tool_calls: list | None = None) -> dict:

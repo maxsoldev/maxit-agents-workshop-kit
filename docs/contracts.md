@@ -63,7 +63,7 @@ usecases/<uc>/
 | `not_contains` | the opposite of `contains`; also passes when the field is missing or empty | `value` |
 | `count` | `result[field]` is a list, and its length is `equals` / at least `min` / at most `max` | one or more of `equals`, `min`, `max` (whole numbers) |
 | `any` | `result[field]` is a list of objects, and one item matches all of `where` and all of `contains`. Text values match as case-insensitive substring ("Elena" matches "Elena Popescu"), in `where` too; numbers and true/false in `where` must be equal. Keys can be dotted paths in the item. On a fail the reason names the fields of the closest item that do not match | `where` and/or `contains`, e.g. `{"where": {"kind": "trip"}, "contains": {"event": "Riga"}}` |
-| `judge` | an OpenAI model (`KIT_JUDGE_MODEL`) scores `result[field]` 1–5 against `rubric`, given the case input and the engine's tool calls (`meta.tool_calls`, a few KB; facts from tool results are allowed); pass ≥ `min`. It asks for temperature 0 and retries without it if the model refuses, so a judge result can flip between runs | `rubric`, `min` (default 4) |
+| `judge` | an OpenAI model (`KIT_JUDGE_MODEL`) scores `result[field]` 1–5 against `rubric`, given the case input and the engine's tool calls (`meta.tool_calls`, a few KB; facts from tool results are allowed); pass ≥ `min`; the check result has `score` (1–5). It asks for temperature 0 and retries without it if the model refuses, so a judge result can flip between runs | `rubric`, `min` (default 4) |
 
 The schema check (§4) always runs first. A case passes when the schema check and all its checks pass.
 A `judge` that cannot run (no key, API error, timeout) is **skipped**: `"passed": null, "skipped": true`, the
@@ -185,7 +185,9 @@ finds the execution with that header; if it cannot, the link goes to the workflo
 ## 6. Tracing
 
 If `settings().langfuse_on`: one Langfuse trace per case (name `<uc>/<case_id>`, tags `[uc, engine, run name]`,
-session id = `run_id`), input = engine input, output = result, one score per check (1/0) and `passed`.
+session id = `run_id`), input = engine input, output = result, one score per check and `passed` (1/0).
+A check scores 1/0 (pass/fail); a `judge` check scores its real 1–5 (`judge.<field>` = 3, comment = the reason),
+so the Langfuse compare view shows the judge's score. A skipped judge writes no score.
 Claude gets `CLAUDE_CODE_ENABLE_TELEMETRY=1`, `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`, `OTEL_TRACES_EXPORTER=otlp`,
 `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT={LANGFUSE_HOST}/api/public/otel/v1/traces`, basic auth header, and
 `TRACEPARENT=00-<trace_id>-<span_id>-01` of the case trace, so its spans nest under it. If off: no traces, no links.

@@ -116,7 +116,8 @@ class CaseTrace(NoTrace):
             pass  # tracing must never break a run
 
     def finish(self, output, error, checks, passed) -> None:
-        """Write the output and one score per check (1/0) plus `passed`."""
+        """Write the output and one score per check plus `passed` (1/0). A judge check is its 1-5 score
+        (the Langfuse compare view then shows 3, not 0), every other check 1/0."""
         try:
             self.span.update(
                 output=output if error is None else {"error": error, "output": output},
@@ -126,7 +127,8 @@ class CaseTrace(NoTrace):
                 if c.get("skipped"):
                     continue
                 name = c["type"] + (f".{c['field']}" if c["field"] else "")
-                self.span.score_trace(name=name, value=1 if c["passed"] else 0, comment=c["reason"])
+                value = c["score"] if "score" in c else 1 if c["passed"] else 0
+                self.span.score_trace(name=name, value=value, comment=c["reason"])
             self.span.score_trace(name="passed", value=1 if passed else 0)
         except Exception:
             pass  # tracing must never break a run

@@ -729,7 +729,13 @@ def test_judge_check(uc, fake_openai):
     run = lambda value, **kw: checks.run_check(  # noqa: E731
         {"type": "judge", "field": "r", "rubric": "Polite.", **kw}, {"r": value}, {}, {"email": "x", "email_raw": "RAW"}
     )
-    assert run("Thanks") == {"type": "judge", "field": "r", "passed": True, "reason": "score 5/5 (min 4): r5"}
+    assert run("Thanks") == {
+        "type": "judge",
+        "field": "r",
+        "passed": True,
+        "reason": "score 5/5 (min 4): r5",
+        "score": 5,
+    }
     assert run("No.", min=2)["passed"] and not run("No.")["passed"]
     user = fake_openai.calls[-1]["messages"][1]["content"]
     assert "RAW" not in user and user.startswith("Rubric:\nPolite.\n\nCase input:\n")
@@ -769,7 +775,14 @@ def test_traces_scores_and_tool_spans(uc, langfuse, fake_openai):
     log = [x for x in langfuse.log if x[1] == "seam/s01" or x[0] == "trace" and x[1] == "seam/s01"]
     assert ("trace", "seam/s01", ["case_id", "input", "output_schema", "today"]) in log
     assert ("score", "seam/s01", "equals.category", 1) in log and ("score", "seam/s01", "passed", 1) in log
-    assert ("score", "seam/s01", "schema", 1) in log and ("score", "seam/s01", "judge.reply", 1) in log
+    assert ("score", "seam/s01", "schema", 1) in log and ("score", "seam/s01", "judge.reply", 5) in log
+    # a judge score is its 1-5 score (the compare view shows 2, not 0); `passed` stays 1/0
+    assert ("score", "seam/s02", "judge.reply", 2) in langfuse.log and (
+        "score",
+        "seam/s02",
+        "passed",
+        0,
+    ) in langfuse.log
     tools = [x for x in log if x[0] == "obs"]
     assert [(x[2], x[3]) for x in tools] == [("tool:rules_get", "tool")]
     attrs = [x[2] for x in langfuse.log if x[0] == "attr" and x[1] == "seam/s01"]
