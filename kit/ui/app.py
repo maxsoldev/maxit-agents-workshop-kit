@@ -228,7 +228,13 @@ def page(request: Request, name: str, uc: str | None = None, status: int = 200, 
     s = config.settings()
     ctx.update(request=request, uc=uc, usecases=usecases(), engines=config.ENGINES, settings=s,
                langfuse_link=s.langfuse_mode != "off")
-    return templates.TemplateResponse(request, name, ctx, status_code=status)
+    response = templates.TemplateResponse(request, name, ctx, status_code=status)
+    if uc and uc in ctx["usecases"]:
+        response.set_cookie(LAST_UC_COOKIE, uc, max_age=60 * 60 * 24 * 365, samesite="lax")  # `/` opens it next time
+    return response
+
+
+LAST_UC_COOKIE = "kit_last_uc"
 
 
 def load_cases_safe(uc: str) -> tuple[list[dict], str | None]:
@@ -244,9 +250,12 @@ def load_cases_safe(uc: str) -> tuple[list[dict], str | None]:
 # ---------- pages ----------
 
 @app.get("/")
-def index():
+def index(request: Request):
+    """The use case you used last (a cookie), else the first one."""
     ucs = usecases()
-    return RedirectResponse(f"/uc/{ucs[0]}/cases" if ucs else "/docs", status_code=302)
+    last = request.cookies.get(LAST_UC_COOKIE)
+    uc = last if last in ucs else (ucs[0] if ucs else None)
+    return RedirectResponse(f"/uc/{uc}/cases" if uc else "/docs", status_code=302)
 
 
 @app.get("/uc/{uc}/cases", response_class=HTMLResponse)

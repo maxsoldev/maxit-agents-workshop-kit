@@ -229,3 +229,14 @@ def test_checks_in_words():
 
 def test_docs_page(client):
     assert client.get("/docs").status_code == 200
+
+
+def test_start_page_opens_the_last_used_use_case(client):
+    (config.USECASES_DIR / "zeta").mkdir()
+    (config.USECASES_DIR / "zeta" / "cases.jsonl").write_text("", encoding="utf-8")
+    assert client.get("/", follow_redirects=False).headers["location"] == "/uc/demo/cases"  # the first one
+    client.get("/uc/zeta/cases")
+    assert client.get("/", follow_redirects=False).headers["location"] == "/uc/zeta/cases"
+    client.cookies.clear()
+    client.cookies.set("kit_last_uc", "gone")  # a use case that is not there any more
+    assert client.get("/", follow_redirects=False).headers["location"] == "/uc/demo/cases"
