@@ -23,7 +23,8 @@ def kit_env(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "RUNS_DIR", tmp_path / "runs")
     monkeypatch.setenv("LANGFUSE", "off")
     monkeypatch.setenv("PATH", f"{FIX / 'bin'}{os.pathsep}{os.environ['PATH']}")
-    monkeypatch.setattr(judge, "score", lambda value, rubric, inp: (5, "polite") if "Thanks" in value else (2, "rude"))
+    monkeypatch.setattr(judge, "score", lambda value, rubric, inp, tools=None: (5, "polite") if "Thanks" in value
+                        else (2, "rude"))
 
 
 class FakeN8n(BaseHTTPRequestHandler):
@@ -199,6 +200,22 @@ def test_read_claude_stream():
 def test_parse_json_text():
     assert engines.parse_json_text('x\n```json\n{"a": 1}\n```\nthen\n```json\n{"a": 2}\n```') == {"a": 2}
     assert engines.parse_json_text(' {"a": 3} ') == {"a": 3}
+
+
+def test_read_python_tool_log():
+    err = 'hello\ntool contacts_lookup {"query": "a -> b"} -> "x\\n\\"y\\""\ntool rules_get {} -> "r"\ntool broken'
+    assert engines.read_tool_log(err) == [{"name": "contacts_lookup", "input": {"query": "a -> b"}, "output": 'x\n"y"'},
+                                          {"name": "rules_get", "input": {}, "output": "r"}]
+
+
+def test_judge_gets_tool_calls(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(judge, "score", lambda value, rubric, inp, tools=None: seen.update(tools=tools) or (5, "ok"))
+    run = runner.run_eval("fake", "python", case_ids=["f01"])
+    assert seen["tools"] == [{"name": "rules_get", "input": {"name": "routing"}, "output": "# Routing\nVendor declined"}]
+    assert run["cases"][0]["meta"]["tool_calls"] == seen["tools"]
+    text = judge.tools_text([{"name": "t", "input": {}, "output": "z" * 5000}] * 9)
+    assert len(text) == judge.TOOLS_LIMIT and "z" * judge.OUTPUT_LIMIT in text and "z" * 1501 not in text
 
 
 # engines and runs

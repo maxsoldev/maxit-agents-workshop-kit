@@ -76,6 +76,11 @@ form" is not the same as "the reply has the word Sie": a polite German reply can
 the next. Use `contains` only for a fact that must be there word for word (a date, a number, a name).
 A judge that cannot run (no key, API error) is **skipped**: the case passes or fails on its other checks.
 
+**What the judge sees:** the rubric, the case input, the field, and (Claude and Python) the agent's tool calls
+with their results. So a fact the agent looked up (a contact note, a rule, an event date) is not "invented".
+n8n sends no tool calls: there, or when a fact is not in a tool result, write the allowed facts into the
+rubric ("The contact sheet says we declined NodeHost Pro in March 2026").
+
 ## How business people write cases (in the UI)
 
 Open http://localhost:5700 → your use case → **Cases** → **Add case**.

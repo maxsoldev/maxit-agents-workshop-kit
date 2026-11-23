@@ -60,7 +60,7 @@ usecases/<uc>/
 | `not_contains` | the opposite of `contains`; also passes when the field is missing or empty | `value` |
 | `count` | `result[field]` is a list, and its length is `equals` / at least `min` / at most `max` | one or more of `equals`, `min`, `max` (whole numbers) |
 | `any` | `result[field]` is a list of objects, and one item matches all of `where` (equal as text, case-insensitive) and all of `contains` (substring, case-insensitive); keys can be dotted paths in the item | `where` and/or `contains`, e.g. `{"where": {"kind": "trip"}, "contains": {"event": "Riga"}}` |
-| `judge` | an OpenAI model (`KIT_JUDGE_MODEL`) scores `result[field]` 1–5 against `rubric`, given the case input; pass ≥ `min` | `rubric`, `min` (default 4) |
+| `judge` | an OpenAI model (`KIT_JUDGE_MODEL`) scores `result[field]` 1–5 against `rubric`, given the case input and the engine's tool calls (`meta.tool_calls`, a few KB; facts from tool results are allowed); pass ≥ `min` | `rubric`, `min` (default 4) |
 
 The schema check (§4) always runs first. A case passes when the schema check and all its checks pass.
 A `judge` that cannot run (no key, API error, timeout) is **skipped**: `"passed": null, "skipped": true`, the
@@ -119,7 +119,9 @@ Run file `runs/<run_id>.json`, `run_id` = `<YYYYmmdd-HHMMSS>-<uc>-<engine>`:
 ```
 
 Each case result also has `today` (the agent's date) and, for claude and python, `meta.stderr` (the last lines
-of the engine's stderr; the results page shows it as "Engine log"). `kit run-case <uc> <engine> <case_id>` runs
+of the engine's stderr; the results page shows it as "Engine log"). `meta.tool_calls` (`[{"name", "input",
+"output"}]`): claude from its stream-json, python from the `tool <name> <args JSON> -> <result JSON string>` lines
+that `agent.py` writes to stderr; n8n has none (see the execution in n8n). `kit run-case <uc> <engine> <case_id>` runs
 one case without a run file and prints the engine input, output, tool calls, stderr and checks.
 
 `case_hash` (each case result): a short hash of the case's `today`, `input`, `expected` and `checks`. Compare

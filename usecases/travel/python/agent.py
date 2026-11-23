@@ -74,7 +74,9 @@ async def run(case: dict, client: Client | None) -> dict:
         for call in answer.tool_calls:
             args = json.loads(call.function.arguments or "{}")
             text = await call_tool(client, call.function.name, args)
-            log(f"tool {call.function.name} {json.dumps(args, ensure_ascii=False)} -> {text[:200]!r}")
+            # One line per tool call: the runner reads these lines and gives them to the judge.
+            log(f"tool {call.function.name} {json.dumps(args, ensure_ascii=False)} -> "
+                f"{json.dumps(text[:2000], ensure_ascii=False)}")
             messages.append({"role": "tool", "tool_call_id": call.id, "content": text})
     else:
         log(f"still calling tools after {MAX_STEPS} steps: asking for the result now")

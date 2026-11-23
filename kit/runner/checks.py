@@ -73,13 +73,14 @@ def _item_matches(item, where: dict, contains: dict) -> bool:
     return True
 
 
-def run_check(check: dict, output, expected: dict, case_input: dict) -> dict:
-    """Run one check on the output. Never raises: a problem is a failed check with a reason."""
+def run_check(check: dict, output, expected: dict, case_input: dict, tool_calls: list | None = None) -> dict:
+    """Run one check on the output. Never raises: a problem is a failed check with a reason.
+    `tool_calls` of the engine (if any) go to the judge: facts from tool results are allowed."""
     kind, field = check.get("type", "?"), check.get("field", "")
     if output is None:
         return result(kind, field, False, "no output")
     if "*" in field.split("."):
-        return _every_item(check, output, expected, case_input)
+        return _every_item(check, output, expected, case_input, tool_calls)
     got = get_field(output, field)
     if got is MISSING and kind == "not_contains":  # nothing there, so the value is not there either
         return result(kind, field, True, f"`{field}` is missing or empty, so it does not have {short(check.get('value'))}")
@@ -121,14 +122,15 @@ def run_check(check: dict, output, expected: dict, case_input: dict) -> dict:
     if kind == "judge":
         minimum = check.get("min", 4)
         try:
-            score, reason = with_deadline(lambda: judge.score(got, check.get("rubric", ""), case_input), JUDGE_DEADLINE_S)
+            score, reason = with_deadline(lambda: judge.score(got, check.get("rubric", ""), case_input, tool_calls),
+                                          JUDGE_DEADLINE_S)
         except Exception as e:  # no key, API error, timeout: the judge did not run, so it neither passes nor fails
             return {**result(kind, field, None, f"judge skipped: {e}"), "skipped": True}
         return result(kind, field, score >= minimum, f"score {score}/5 (min {minimum}): {reason}")
     return result(kind, field, False, f"unknown check type {kind!r}")
 
 
-def _every_item(check: dict, output, expected: dict, case_input: dict) -> dict:
+def _every_item(check: dict, output, expected: dict, case_input: dict, tool_calls: list | None = None) -> dict:
     """`options.*.trains`: run the check on `trains` of every item of `options`; all items must pass.
     An empty list passes. The expected value of item i is at `options.i.trains` in `expected`."""
     kind, field = check.get("type", "?"), check["field"]
@@ -143,7 +145,8 @@ def _every_item(check: dict, output, expected: dict, case_input: dict) -> dict:
                       else f"`{base}` is not a list: {short(items)}")
     for i, item in enumerate(items):
         exp = get_field(expected, f"{base}.{i}" if base else str(i))
-        sub = run_check({**check, "field": rest}, item, exp if not rest or isinstance(exp, dict) else {}, case_input)
+        sub = run_check({**check, "field": rest}, item, exp if not rest or isinstance(exp, dict) else {}, case_input,
+                        tool_calls)
         if sub["passed"] is None:
             return {**result(kind, field, None, sub["reason"]), "skipped": True}
         if not sub["passed"]:
@@ -151,7 +154,8 @@ def _every_item(check: dict, output, expected: dict, case_input: dict) -> dict:
     return result(kind, field, True, f"all {len(items)} items pass")
 
 
-def run_checks(case: dict, output, schema: dict, case_input: dict) -> list[dict]:
+def run_checks(case: dict, output, schema: dict, case_input: dict, tool_calls: list | None = None) -> list[dict]:
     """The schema check first, then the case checks."""
     expected = case.get("expected", {})
-    return [schema_check(output, schema)] + [run_check(c, output, expected, case_input) for c in case.get("checks", [])]
+    return [schema_check(output, schema)] + [run_check(c, output, expected, case_input, tool_calls)
+                                             for c in case.get("checks", [])]
