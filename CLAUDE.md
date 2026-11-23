@@ -19,7 +19,7 @@ Skills: `eval-loop` (run, read, compare, add cases: every engine), `n8n-workflow
 
 | Do | Command |
 |---|---|
-| Run an eval | `make eval UC=<uc> ENGINE=<n8n\|n8n-agent\|claude\|python> NAME=<what-you-changed>` |
+| Run an eval | `make eval UC=<uc> ENGINE=<n8n\|claude\|python> NAME=<what-you-changed>` |
 | One case, with input, output, tool calls and log | `make run-case UC=<uc> ENGINE=<engine> CASE=<id>` |
 | Compare two runs | `make compare A=<run_id> B=<run_id>` |
 | Results | `runs/<run_id>.json` (newest file = last run; format: `docs/contracts.md` §5) |

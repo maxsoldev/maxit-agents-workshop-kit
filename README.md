@@ -33,9 +33,6 @@ The scaffold does the same small job on each engine, so you can compare them.
 All three use the same tools (`kit/tools.py`, :5701). No tool sends or books anything: the agent only
 proposes, a person decides.
 
-To compare: `Kit: <uc> agent (example)` in n8n is the same job as one AI Agent node (the model picks the
-tools). Run it as engine `n8n-agent`.
-
 ## Repo map
 
 ```text

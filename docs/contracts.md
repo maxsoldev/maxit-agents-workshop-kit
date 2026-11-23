@@ -25,8 +25,7 @@ usecases/<uc>/
   cases.jsonl           the eval cases (§3)
   output.schema.json    JSON Schema of the result (§4)
   n8n/workflow.json     n8n workflow `Kit: <uc> workflow` (nodes; no AI Agent node), webhook path = <uc>
-  n8n/agent.json        example: the same job as one AI Agent node, `Kit: <uc> agent (example)`, path = <uc>-agent
-  n8n/prompts/*.md      the prompts of both n8n files (§5, n8n sync)
+  n8n/prompts/*.md      the prompts of the n8n workflow (§5, n8n sync)
   claude/               Claude Code agent folder: CLAUDE.md, .mcp.json, .claude/settings.json
   python/agent.py       Python agent: stdin → stdout
 ```
@@ -81,7 +80,6 @@ Engine output: one JSON object that must validate against `output_schema`. The s
 | Engine | How the runner calls it | Timeout |
 |---|---|---|
 | `n8n` | `POST {N8N_URL}/webhook/<uc>`, body = engine input; the response body is the result (workflow ends with Respond to Webhook). The scaffold `n8n/workflow.json` is a chain of nodes (code decides the path, the model fills in the steps): marketing Read the rules → Triage (AI) → Junk? (IF; yes: **Result: no reply**, code) → Look up the sender in the contact sheet, Find earlier emails from the sender (tools) → Decide and draft (AI) → Read result → Result out; travel Read the rules → Read message (AI) → Look up events on those days (tool) → Find tasks (AI) → Read result → Result out. An AI step has no Structured Output Parser (it fails on a valid answer without its `{"output": ...}` wrapper): its model node uses the Responses API with Response Format = JSON Schema, and a Code node after it (`Triage fields`, `Message fields`, `Read result`) parses the JSON text into `output` (also wrapped or in a ```json block). Tool nodes are HTTP Request nodes on `{KIT_TOOLS_URL}/call/<tool>` (§7), body "Using Fields Below" (one field per argument); the runner finds tool calls by their answer `{"tool", "input", "output"}`, not by node name. Every main node has a short canvas note. The files have no `pinData` (they define the pipeline, not one case): push and pull drop all pins (Debug in editor pins every node), pins are not part of the "same workflow" hash, and setup removes the pins from a workflow it updates. If n8n answers an error, the runner reads the failed execution and reports `n8n failed at <node>: <message>` with the execution link | 120 s |
-| `n8n-agent` | example engine, not in the default `KIT_ENGINES` (so not in `make check` unless listed; the Run page offers it when `n8n` is used): as `n8n`, but `POST {N8N_URL}/webhook/<uc>-agent`, the workflow `n8n/agent.json` (one AI Agent node with the kit MCP tools) | 120 s |
 | `claude` | in `usecases/<uc>/claude/`: `claude -p <prompt> --output-format stream-json --verbose --mcp-config .mcp.json --strict-mcp-config --permission-mode dontAsk --allowedTools mcp__kit` + `--setting-sources project` + `--settings {"claudeMdExcludes": [the CLAUDE.md files of the parent folders up to the repo root], "skillOverrides": {<each skill in the root .claude/skills/>: "off"}}` (Claude Code also loads parent CLAUDE.md files and skills: those are for the builder session at the repo root, not the agent) + `--json-schema <output_schema without "$schema">`; prompt = "Process this case. Answer with only the result JSON.\n\n" + engine input. The result is `structured_output` of the last `result` event (Claude Code checks it against the schema); without it, the JSON in the `result` text (a fenced ```json block, or the whole text) | 300 s |
 | `python` | in `usecases/<uc>/python/`: `uv run --project <repo root> python agent.py`, engine input on stdin, result JSON on stdout (stderr = logs). The scaffold uses the OpenAI Responses API (`/v1/responses`; new models allow function tools only there), also through `OPENAI_BASE_URL` | 300 s |
 
@@ -101,18 +99,20 @@ run = run_eval(usecase, engine, case_ids=None, name=None, on_progress=None, hold
 list_runs(usecase=None) -> list[dict]   # newest first; summary fields and the sorted `case_ids`
 load_run(run_id) -> dict
 compare(run_id_a, run_id_b) -> dict     # per case: better / worse / same; agent_changed
-n8n_warning(usecase, engine="n8n") -> str | None  # a warning if that n8n workflow (n8n or n8n-agent) is
-                                        # not in sync with the files, or has edits that are not published
+n8n_warning(usecase) -> str | None      # a warning if the n8n workflow is not in sync with the files,
+                                        # or has edits that are not published
 ```
 
 **n8n sync (files ↔ n8n).** n8n keeps its own copy of each workflow; the files are the source for git and for
-Claude Code. A prompt field in `n8n/*.json` (chainLlm: the first chat message and `text`; agent:
-`options.systemMessage` and `text`) holds `={{PROMPT:<name>}}`; the text is in `n8n/prompts/<name>.md` (`<name>` =
-node name in snake case; `.input` = the `text` field, the user message; `agent.json` prompts start with
-`agent`; the file ends with one newline that is not part of the prompt). `kit/n8n_files.py` fills and splits them.
+Claude Code. A prompt field in `n8n/workflow.json` (chainLlm: the first chat message and `text`; an AI Agent
+node: `options.systemMessage` and `text`) holds `={{PROMPT:<name>}}`; the text is in `n8n/prompts/<name>.md`
+(`<name>` = node name in snake case; `.input` = the `text` field, the user message; the file ends with one
+newline that is not part of the prompt). `kit/n8n_files.py` fills and splits them.
 - `make n8n-push [UC=] [FORCE=1]` (and `make setup`): files → n8n. Fills `{{PROMPT:…}}`, `{{KIT_MODEL}}`,
   `{{KIT_TOOLS_URL}}`, `{{OPENAI_CREDENTIAL_ID}}`, updates by name, publishes. Unpublished editor edits are
-  discarded (old copy to `runs/n8n-backup/`).
+  discarded (old copy to `runs/n8n-backup/`). It deletes the old examples of earlier kits, the workflows named
+  exactly `Kit: <uc> agent` or `Kit: <uc> agent (example)` (a copy goes to `runs/n8n-backup/deleted-*.json`
+  first); it never deletes other workflows.
 - `make n8n-pull [UC=] [FORCE=1]` (`make n8n-export` = the same): n8n → files, the **published** version
   (`activeVersion`), placeholders and prompt files back, keys in the order of the old file: no change = the same
   bytes. It warns about prompt files that no node uses any more.
@@ -121,7 +121,7 @@ node name in snake case; `.input` = the `text` field, the user message; `agent.j
   edit or `git pull`), `both`, or `unknown` (they differ and there is no record). Push without `FORCE` keeps
   n8n in `n8n`/`both`/`unknown`; pull without `FORCE` stops in `files`/`both`/`unknown`. Each says which side
   changed and what to run; `FORCE=1` copies the overwritten side to `runs/n8n-backup/` first.
-- **Before each n8n / n8n-agent eval** (`run_eval`: CLI and UI): `n8n` → pull, the run file gets
+- **Before each n8n eval** (`run_eval`: CLI and UI): `n8n` → pull, the run file gets
   `n8n_sync` ("n8n changes saved to … (not committed)"; the results page shows it); `files`, `both`, `unknown` →
   the run does not start (CaseError with the advice). The schema must be OpenAI-strict (every property in
   `required`, `additionalProperties: false` in each object), because the model nodes send it as strict
@@ -170,7 +170,7 @@ of the engine's stderr; the results page shows it as "Engine log"). `meta.tool_c
 "output"}]`): claude from its stream-json, python from the `tool <name> <args JSON> -> <result JSON string>` lines
 that `agent.py` writes to stderr; n8n from the execution data (found by the `x-kit-call` header, needs
 `N8N_API_KEY`): every run of a node whose output is a plain HTTP tool answer `{"tool", "input", "output"}` (§7;
-the workflows), and every run of a tool node (output `ai_tool`, the agent example), name without the `<node>__`
+the workflows), and every run of a tool node (output `ai_tool`, under an AI Agent node), name without the `<node>__`
 prefix. `kit run-case <uc> <engine> <case_id>` runs
 one case without a run file and prints the engine input, output, tool calls, stderr and checks.
 
@@ -196,12 +196,12 @@ Claude also gets `OTEL_LOG_TOOL_DETAILS=1`, `OTEL_LOG_TOOL_CONTENT=1`, `OTEL_LOG
 a span event, which Langfuse does not show). So the runner reads the tool calls from Claude's stream-json and
 writes one TOOL span per call, `tool:<name>`, with input and output, under the case trace. The run file has
 them too (`meta.tool_calls`, output cut to 4000 characters); the results page lists them.
-**n8n** (engines `n8n` and `n8n-agent`): Langfuse has no n8n tracing, so the runner reads the execution data it
+**n8n**: Langfuse has no n8n tracing, so the runner reads the execution data it
 already fetches (`kit/runner/engines/n8n_execution.py`) and writes **one observation per executed node run** under the case trace:
 name = node name (a tool sub-node run: `<node>: <tool>`), start and end time from the execution, input and
 output (cut to 4000 characters; a main node's input = the output of the node before it), metadata
 `n8n_node_type` (and `branch` for an IF/Switch), level `ERROR` with the message if the node failed. Types: model
-sub-nodes = GENERATION with model and token usage, LLM chain nodes = CHAIN, the AI Agent node = AGENT, tool
+sub-nodes = GENERATION with model and token usage, LLM chain nodes = CHAIN, an AI Agent node (if a team adds one) = AGENT, tool
 nodes (the plain HTTP tool calls and MCP tool runs) = TOOL, other nodes = SPAN. Sub-nodes (model, tool, output
 parser) nest under their AI node; the rest is flat under the case root. The `tool:<name>` spans are written for
 n8n too. Not found (no `N8N_API_KEY`) or any error: no node spans, the case goes on. The run file does not get

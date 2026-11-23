@@ -32,7 +32,7 @@
     {% if other %}
     <div class="diff"><span class="better">▲ {{ counts.better }} better</span> <span class="worse">▼ {{ counts.worse }} worse</span>
       <span class="muted">{{ counts.same }} same{% if counts.new %} · {{ counts.new }} new case(s){% endif %}{% if counts.changed %} · {{ counts.changed }} case(s) changed since then{% endif %}</span>
-      {% if agent_changed %}<span class="badge changed" title="the agent files (n8n: the workflow and its prompts) are not the same as in the other run">{{ 'workflow' if run.engine in ('n8n', 'n8n-agent') else 'agent' }} changed</span>{% endif %}</div>
+      {% if agent_changed %}<span class="badge changed" title="the agent files (n8n: the workflow and its prompts) are not the same as in the other run">{{ 'workflow' if (run.engine or '').startswith('n8n') else 'agent' }} changed</span>{% endif %}</div>
     {% endif %}
   </form>
 </div>

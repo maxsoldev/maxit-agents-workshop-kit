@@ -325,7 +325,6 @@ def page(request: Request, name: str, uc: str | None = None, status: int = 200, 
         uc=uc,
         nav_uc=nav_usecase(request, uc, ucs),
         usecases=ucs,
-        engines=config.ALL_ENGINES,
         settings=s,
         langfuse_link=s.langfuse_mode != "off",
         guide_docs=[(k, t) for k, (t, _) in doc_files().items()],  # the doc list in the side panel
@@ -655,8 +654,7 @@ def default_engine(uc: str) -> str:
 def run_page(request: Request, uc: str, engine: str = "", error: str = ""):
     cases, load_error = load_cases_safe(uc)
     jobs = visible_jobs(uc)
-    run_engines = config.settings().run_engines
-    warnings = [runner().n8n_warning(uc, e) for e in config.N8N_ENGINES if e in run_engines]
+    run_engines = config.settings().engines
     return page(
         request,
         "run.html",
@@ -666,7 +664,7 @@ def run_page(request: Request, uc: str, engine: str = "", error: str = ""):
         jobs=jobs,
         engine=engine or default_engine(uc),
         run_engines=run_engines,
-        n8n_warning=" ".join(w for w in warnings if w) or None,
+        n8n_warning=runner().n8n_warning(uc) if "n8n" in run_engines else None,
     )
 
 
@@ -674,7 +672,7 @@ def run_page(request: Request, uc: str, engine: str = "", error: str = ""):
 async def run_start(request: Request, uc: str):
     f = await request.form()
     engine = str(f.get("engine", ""))
-    if engine not in config.ALL_ENGINES:
+    if engine not in config.ENGINES:
         raise HTTPException(400, f"Unknown engine '{engine}'")
     cases, error = load_cases_safe(uc)
     ids = [str(i) for i in f.getlist("case")] or None

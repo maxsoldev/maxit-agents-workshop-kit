@@ -213,6 +213,28 @@ def test_case_page_back_prev_next_and_compare(client):
     assert '<span class="muted">next →</span>' in client.get(f"{new}/cases/c3").text
 
 
+def test_old_n8n_agent_runs_still_open(client, monkeypatch):
+    """The n8n-agent engine is gone; its old run files still show (read-only). It is not offered to run."""
+    from kit.ui import app as ui
+
+    changed = lambda a, b: a["agent_version"] != b["agent_version"]  # noqa: E731 (as kit.runner.compare)
+    monkeypatch.setattr(ui.runner(), "agent_changed", changed, raising=False)
+    config.RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    for run_id, h in (("20261123-100000-demo-n8n-agent", "a"), ("20261123-110000-demo-n8n-agent", "b")):
+        case = {"id": "m06", "title": "Service offer", "passed": True, "checks": [], "input": {}, "expected": {}}
+        case["output"] = {"category": "service_offer"}
+        run = {"run_id": run_id, "usecase": "demo", "engine": "n8n-agent", "name": "old", "cases": [case],
+               "agent_version": {"hash": h, "git": None}}  # fmt: skip
+        (config.RUNS_DIR / f"{run_id}.json").write_text(json.dumps(run))
+    new, old = "/runs/20261123-110000-demo-n8n-agent", "20261123-100000-demo-n8n-agent"
+    page = client.get(f"{new}?vs={old}")
+    assert page.status_code == 200 and "n8n-agent" in page.text and "workflow changed" in page.text
+    assert client.get(f"{new}/cases/m06").status_code == 200
+    assert client.get("/uc/demo/runs").status_code == 200
+    assert 'value="n8n-agent"' not in client.get("/uc/demo/run").text
+    assert client.post("/uc/demo/run", data={"engine": "n8n-agent"}).status_code == 400
+
+
 def test_n8n_unpublished_warning(client, monkeypatch):
     """Run page and the results page of an n8n run say: click Publish in n8n."""
     monkeypatch.setenv("KIT_ENGINES", "n8n,python")

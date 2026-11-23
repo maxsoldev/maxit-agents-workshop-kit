@@ -14,12 +14,7 @@ from dotenv import dotenv_values
 ROOT = Path(__file__).resolve().parent.parent
 USECASES_DIR = ROOT / "usecases"
 RUNS_DIR = ROOT / "runs"
-ENGINES = ("n8n", "claude", "python")  # the main engines: setup, check and the default KIT_ENGINES
-# Examples to compare with: n8n-agent = the n8n AI Agent workflow (usecases/<uc>/n8n/agent.json, webhook <uc>-agent).
-# The Run page offers it when n8n is used; `make check` runs it only if KIT_ENGINES lists it.
-EXAMPLE_ENGINES = ("n8n-agent",)
-ALL_ENGINES = ENGINES + EXAMPLE_ENGINES
-N8N_ENGINES = ("n8n", "n8n-agent")  # the engines that run an n8n workflow
+ENGINES = ("n8n", "claude", "python")  # setup, check, the Run page and the default KIT_ENGINES
 
 
 def _read_env_file() -> dict[str, str]:
@@ -65,12 +60,6 @@ class Settings:
     trains_fallback_url: str
     engines: tuple[str, ...]  # KIT_ENGINES: the engines this team uses (default all); setup and check skip the rest
     parallel: int  # KIT_PARALLEL: cases at the same time in one eval (claude: at most 4, it uses a subscription)
-
-    @property
-    def run_engines(self) -> tuple[str, ...]:
-        """The engines the Run page offers: KIT_ENGINES, plus n8n-agent when n8n is used."""
-        extra = ("n8n-agent",) if "n8n" in self.engines and "n8n-agent" not in self.engines else ()
-        return self.engines + extra
 
     @property
     def tools_url(self) -> str:
@@ -125,9 +114,9 @@ def settings() -> Settings:
 
 
 def parse_engines(text: str) -> tuple[str, ...]:
-    """`n8n,claude` -> ("n8n", "claude"), in the order of ALL_ENGINES. Empty or no known name = the main engines."""
+    """`n8n,claude` -> ("n8n", "claude"), in the order of ENGINES. Empty or no known name = all engines."""
     names = {p.strip().lower() for p in text.split(",")}
-    return tuple(e for e in ALL_ENGINES if e in names) or ENGINES
+    return tuple(e for e in ENGINES if e in names) or ENGINES
 
 
 def usecases() -> list[str]:

@@ -22,7 +22,7 @@ from pathlib import Path
 import httpx
 
 from kit import n8n_files
-from kit.config import N8N_ENGINES, ROOT, RUNS_DIR, USECASES_DIR, parse_engines, settings, usecases
+from kit.config import ROOT, RUNS_DIR, USECASES_DIR, parse_engines, settings, usecases
 
 ENV_FILE = ROOT / ".env"
 OPENAI_CRED_NAME = "Kit OpenAI"
@@ -504,18 +504,43 @@ def restart_n8n(n8n: N8n) -> bool:
 
 
 KEPT: list[str] = []  # workflows the last push kept as they are in n8n (the guard stopped it)
+OLD_NAMES = ("Kit: {uc} agent", "Kit: {uc} agent (example)")  # the old AI Agent examples (kits before 24 Nov)
+
+
+def remove_old_workflows(n8n: N8n, flows: list[dict], ucs: list[str]) -> list[dict]:
+    """Delete the old agent examples of `ucs` (only these exact names), each after a backup to
+    runs/n8n-backup/. Returns the workflows that are left."""
+    old = {name.format(uc=uc) for uc in ucs for name in OLD_NAMES}
+    left = []
+    for w in flows:
+        if w.get("name") not in old:
+            left.append(w)
+            continue
+        backup = RUNS_DIR / "n8n-backup" / f"deleted-{n8n_files.slug(w['name'])}-{datetime.now():%Y%m%d-%H%M%S}.json"
+        backup.parent.mkdir(parents=True, exist_ok=True)
+        backup.write_text(json.dumps(n8n.api("GET", f"/workflows/{w['id']}").json(), indent=2))
+        if w.get("active"):
+            n8n.api("POST", f"/workflows/{w['id']}/deactivate")
+        r = n8n.api("DELETE", f"/workflows/{w['id']}")
+        if r.status_code >= 300:
+            warn(f"{w['name']}: old example, could not delete it ({r.status_code}): delete it in n8n")
+            left.append(w)
+        else:
+            ok(f"{w['name']}: old example deleted (copy: {backup.relative_to(ROOT)})")
+    return left
 
 
 def import_workflows(n8n: N8n, cred_id: str, force: bool = False, only_uc: str = "") -> bool:
-    """Push: create or update each usecases/*/n8n/*.json (workflow.json, agent.json, with the prompts from
-    n8n/prompts/) by name, then activate (publish) it. If the published n8n copy changed since the last sync,
-    keep it, unless `force`. Unpublished editor edits are discarded. The old n8n copy goes to runs/n8n-backup/."""
-    files = sorted(USECASES_DIR.glob(f"{only_uc or '*'}/n8n/*.json"))
+    """Push: create or update each usecases/*/n8n/workflow.json (with the prompts from n8n/prompts/) by name,
+    then activate (publish) it. If the published n8n copy changed since the last sync, keep it, unless
+    `force`. Unpublished editor edits are discarded. The old n8n copy goes to runs/n8n-backup/."""
+    files = sorted(USECASES_DIR.glob(f"{only_uc or '*'}/n8n/workflow.json"))
     if not files:
-        warn(f"no usecases/{only_uc or '*'}/n8n/*.json to import")
+        warn(f"no usecases/{only_uc or '*'}/n8n/workflow.json to import")
         return not only_uc
     good = True
-    by_name = {w["name"]: w for w in n8n.workflows()}
+    flows = remove_old_workflows(n8n, n8n.workflows(), [only_uc] if only_uc else usecases())
+    by_name = {w["name"]: w for w in flows}
     for f in files:
         rel = f.relative_to(ROOT)
         try:
@@ -688,7 +713,6 @@ ANSWERS, ERROR, SKIP = "ANSWERS  ", "ERROR    ", "SKIP     "
 
 NEXT_STEP = {
     "n8n": "is n8n up (make up) and the workflow active (make setup)? Is the tools server on (make serve)?",
-    "n8n-agent": "is n8n up (make up) and the agent example active (make setup)? Is the tools server on (make serve)?",
     "claude": "run `claude` once and log in; is the tools server on (make serve)?",
     "python": "make run-case UC={uc} ENGINE=python CASE={case} shows the agent log",
 }
@@ -746,11 +770,10 @@ def check() -> int:
     unused = [e for e in ("n8n", "claude", "python") if e not in s.engines]
     if unused:
         print(f"{SKIP}{', '.join(unused)}: not in KIT_ENGINES")
-    n8n_warning = getattr(sys.modules["kit.runner"], "n8n_warning", lambda uc, engine: None)
-    for uc in usecases():  # e.g. after git pull: the kit has a newer workflow than n8n
-        for engine in (e for e in s.engines if e in N8N_ENGINES):
-            if warning := n8n_warning(uc, engine):
-                print(f"WARN     {uc}/{engine}: {warning}")
+    n8n_warning = getattr(sys.modules["kit.runner"], "n8n_warning", lambda uc: None)
+    for uc in usecases() if "n8n" in s.engines else []:  # e.g. after git pull: the kit has a newer workflow
+        if warning := n8n_warning(uc):
+            print(f"WARN     {uc}/n8n: {warning}")
     # One row per use case × engine, in print order: (uc, engine, first case id, a line known before any run).
     rows = []
     for uc in usecases():
@@ -782,10 +805,9 @@ def check() -> int:
 def _check_before_run(uc: str, engine: str, first: str, s) -> str | None:
     """The SKIP / ERROR line for a pair that cannot run; None if it can run."""
     label = f"{uc}/{engine} ({first})"
-    part = "n8n/agent.json" if engine == "n8n-agent" else engine
-    if not (USECASES_DIR / uc / part).exists():
-        return f"{SKIP}{label}: no usecases/{uc}/{part}"
-    n8n = engine in N8N_ENGINES
+    if not (USECASES_DIR / uc / engine).exists():
+        return f"{SKIP}{label}: no usecases/{uc}/{engine}"
+    n8n = engine == "n8n"
     if n8n and not s.n8n_api_key and s.n8n_mode == "local":
         return f"{ERROR}{label}: n8n is not set up. Next: make up, make setup"
     if n8n and not s.openai_api_key and s.n8n_mode == "local":
@@ -846,7 +868,7 @@ def save_workflow_files(path: Path, wf: dict) -> list[Path]:
         old = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         old = {}
-    body, prompts = n8n_files.split_prompts(json.loads(json.dumps(workflow_body(wf))), path.stem)
+    body, prompts = n8n_files.split_prompts(json.loads(json.dumps(workflow_body(wf))))
     body = same_order(placeholders_back(body, s.n8n_openai_credential_id, s.tools_url_docker, s.model), old)
     changed = [path] if _write_if_changed(path, json.dumps(body, indent=2, ensure_ascii=False) + "\n") else []
     for name, text in prompts.items():
@@ -857,13 +879,11 @@ def save_workflow_files(path: Path, wf: dict) -> list[Path]:
 
 
 def unused_prompts(folder: Path) -> list[Path]:
-    """Prompt files in n8n/prompts/ that no workflow file of the folder points to (a node was renamed)."""
-    used = set()
-    for f in folder.glob("*.json"):
-        try:
-            used |= n8n_files.placeholder_names(json.loads(f.read_text(encoding="utf-8")))
-        except (OSError, ValueError):
-            pass
+    """Prompt files in n8n/prompts/ that workflow.json does not point to (a node was renamed)."""
+    try:
+        used = n8n_files.placeholder_names(json.loads((folder / "workflow.json").read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        used = set()
     return [p for p in sorted((folder / "prompts").glob("*.md")) if p.stem not in used]
 
 
@@ -888,25 +908,20 @@ def n8n_client() -> N8n | None:
 
 
 def find_workflow(flows: list[dict], uc: str, path: Path) -> tuple[str, dict | None]:
-    """(name in the file, the n8n workflow with that name, else the active one on the file's webhook path)."""
+    """(name in the file, the n8n workflow with that name, else the active one on webhook path `<uc>`)."""
     try:
         name = json.loads(path.read_text(encoding="utf-8"))["name"]
     except (OSError, ValueError, KeyError):
         name = ""
-    hook = n8n_files.hook(uc, path)
     hit = next((w for w in flows if w["name"] == name), None) or next(
-        (w for w in flows if w.get("active") and hook in webhook_paths(w)), None
+        (w for w in flows if w.get("active") and uc in webhook_paths(w)), None
     )
     return name, hit
 
 
 def workflow_files(only_uc: str = "") -> list[tuple[str, Path]]:
     ucs = [only_uc] if only_uc else [uc for uc in usecases() if (USECASES_DIR / uc / "n8n").is_dir()]
-    pairs = []
-    for uc in ucs:
-        folder = USECASES_DIR / uc / "n8n"
-        pairs += [(uc, p) for p in sorted(folder.glob("*.json"))] or [(uc, folder / "workflow.json")]
-    return pairs
+    return [(uc, n8n_files.workflow_file(uc)) for uc in ucs]
 
 
 def pull_one(uc: str, path: Path, full: dict, force: bool = False) -> tuple[bool, str]:
@@ -940,7 +955,7 @@ def n8n_pull(only_uc: str = "", force: bool = False) -> int:
     for uc, path in workflow_files(only_uc):
         name, hit = find_workflow(flows, uc, path)
         if hit is None:
-            print(f"FAIL  {uc}: no workflow '{name}' (or webhook path '{n8n_files.hook(uc, path)}') in n8n")
+            print(f"FAIL  {uc}: no workflow '{name}' (or webhook path '{uc}') in n8n")
             bad += 1
             continue
         full = n8n.api("GET", f"/workflows/{hit['id']}").json()
@@ -969,10 +984,10 @@ def n8n_push(only_uc: str = "", force: bool = False) -> int:
     return 0 if import_workflows(n8n, cred, force, only_uc) and not KEPT else 1
 
 
-def n8n_status(uc: str, engine: str = "n8n") -> dict | None:
-    """The sync state of the workflow of `uc` (n8n: workflow.json, n8n-agent: agent.json):
+def n8n_status(uc: str) -> dict | None:
+    """The sync state of the workflow of `uc` (n8n/workflow.json):
     {state, draft, name, path, full}. None if there is no key, n8n does not answer, or no such workflow."""
-    path = n8n_files.workflow_file(uc, engine)
+    path = n8n_files.workflow_file(uc)
     if not settings().n8n_api_key or not path.exists():
         return None
     n8n = N8n.from_settings(timeout=10)
@@ -987,10 +1002,10 @@ def n8n_status(uc: str, engine: str = "n8n") -> dict | None:
     return {"state": state, "draft": has_draft(full), "name": full["name"], "path": path, "full": full}
 
 
-def sync_before_eval(uc: str, engine: str = "n8n") -> str | None:
+def sync_before_eval(uc: str) -> str | None:
     """Before an n8n eval: if only n8n changed since the last sync, save it to the files and say so.
     If the files changed (alone or both), raise ValueError with what to run: the eval would not run them."""
-    st = n8n_status(uc, engine)
+    st = n8n_status(uc)
     if not st or st["state"] == "same":
         return None
     if st["state"] != "n8n":

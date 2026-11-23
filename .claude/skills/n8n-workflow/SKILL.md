@@ -1,6 +1,6 @@
 ---
 name: n8n-workflow
-description: Change the kit's n8n agent (engine n8n or n8n-agent) through its files. Use to edit an n8n prompt, add, rename or rewire a node in usecases/<uc>/n8n/workflow.json, sync with the n8n editor (n8n-push, n8n-pull, a sync STOP), or find which n8n node went wrong in a run.
+description: Change the kit's n8n agent (engine n8n) through its files. Use to edit an n8n prompt, add, rename or rewire a node in usecases/<uc>/n8n/workflow.json, sync with the n8n editor (n8n-push, n8n-pull, a sync STOP), or find which n8n node went wrong in a run.
 ---
 
 # The n8n agent as files
@@ -9,12 +9,10 @@ The n8n agent of a use case lives in `usecases/<uc>/n8n/`:
 
 - `workflow.json`: the workflow `Kit: <uc> workflow` (engine `n8n`, webhook path `<uc>`). A chain of nodes:
   code decides the path, the model fills in the steps.
-- `agent.json`: the example `Kit: <uc> agent (example)`: one AI Agent node that picks the tools itself
-  (engine `n8n-agent`, webhook `<uc>-agent`).
 - `prompts/<name>.md`: the prompts. A prompt field in the JSON holds only `={{PROMPT:<name>}}`.
   `<name>` = the node name in snake case: node `Decide and draft` → `decide_and_draft.md` (its instructions,
   the system message) and `decide_and_draft.input.md` (what the node gets: the case and the earlier node
-  outputs, as n8n expressions `{{ $('Node name').item.json... }}`). Prompts of `agent.json` start with `agent`.
+  outputs, as n8n expressions `{{ $('Node name').item.json... }}`).
 
 n8n itself keeps its own copy in its database. The kit syncs the two:
 

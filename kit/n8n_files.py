@@ -2,8 +2,7 @@
 
 `usecases/<uc>/n8n/workflow.json` holds a placeholder `{{PROMPT:<name>}}` where a node has a prompt; the text
 is in `n8n/prompts/<name>.md`. `<name>` comes from the node name (`Decide and draft` -> `decide_and_draft`).
-The system message is `<name>.md`, the user message (what the node gets) `<name>.input.md`. Prompts of
-another file (`agent.json`) start with its name: node `Agent` -> `agent.md`, node `Planner` -> `agent_planner.md`.
+The system message is `<name>.md`, the user message (what the node gets) `<name>.input.md`.
 """
 
 from __future__ import annotations
@@ -16,14 +15,9 @@ from kit import config
 PLACEHOLDER = re.compile(r"^(=?)\{\{PROMPT:([a-z0-9_.]+)\}\}$")
 
 
-def workflow_file(uc: str, engine: str = "n8n") -> Path:
-    """The file of an n8n engine: `n8n` -> n8n/workflow.json, `n8n-agent` -> n8n/agent.json."""
-    return config.USECASES_DIR / uc / "n8n" / ("agent.json" if engine == "n8n-agent" else "workflow.json")
-
-
-def hook(uc: str, path: Path) -> str:
-    """The webhook path of a workflow file: `<uc>` for workflow.json, `<uc>-agent` for agent.json."""
-    return uc if path.stem == "workflow" else f"{uc}-{path.stem}"
+def workflow_file(uc: str) -> Path:
+    """The n8n workflow of a use case (`Kit: <uc> workflow`, webhook path `<uc>`)."""
+    return config.USECASES_DIR / uc / "n8n" / "workflow.json"
 
 
 # node type (end of it) -> the prompt fields in `parameters`: (path, file suffix)
@@ -37,12 +31,9 @@ def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_") or "node"
 
 
-def prompt_base(node_name: str, file_stem: str = "workflow") -> str:
-    """The file name (without `.md`) of a node's prompt. Only workflow.json has no prefix."""
-    s = slug(node_name)
-    if file_stem == "workflow" or s == file_stem:
-        return s
-    return f"{file_stem}_{s}"
+def prompt_base(node_name: str) -> str:
+    """The file name (without `.md`) of a node's prompt."""
+    return slug(node_name)
 
 
 def _fields(node: dict):
@@ -85,11 +76,11 @@ def fill_prompts(value, folder: Path):
     return value
 
 
-def split_prompts(wf: dict, file_stem: str = "workflow") -> tuple[dict, dict[str, str]]:
+def split_prompts(wf: dict) -> tuple[dict, dict[str, str]]:
     """The workflow with placeholders in its prompt fields, and {name: prompt text}. Changes `wf` in place."""
     prompts: dict[str, str] = {}
     for node in wf.get("nodes", []):
-        base = prompt_base(node.get("name", ""), file_stem)
+        base = prompt_base(node.get("name", ""))
         for obj, key, suffix in _fields(node):
             text = obj[key]
             if PLACEHOLDER.match(text):

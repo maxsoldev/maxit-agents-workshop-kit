@@ -38,8 +38,8 @@ def test_check_with_a_fake_runner(tmp_path, monkeypatch, capsys):
         }
         return {"cases": [case]}
 
-    def n8n_warning(uc, engine):
-        return "n8n has an older 'Kit: demo workflow' than the kit: run `make setup`." if engine == "n8n" else None
+    def n8n_warning(uc):
+        return "n8n has an older 'Kit: demo workflow' than the kit: run `make setup`."
 
     monkeypatch.setitem(sys.modules, "kit.runner", types.SimpleNamespace(run_eval=run_eval, n8n_warning=n8n_warning))
     monkeypatch.setattr(setup, "USECASES_DIR", tmp_path)
@@ -139,7 +139,7 @@ def test_fill_placeholders_keeps_n8n_expressions():
 
 def test_workflow_body_and_same_workflow():
     wf = {
-        "name": "Kit: marketing agent",
+        "name": "Kit: marketing workflow",
         "id": "x",
         "active": True,
         "pinData": {},
@@ -186,6 +186,43 @@ def test_setup_removes_pins_from_an_unchanged_workflow(tmp_path, monkeypatch):
     stored.pop("pinData")
     assert setup.import_workflows(fake, "cred")
     assert not [c for c in calls if c[0] == "PUT"]  # no pins: unchanged, no update
+
+
+def test_push_deletes_only_the_old_agent_examples(tmp_path, monkeypatch, capsys):
+    """`Kit: <uc> agent` and `Kit: <uc> agent (example)` go (active or not), each after a backup.
+    Other workflows stay, also a team's own agent."""
+    wf = {"name": "Kit: x workflow", "nodes": [{"name": "Case in", "type": "webhook", "parameters": {}}]}
+    (tmp_path / "usecases/x/n8n").mkdir(parents=True)
+    (tmp_path / "usecases/x/n8n/workflow.json").write_text(json.dumps(wf))
+    for name, value in [("ROOT", tmp_path), ("RUNS_DIR", tmp_path / "runs"), ("USECASES_DIR", tmp_path / "usecases")]:
+        monkeypatch.setattr(setup, name, value)
+    monkeypatch.setattr(setup, "IMPORTED_FILE", tmp_path / "runs/n8n-imported.json")
+    monkeypatch.setattr(setup, "free_webhook_paths", lambda *a: None)
+    monkeypatch.setattr(setup, "usecases", lambda: ["x"])
+    flows = [
+        {**workflow_body(wf), "id": "w1", "active": True},
+        {"name": "Kit: x agent", "id": "a1", "active": True, "nodes": []},
+        {"name": "Kit: x agent (example)", "id": "a2", "active": False, "nodes": []},
+        {"name": "Kit: x agent v2", "id": "t1", "active": True, "nodes": []},
+        {"name": "Kit: y agent", "id": "t2", "active": False, "nodes": []},  # not a use case of this kit
+    ]
+    setup.remember_import("Kit: x workflow", workflow_body(wf))
+    calls = []
+
+    def api(method, path, body=None):
+        calls.append((method, path))
+        wid = path.split("/")[2] if path.count("/") >= 2 else ""
+        return httpx.Response(200, json=next((w for w in flows if w["id"] == wid), {}))
+
+    fake = types.SimpleNamespace(workflows=lambda: flows, api=api)
+    assert setup.import_workflows(fake, "cred")
+    assert [p for m, p in calls if m == "DELETE"] == ["/workflows/a1", "/workflows/a2"]
+    assert ("POST", "/workflows/a1/deactivate") in calls and ("POST", "/workflows/a2/deactivate") not in calls
+    backups = sorted(p.name for p in (tmp_path / "runs/n8n-backup").iterdir())
+    assert [b.rsplit("-", 2)[0] for b in backups] == ["deleted-kit_x_agent", "deleted-kit_x_agent_example"]
+    assert json.loads((tmp_path / "runs/n8n-backup" / backups[0]).read_text())["id"] == "a1"
+    out = capsys.readouterr().out
+    assert "Kit: x agent: old example deleted (copy: runs/n8n-backup/deleted-kit_x_agent-" in out
 
 
 def test_model_key_check_names_the_error(monkeypatch):
@@ -235,7 +272,7 @@ def test_kit_engines_limits_profiles_and_engines():
 
     assert parse_engines("") == ("n8n", "claude", "python")
     assert parse_engines("python, Claude") == ("claude", "python")
-    assert parse_engines("n8n-agent,n8n") == ("n8n", "n8n-agent")  # the example only when listed
+    assert parse_engines("n8n-agent,n8n") == ("n8n",)  # the old example engine is gone
     assert compose_profiles({"KIT_ENGINES": "claude,python"}) == ["langfuse"]
     assert compose_profiles({"KIT_ENGINES": "n8n"}) == ["n8n", "langfuse"]
 
@@ -246,16 +283,18 @@ def test_prompt_files_round_trip():
     from kit import n8n_files
     from kit.config import USECASES_DIR
 
-    for f in sorted(USECASES_DIR.glob("*/n8n/*.json")):
+    files = sorted(USECASES_DIR.glob("*/n8n/*.json"))
+    assert [f.name for f in files] == ["workflow.json"] * len(files)  # one n8n workflow per use case
+    for f in files:
         text = f.read_text(encoding="utf-8")
         filled = n8n_files.fill_prompts(json.loads(text), f.parent / "prompts")
         assert "{{PROMPT:" not in json.dumps(filled)
-        wf, prompts = n8n_files.split_prompts(filled, f.stem)
+        wf, prompts = n8n_files.split_prompts(filled)
         assert json.dumps(wf, indent=2, ensure_ascii=False) + "\n" == text, f
         for name, body in prompts.items():
             assert (f.parent / "prompts" / f"{name}.md").read_text(encoding="utf-8") == body + "\n"
+        assert setup.unused_prompts(f.parent) == []
     assert n8n_files.prompt_base("Decide and draft") == "decide_and_draft"
-    assert n8n_files.prompt_base("Agent", "agent") == "agent" and n8n_files.prompt_base("Plan", "agent") == "agent_plan"
 
 
 def test_sync_state():

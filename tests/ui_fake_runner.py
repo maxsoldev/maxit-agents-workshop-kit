@@ -151,8 +151,8 @@ def compare(a, b):
 UNPUBLISHED: str | None = None  # what n8n_warning returns; a test sets it
 
 
-def n8n_warning(uc, engine="n8n"):
-    return UNPUBLISHED if engine == "n8n" else None
+def n8n_warning(uc):
+    return UNPUBLISHED
 
 
 def install():

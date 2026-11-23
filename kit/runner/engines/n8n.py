@@ -1,4 +1,4 @@
-"""Engines `n8n` and `n8n-agent`: POST the case to the n8n webhook; the response body is the result (contracts §4).
+"""Engine `n8n`: POST the case to the n8n webhook; the response body is the result (contracts §4).
 
 After the answer, the runner reads the execution (found by our `x-kit-call` header, needs N8N_API_KEY) for the
 link, the tool calls, the node spans of the trace, and where a failed run broke. Before a run: the schema must be
@@ -14,23 +14,17 @@ import uuid
 import httpx
 
 from kit import n8n_files
-from kit.config import N8N_ENGINES as ENGINES
 from kit.config import settings
 from kit.runner.engines import n8n_execution
 from kit.runner.engines.common import TIMEOUTS, Answer, as_result
 
-__all__ = ["ENGINES", "call", "warning", "before_run", "version_hash", "hook"]
+__all__ = ["call", "warning", "before_run", "version_hash"]
 
 
-def hook(uc: str, engine: str = "n8n") -> str:
-    """The webhook path: `<uc>` for the workflow (n8n), `<uc>-agent` for the agent example (n8n-agent)."""
-    return n8n_files.hook(uc, n8n_files.workflow_file(uc, engine))
-
-
-def call(uc: str, engine: str, engine_input: dict) -> Answer:
-    """POST the case to the webhook. meta["execution_url"] links to the n8n execution (if found);
+def call(uc: str, engine_input: dict, extra_env: dict | None = None) -> Answer:
+    """POST the case to the webhook `<uc>`. meta["execution_url"] links to the n8n execution (if found);
     meta["tool_calls"] and meta["n8n_nodes"] (for the trace, not the run file) come from its data."""
-    path, call_id = hook(uc, engine), uuid.uuid4().hex
+    path, call_id = uc, uuid.uuid4().hex
     output, error, meta = post(path, engine_input, call_id)
     if not meta.get("status"):  # n8n did not answer, so there is no execution
         return output, error, meta
@@ -114,13 +108,13 @@ def find_execution(path: str, call_id: str) -> tuple[str | None, dict | None]:
     return f"{s.n8n_url}/workflow/{wid}/executions", None
 
 
-def warning(uc: str, engine: str = "n8n") -> str | None:
+def warning(uc: str) -> str | None:
     """A warning about the n8n workflow of `uc`, else None: the files and n8n are not in sync
     (kit/setup.py `sync_advice`), or n8n has edits that are not published (the webhook, so the eval,
     runs the published version)."""
     from kit import config, setup  # setup owns the sync state
 
-    st = setup.n8n_status(uc, engine)
+    st = setup.n8n_status(uc)
     if not st:
         return None
     rel = st["path"].relative_to(config.ROOT) if st["path"].is_relative_to(config.ROOT) else st["path"]
@@ -155,7 +149,7 @@ def strict_problem(node, where: str = "the result") -> str | None:
     return next((p for v in node.values() if (p := strict_problem(v, where))), None)  # items, anyOf, $defs
 
 
-def before_run(uc: str, engine: str, schema: dict) -> dict:
+def before_run(uc: str, schema: dict) -> dict:
     """Checks before an n8n eval; returns what goes into the run file (`n8n_sync`, `warning`).
     Raises CaseError (schema not strict) or ValueError (the files changed: run make n8n-push)."""
     from kit import setup  # n8n -> files if only n8n changed; stops if the files changed (contracts §5)
@@ -167,17 +161,17 @@ def before_run(uc: str, engine: str, schema: dict) -> dict:
             'additionalProperties: false in every object; use "" (or []) for an empty value'
         )
     extra = {}
-    if synced := setup.sync_before_eval(uc, engine):
+    if synced := setup.sync_before_eval(uc):
         extra["n8n_sync"] = synced
         print(f"NOTE  {synced}", file=sys.stderr, flush=True)
-    if found := warning(uc, engine):
+    if found := warning(uc):
         extra["warning"] = found  # e.g. edits in n8n that are not published: the run used the published one
         print(f"WARN  {found}", file=sys.stderr, flush=True)
     return extra
 
 
-def version_hash(uc: str, engine: str) -> str | None:
+def version_hash(uc: str) -> str | None:
     """The hash of the workflow with its prompts (the same as the sync state), or None."""
     from kit import setup
 
-    return setup.files_hash(n8n_files.workflow_file(uc, engine))
+    return setup.files_hash(n8n_files.workflow_file(uc))

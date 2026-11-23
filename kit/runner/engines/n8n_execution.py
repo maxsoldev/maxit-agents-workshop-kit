@@ -40,7 +40,7 @@ def tool_call(node: str, r: dict, limit: int) -> dict | None:
     """The tool call of one node run, or None if the run is not a tool call:
     - a node whose output is the answer of the plain HTTP tool call (`{"tool", "input", "output"}`,
       kit/tools.py `POST .../mcp/call/<tool>`: the workflows);
-    - a run of a tool node (output `ai_tool`: the agent example). The MCP node names a tool `<node>__<tool>`."""
+    - a run of a tool node (output `ai_tool`, under an AI Agent node). The MCP node names a tool `<node>__<tool>`."""
     http = _first_json(r.get("data"), "main") or {}
     if {"tool", "input", "output"} <= set(http):
         out = http["output"] if isinstance(http["output"], str) else json.dumps(http["output"], ensure_ascii=False)

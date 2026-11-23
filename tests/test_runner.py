@@ -470,9 +470,6 @@ def test_n8n_tool_calls_from_http_nodes():
     calls = n8n_execution.tool_calls({"data": {"resultData": {"runData": run_data}}})
     assert [c["name"] for c in calls] == ["rules_get", "contacts_lookup"]
     assert calls[1] == {"name": "contacts_lookup", "input": {"query": "a@b"}, "output": '{"count": 0, "contacts": []}'}
-    assert (
-        n8n_engine.hook("marketing") == "marketing" and n8n_engine.hook("marketing", "n8n-agent") == "marketing-agent"
-    )
 
 
 def test_judge_gets_tool_calls(monkeypatch):
@@ -658,4 +655,4 @@ def test_one_list_of_check_types():
     from kit.ui import app
 
     assert set(app.CHECK_TYPES) == set(checks.CHECK_TYPES) == set(cases.CHECK_TYPES)
-    assert set(engines.ENGINES) == set(config.ALL_ENGINES)
+    assert set(engines.ENGINES) == set(config.ENGINES)

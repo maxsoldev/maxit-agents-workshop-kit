@@ -14,7 +14,7 @@ from kit.config import settings
 # says what to do, or None; meta = extra facts for the run file (tool_calls, stderr, cost, links).
 Answer = tuple[dict | None, str | None, dict]
 
-TIMEOUTS = {"n8n": 120, "n8n-agent": 120, "claude": 300, "python": 300}  # seconds, wall clock (contracts §4)
+TIMEOUTS = {"n8n": 120, "claude": 300, "python": 300}  # seconds, wall clock (contracts §4)
 
 
 def engine_env(extra: dict | None = None) -> dict:

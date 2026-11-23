@@ -453,15 +453,6 @@ def test_n8n_run_file_with_execution_data(uc, n8n, fake_openai, monkeypatch):
     assert_golden("run-n8n", normal(run, n8n.url))
 
 
-def test_n8n_agent_uses_its_own_hook(uc, n8n, fake_openai, monkeypatch):
-    monkeypatch.setenv("N8N_API_KEY", "n8n-key")
-    n8n.hooks["seam-agent"] = {"body": "echo", "execution": "n8n_agent_execution.json"}
-    assert runner.n8n_warning("seam", "n8n-agent") is None  # no n8n/agent.json: nothing to compare (sync: test_setup)
-    run = runner.run_eval("seam", "n8n-agent", case_ids=["s01"])
-    assert "warning" not in run and "n8n_sync" not in run
-    assert_golden("run-n8n-agent", normal(run, n8n.url))
-
-
 def test_n8n_without_api_key_has_no_links_and_no_tool_calls(uc, n8n, fake_openai):
     n8n.hooks["seam"] = {"body": "echo", "execution": "n8n_workflow_execution.json"}
     case = runner.run_eval("seam", "n8n", case_ids=["s01"])["cases"][0]
@@ -623,7 +614,7 @@ def test_hard_deadline(uc, monkeypatch):
 
 
 def test_run_eval_refuses_to_start(uc):
-    with pytest.raises(ValueError, match="unknown engine 'zzz'; use one of n8n, claude, python, n8n-agent"):
+    with pytest.raises(ValueError, match="unknown engine 'zzz'; use one of n8n, claude, python"):
         runner.run_eval("seam", "zzz")
     with pytest.raises(ValueError, match="use case 'nope' not found in usecases/"):
         runner.run_eval("nope", "python")

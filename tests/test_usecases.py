@@ -88,24 +88,20 @@ def test_cases_are_valid(uc):
 
 
 @pytest.mark.parametrize("uc", UCS)
-@pytest.mark.parametrize(
-    "file,name,hook", [("workflow", "Kit: {uc} workflow", "{uc}"), ("agent", "Kit: {uc} agent (example)", "{uc}-agent")]
-)
-def test_n8n_workflow_shape(uc, file, name, hook):
-    wf = json.loads((USECASES / uc / "n8n" / f"{file}.json").read_text())
-    assert wf["name"] == name.format(uc=uc)
+def test_n8n_workflow_shape(uc):
+    wf = json.loads((USECASES / uc / "n8n" / "workflow.json").read_text())
+    assert wf["name"] == f"Kit: {uc} workflow"
     hooks = [n for n in wf["nodes"] if n["type"] == "n8n-nodes-base.webhook"]
-    assert len(hooks) == 1 and hooks[0]["parameters"]["path"] == hook.format(uc=uc)
+    assert len(hooks) == 1 and hooks[0]["parameters"]["path"] == uc
     assert any(n["type"] == "n8n-nodes-base.respondToWebhook" for n in wf["nodes"])
-    agent = any(n["type"] == "@n8n/n8n-nodes-langchain.agent" for n in wf["nodes"])
-    assert agent == (file == "agent")  # the workflow has no AI Agent node: code decides the path
+    # no AI Agent node: code decides the path
+    assert not any(n["type"] == "@n8n/n8n-nodes-langchain.agent" for n in wf["nodes"])
 
 
 @pytest.mark.parametrize("uc", UCS)
-@pytest.mark.parametrize("file", ["workflow", "agent"])
-def test_n8n_workflow_files_have_no_pin_data(uc, file):
+def test_n8n_workflow_files_have_no_pin_data(uc):
     """The files define the pipeline, not one case. The data of a case is in its n8n execution."""
-    text = (USECASES / uc / "n8n" / f"{file}.json").read_text()
+    text = (USECASES / uc / "n8n" / "workflow.json").read_text()
     assert "pinData" not in json.loads(text) and "pinned" not in text.lower()
 
 

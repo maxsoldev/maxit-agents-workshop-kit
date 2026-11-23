@@ -1,5 +1,5 @@
 """Call one engine with one case (contracts §4). One module per engine owns its quirks:
-`n8n` (n8n and n8n-agent), `claude`, `python`. This module is the one door the runner uses.
+`n8n`, `claude`, `python`. This module is the one door the runner uses.
 
 An engine call returns `(output, error, meta)` (`common.Answer`) and never raises for a problem of the agent:
 error = a text that says what to do.
@@ -34,18 +34,18 @@ class Engine:
 
     @property
     def is_n8n(self) -> bool:
-        return self.name in n8n.ENGINES
+        return self.name == "n8n"
 
     def before_run(self, uc: str, schema: dict) -> dict:
         """Checks before an eval; returns extra keys for the run file. Raises if the run cannot start."""
-        return n8n.before_run(uc, self.name, schema) if self.is_n8n else {}
+        return n8n.before_run(uc, schema) if self.is_n8n else {}
 
     def version(self, uc: str) -> dict:
         """What the engine ran: {"hash", "git"}. n8n: the workflow with its prompts (the same hash as the sync
         state); claude, python: all files of the engine folder. `git` = the commit if that folder has no
         changes that are not committed, else None. Compare uses `hash` ("workflow changed")."""
         folder = config.USECASES_DIR / uc / self.folder
-        h = n8n.version_hash(uc, self.name) if self.is_n8n else None
+        h = n8n.version_hash(uc) if self.is_n8n else None
         if h is None:
             digest = hashlib.sha256()
             for p in sorted(folder.rglob("*")) if folder.is_dir() else []:
@@ -70,8 +70,7 @@ def _clean_commit(folder) -> str | None:
 
 
 ENGINES = {
-    "n8n": Engine("n8n", lambda uc, inp, env: n8n.call(uc, "n8n", inp), "n8n"),
-    "n8n-agent": Engine("n8n-agent", lambda uc, inp, env: n8n.call(uc, "n8n-agent", inp), "n8n"),
+    "n8n": Engine("n8n", n8n.call, "n8n"),
     "claude": Engine("claude", claude.call, "claude", max_parallel=4, otel=True),  # each one is a Node process
     "python": Engine("python", python.call, "python"),
 }
@@ -80,14 +79,14 @@ ENGINES = {
 def get(name: str) -> Engine:
     """The engine `name`; ValueError if there is none."""
     if name not in ENGINES:
-        raise ValueError(f"unknown engine {name!r}; use one of {', '.join(config.ALL_ENGINES)}")
+        raise ValueError(f"unknown engine {name!r}; use one of {', '.join(config.ENGINES)}")
     return ENGINES[name]
 
 
 def call(uc: str, engine: str, engine_input: dict, extra_env: dict | None = None) -> Answer:
     """Run `engine` on one case. `extra_env` adds env variables (tracing)."""
     if engine not in ENGINES:
-        return None, f"unknown engine {engine!r}; use one of {', '.join(config.ALL_ENGINES)}", {}
+        return None, f"unknown engine {engine!r}; use one of {', '.join(config.ENGINES)}", {}
     return ENGINES[engine].call(uc, engine_input, extra_env or {})
 
 
@@ -101,6 +100,6 @@ def call_with_deadline(uc: str, engine: str, engine_input: dict, extra_env: dict
         return None, f"{engine} did not finish in {limit} s (hard deadline): the runner stopped waiting", {}
 
 
-def n8n_warning(uc: str, engine: str = "n8n") -> str | None:
-    """A warning if that n8n workflow is not in sync with the files or has unpublished edits (contracts §5)."""
-    return n8n.warning(uc, engine)
+def n8n_warning(uc: str) -> str | None:
+    """A warning if the n8n workflow is not in sync with the files or has unpublished edits (contracts §5)."""
+    return n8n.warning(uc)

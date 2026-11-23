@@ -2,7 +2,7 @@
 
 kit setup [--force]  first-time setup: n8n account + key + credential + workflows, Langfuse check (kit/setup.py)
 kit check            one case per use case and engine; prints OK or what to fix (kit/setup.py)
-kit n8n-push [UC]    files -> n8n: usecases/<uc>/n8n/*.json and n8n/prompts/*.md, then publish (kit/setup.py)
+kit n8n-push [UC]    files -> n8n: usecases/<uc>/n8n/workflow.json and n8n/prompts/*.md, then publish (kit/setup.py)
 kit n8n-pull [UC]    n8n -> files: the published workflows to usecases/<uc>/n8n/ (n8n-export = the same)
 kit serve            UI on :5700 and tools MCP on :5701 in one process (kit/ui, kit/tools.py)
 kit tools            only the tools MCP server (kit/tools.py)
@@ -17,7 +17,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from kit.config import ALL_ENGINES
+from kit.config import ENGINES
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -38,7 +38,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("tools", help="only the tools MCP server")
     ev = sub.add_parser("eval", help="run an eval")
     ev.add_argument("usecase")
-    ev.add_argument("engine", choices=ALL_ENGINES)
+    ev.add_argument("engine", choices=ENGINES)
     ev.add_argument("--cases", default="", help="comma-separated case ids (default: all)")
     ev.add_argument("--name", default="", help="run name (default: timestamp)")
     ev.add_argument("--holdout", action="store_true", help='also run the cases with "holdout": true')
@@ -50,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
     cp.add_argument("run_b")
     rc = sub.add_parser("run-case", help="run one case; print the engine input, output, log and checks")
     rc.add_argument("usecase")
-    rc.add_argument("engine", choices=ALL_ENGINES)
+    rc.add_argument("engine", choices=ENGINES)
     rc.add_argument("case_id")
     a = p.parse_args(argv)
 
