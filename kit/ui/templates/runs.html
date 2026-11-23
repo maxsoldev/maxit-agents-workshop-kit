@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Runs · {{ uc }}{% endblock %}
+{% block title %}Runs · {{ uc|uc_name }}{% endblock %}
 {% block main %}
 <div class="head">
-  <h1>Runs <span class="muted">· {{ uc }} · {{ runs|length }}</span></h1>
+  <h1>Runs <span class="muted">· {{ uc|uc_name }} · {{ runs|length }}</span></h1>
   <a class="btn primary" href="/uc/{{ uc }}/run">Run eval</a>
 </div>
 {% if hidden %}

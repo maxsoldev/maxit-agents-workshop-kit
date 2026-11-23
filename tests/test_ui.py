@@ -331,6 +331,16 @@ def test_guide_keeps_cases_run_runs(client):
     assert 'href="/uc/zeta/runs"' in client.get("/docs").text
 
 
+def test_use_case_names_are_capitalised(client):
+    """The UI shows "Demo", "Foo"; URLs and ids stay lower case."""
+    (config.USECASES_DIR / "foo").mkdir()
+    (config.USECASES_DIR / "foo" / "cases.jsonl").write_text("", encoding="utf-8")
+    page = client.get("/uc/demo/cases").text
+    assert '<a href="/uc/foo/cases" class="">Foo</a>' in page and ">Demo</a>" in page
+    assert "Cases <span class=\"muted\">· Demo ·" in page and ">demo<" not in page
+    assert "Runs <span class=\"muted\">· Foo ·" in client.get("/uc/foo/runs").text
+
+
 def test_docs_names_order_and_file_path(client, tmp_path, monkeypatch):
     root = tmp_path / "repo"
     (root / "docs").mkdir(parents=True)

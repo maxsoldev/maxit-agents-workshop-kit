@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Run · {{ uc }}{% endblock %}
+{% block title %}Run · {{ uc|uc_name }}{% endblock %}
 {% block main %}
-<h1>Run eval <span class="muted">· {{ uc }}</span></h1>
+<h1>Run eval <span class="muted">· {{ uc|uc_name }}</span></h1>
 {% if error %}<div class="alert">{{ error }}</div>{% endif %}
 {% if n8n_warning %}<div class="banner">{{ n8n_warning }}</div>{% endif %}
 <div id="progress">{% include "_progress.html" %}</div>

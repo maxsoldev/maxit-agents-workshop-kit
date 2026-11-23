@@ -244,6 +244,12 @@ def check_label(c: dict) -> str:
     return f"{t} {f}"
 
 
+def uc_name(uc: str) -> str:
+    """A use case as the UI shows it: `marketing` -> `Marketing`. URLs, ids and files stay lower case."""
+    return uc[:1].upper() + uc[1:]
+
+
+templates.env.filters["uc_name"] = uc_name
 templates.env.filters["check_label"] = check_label
 templates.env.filters["field_words"] = field_words
 templates.env.globals["check_words"] = check_words
@@ -516,7 +522,7 @@ def start_job(
     with JOBS_LOCK:
         old = JOBS.get((uc, engine))
         if old and not old["done"]:
-            return f"A {engine} run for {uc} is still running. Wait until it ends."
+            return f"A {engine} run for {uc_name(uc)} is still running. Wait until it ends."
         if case_ids:
             picked = [c for c in cases if c.get("id") in case_ids]
         else:  # the runner skips holdout cases unless asked
@@ -719,7 +725,7 @@ def doc_files() -> dict[str, tuple[str, Path]]:
     root = config.ROOT
     ucs = sorted(usecases(), key=lambda uc: (uc not in KNOWN_USECASES, uc))
     found = {k: (t, root / k) for k, t in DOCS_FIRST.items()}
-    found.update({f"{uc}/BRIEF.md": (f"{uc.capitalize()} brief", config.USECASES_DIR / uc / "BRIEF.md") for uc in ucs})
+    found.update({f"{uc}/BRIEF.md": (f"{uc_name(uc)} brief", config.USECASES_DIR / uc / "BRIEF.md") for uc in ucs})
     found.update({k: (t, root / k) for k, t in DOCS_AFTER_BRIEFS.items()})
     for p in sorted((root / "docs").glob("*.md")):
         found.setdefault(f"docs/{p.name}", (p.name, p))

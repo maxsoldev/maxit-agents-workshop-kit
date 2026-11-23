@@ -12,7 +12,7 @@
   <a class="brand" href="/">MaxIT agent kit</a>
   <nav class="guide"><a href="/docs" class="{{ 'on' if request.url.path.startswith('/docs') }}">Guide</a></nav>
   <nav class="ucs">
-    {% for u in usecases %}<a href="/uc/{{ u }}/cases" class="{{ 'on' if u == uc }}">{{ u }}</a>{% endfor %}
+    {% for u in usecases %}<a href="/uc/{{ u }}/cases" class="{{ 'on' if u == uc }}">{{ u|uc_name }}</a>{% endfor %}
   </nav>
   {% if nav_uc %}
   <nav class="pages">
