@@ -65,11 +65,16 @@ def main(
 def compare_cli(run_a: str, run_b: str) -> int:
     """`kit compare A B`: how run B changed against run A, per case (A = before, B = after)."""
     from kit.runner import compare
+    from kit.runner.store import runs_dir
+
+    def full_id(text: str) -> str:
+        """`runs/<id>.json`, `<id>`, or the start of one id (`20261123-141451`)."""
+        text = text.removeprefix("runs/").removesuffix(".json")
+        hits = [p.stem for p in runs_dir().glob(f"{text}*.json")]
+        return text if text in hits or len(hits) != 1 else hits[0]
 
     try:
-        d = compare(
-            run_a.removeprefix("runs/").removesuffix(".json"), run_b.removeprefix("runs/").removesuffix(".json")
-        )
+        d = compare(full_id(run_a), full_id(run_b))
     except (FileNotFoundError, KeyError, ValueError) as e:
         print(f"Cannot compare: {e}", file=sys.stderr)
         return 1

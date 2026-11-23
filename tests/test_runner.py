@@ -629,6 +629,14 @@ def test_cli(capsys):
     assert cli.main("nope", "python") == 1
 
 
+def test_compare_cli_takes_the_start_of_a_run_id(capsys):
+    store.save_run({"run_id": "20260101-000000-fake-n8n", "engine": "n8n", "cases": [], "summary": {}})
+    store.save_run({"run_id": "20260101-000001-fake-n8n", "engine": "n8n", "cases": [], "summary": {}})
+    assert cli.compare_cli("20260101-000000", "runs/20260101-000001-fake-n8n.json") == 0
+    assert "A: 20260101-000000-fake-n8n" in capsys.readouterr().out
+    assert cli.compare_cli("20260101", "nope") == 1  # not one run: the error names it
+
+
 def test_engine_env_drops_empty_base_url(monkeypatch):
     """`OPENAI_BASE_URL=` in .env must not reach the SDK as "" (it then calls no host)."""
     monkeypatch.setenv("OPENAI_BASE_URL", "")

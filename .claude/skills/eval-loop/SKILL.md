@@ -50,7 +50,8 @@ that is not strict) plus one line in the prompt of the engine.
 
 ## 4. Run again and compare
 
-`make eval … NAME=<new-name>`, then `make compare A=<run_id before> B=<run_id after>`: ▲ better, ▼ worse per
+`make eval … NAME=<new-name>`, then `make compare A=<run_id before> B=<run_id after>` (the start of an id
+is enough: `A=20261123-141451`): ▲ better, ▼ worse per
 case, `(case changed)` when the case itself changed, `workflow changed` / `agent files changed` when the agent
 files differ. Keep the change if the target case is better and nothing is worse; else undo it.
 A case that flips with no change is noise: run twice before you trust a small change (judge checks too).
