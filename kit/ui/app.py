@@ -30,6 +30,14 @@ CHECK_TYPES = ("equals", "in", "contains", "not_contains", "count", "any", "judg
 app = FastAPI(title="MaxIT agent kit", docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 templates = Jinja2Templates(directory=HERE / "templates")
+
+
+def static_url(name: str) -> str:
+    """URL of a static file with its change time, so a browser never uses an old copy after `git pull`."""
+    return f"/static/{name}?v={int((HERE / 'static' / name).stat().st_mtime)}"
+
+
+templates.env.globals["static_url"] = static_url
 templates.env.filters["pretty"] = lambda v: json.dumps(v, indent=2, ensure_ascii=False)
 templates.env.filters["compact"] = lambda v: json.dumps(v, ensure_ascii=False)
 templates.env.filters["when"] = lambda v: str(v or "").replace("T", " ")[:16]  # ISO time -> "2026-11-24 10:05"

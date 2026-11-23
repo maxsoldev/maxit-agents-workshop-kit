@@ -327,7 +327,8 @@ def test_doc_fragment_for_the_side_panel(client):
 
 def test_side_panel_markup(client):
     html = client.get("/uc/demo/run").text
-    assert '<script src="/static/guide.js"></script>' in html
+    assert '<script src="/static/guide.js?v=' in html  # versioned: no stale copy after git pull
+    assert 'href="/static/style.css?v=' in html
     assert 'id="gp-toggle"' in header(html) and 'id="guide-panel"' in html
     panel = html.split('id="guide-panel"', 1)[1].split("</aside>", 1)[0]
     assert '<option value="docs/tutorial.md">Tutorial</option>' in panel
