@@ -23,7 +23,8 @@ def kit_env(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "RUNS_DIR", tmp_path / "runs")
     monkeypatch.setenv("LANGFUSE", "off")
     monkeypatch.setenv("PATH", f"{FIX / 'bin'}{os.pathsep}{os.environ['PATH']}")
-    monkeypatch.setattr(judge, "score", lambda value, rubric, inp: (5, "polite") if "Thanks" in value else (2, "rude"))
+    monkeypatch.setattr(judge, "score", lambda value, rubric, inp, tools=None: (5, "polite") if "Thanks" in value
+                        else (2, "rude"))
 
 
 class FakeN8n(BaseHTTPRequestHandler):
@@ -142,7 +143,13 @@ def test_count_and_any_checks():
     assert run({"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "heidelberg"}})["passed"]
     assert run({"type": "any", "field": "tasks", "where": {"who.name": "elena"}})["passed"]
     miss = run({"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "Riga"}})
-    assert not miss["passed"] and "no item of 2" in miss["reason"]
+    assert not miss["passed"] and miss["reason"] == ('no item of 2 matches {"kind": "trip", "event": "~Riga"}; '
+                                                     'closest is item 1: `event` is "E-Science-Tage, Heidelberg"')
+    out["tasks"][1]["who"]["name"] = "Elena Popescu"  # `where` text = contains, case-insensitive
+    assert run({"type": "any", "field": "tasks", "where": {"who.name": "elena", "kind": "LEAVE"}})["passed"]
+    out["tasks"][0]["n"] = 12
+    assert not run({"type": "any", "field": "tasks", "where": {"n": 1}})["passed"]  # numbers: equal
+    assert "`n` is missing" in run({"type": "any", "field": "tasks", "where": {"n": 1, "kind": "leave"}})["reason"]
     assert cases.validate_case({"id": "a", "checks": [{"type": "count", "field": "tasks", "min": 1},
                                                       {"type": "any", "field": "tasks", "where": {"k": "v"}}]}) == []
     errors = cases.validate_case({"id": "a", "checks": [{"type": "count", "field": "t"},
@@ -183,6 +190,21 @@ def test_schema_check():
     assert not bad["passed"] and bad["field"] == "category"
 
 
+def test_schema_errors_in_words():
+    schema = {"type": "object", "required": ["kind", "tasks"], "additionalProperties": False,
+              "properties": {"kind": {"enum": ["a", "b"]}, "n": {"type": "integer"},
+                             "tasks": {"type": "array", "items": {"type": "object", "additionalProperties": False,
+                                                                  "properties": {"x": {}}}}}}
+    reason = lambda out: checks.schema_check(out, schema)["reason"]  # noqa: E731
+    assert reason({"kind": "a", "tasks": [], "draft_to_note": 1}) == (
+        "the agent added a field that is not in the schema: `draft_to_note`. Tell the agent to use only the "
+        "fields of output_schema, or add the field to output.schema.json")
+    assert reason({"kind": "a"}) == "the field `tasks` is missing"
+    assert reason({"kind": "c", "tasks": []}).startswith('`kind` must be one of ["a", "b"]')
+    assert reason({"kind": "a", "tasks": [], "n": "1"}).startswith("`n` must be of type integer")
+    assert "`tasks.0.y`" in reason({"kind": "a", "tasks": [{"y": 1}]})
+
+
 def test_read_claude_stream():
     lines = [{"type": "system", "subtype": "init"},
              {"type": "assistant", "message": {"content": [
@@ -199,6 +221,22 @@ def test_read_claude_stream():
 def test_parse_json_text():
     assert engines.parse_json_text('x\n```json\n{"a": 1}\n```\nthen\n```json\n{"a": 2}\n```') == {"a": 2}
     assert engines.parse_json_text(' {"a": 3} ') == {"a": 3}
+
+
+def test_read_python_tool_log():
+    err = 'hello\ntool contacts_lookup {"query": "a -> b"} -> "x\\n\\"y\\""\ntool rules_get {} -> "r"\ntool broken'
+    assert engines.read_tool_log(err) == [{"name": "contacts_lookup", "input": {"query": "a -> b"}, "output": 'x\n"y"'},
+                                          {"name": "rules_get", "input": {}, "output": "r"}]
+
+
+def test_judge_gets_tool_calls(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(judge, "score", lambda value, rubric, inp, tools=None: seen.update(tools=tools) or (5, "ok"))
+    run = runner.run_eval("fake", "python", case_ids=["f01"])
+    assert seen["tools"] == [{"name": "rules_get", "input": {"name": "routing"}, "output": "# Routing\nVendor declined"}]
+    assert run["cases"][0]["meta"]["tool_calls"] == seen["tools"]
+    text = judge.tools_text([{"name": "t", "input": {}, "output": "z" * 5000}] * 9)
+    assert len(text) == judge.TOOLS_LIMIT and "z" * judge.OUTPUT_LIMIT in text and "z" * 1501 not in text
 
 
 # engines and runs

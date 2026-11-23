@@ -228,7 +228,13 @@ def page(request: Request, name: str, uc: str | None = None, status: int = 200, 
     s = config.settings()
     ctx.update(request=request, uc=uc, usecases=usecases(), engines=config.ENGINES, settings=s,
                langfuse_link=s.langfuse_mode != "off")
-    return templates.TemplateResponse(request, name, ctx, status_code=status)
+    response = templates.TemplateResponse(request, name, ctx, status_code=status)
+    if uc and uc in ctx["usecases"]:
+        response.set_cookie(LAST_UC_COOKIE, uc, max_age=60 * 60 * 24 * 365, samesite="lax")  # `/` opens it next time
+    return response
+
+
+LAST_UC_COOKIE = "kit_last_uc"
 
 
 def load_cases_safe(uc: str) -> tuple[list[dict], str | None]:
@@ -244,9 +250,12 @@ def load_cases_safe(uc: str) -> tuple[list[dict], str | None]:
 # ---------- pages ----------
 
 @app.get("/")
-def index():
+def index(request: Request):
+    """The use case you used last (a cookie), else the first one."""
     ucs = usecases()
-    return RedirectResponse(f"/uc/{ucs[0]}/cases" if ucs else "/docs", status_code=302)
+    last = request.cookies.get(LAST_UC_COOKIE)
+    uc = last if last in ucs else (ucs[0] if ucs else None)
+    return RedirectResponse(f"/uc/{uc}/cases" if uc else "/docs", status_code=302)
 
 
 @app.get("/uc/{uc}/cases", response_class=HTMLResponse)
@@ -544,6 +553,17 @@ def changed_cases(run: dict, other: dict | None) -> set:
             if c.get("case_hash") and before.get(c.get("id")) and before[c.get("id")] != c["case_hash"]}
 
 
+def default_compare(run: dict, others: list[dict]) -> str:
+    """The run to compare with: the last older run of the same engine with the same case ids; else the last
+    one that ran all of these cases (a full run); else the last one of the same engine. "" if none."""
+    ids = sorted(c.get("id", "") for c in run.get("cases", []))
+    older = [r for r in others if r.get("engine") == run.get("engine") and r.get("run_id", "") < run["run_id"]]
+    same = [r for r in older if r.get("case_ids") == ids]
+    full = [r for r in older if set(ids) <= set(r.get("case_ids") or [])]
+    pick = (same or full or older or [None])[0]
+    return pick["run_id"] if pick else ""
+
+
 @app.get("/runs/{run_id}", response_class=HTMLResponse)
 def results_page(request: Request, run_id: str, vs: str = ""):
     try:
@@ -557,9 +577,8 @@ def results_page(request: Request, run_id: str, vs: str = ""):
     others.sort(key=lambda r: r.get("engine") != run.get("engine"))  # stable: newest first in each group
     for r in others:
         r["other_cases"] = r.get("case_ids") is not None and r.get("case_ids") != ids
-    if not vs:  # default: the previous run of the same engine
-        older = [r for r in others if r.get("engine") == run.get("engine") and r.get("run_id", "") < run_id]
-        vs = older[0]["run_id"] if older else ""
+    if not vs:
+        vs = default_compare(run, others)
     other = runner().load_run(vs) if vs and vs != "none" else None
     changes = compare_cases(run, other)
     counts = {k: sum(1 for v in changes.values() if v == k) for k in ("better", "worse", "same", "new")}

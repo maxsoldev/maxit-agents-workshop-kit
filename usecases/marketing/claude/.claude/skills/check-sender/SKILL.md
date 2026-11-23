@@ -6,7 +6,7 @@ description: Check an unknown sender before we reply. Use when an email makes co
 # Check the sender
 
 1. Call `contacts_lookup` with the sender's email address, then with the organisation name.
-2. Call `inbox_history` with the sender's email address. Note earlier emails and what we answered.
+2. Call `inbox_history` with the sender's email address and `before` = today. Note earlier emails and what we answered.
 3. Call `rules_get(usecase="marketing", name="reply_guidelines")` and read "Unverified senders".
 4. Decide:
    - Known contact, or a research institution or university: a normal request. No `unverified` flag.

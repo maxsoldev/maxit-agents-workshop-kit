@@ -246,6 +246,22 @@ def call_claude(uc: str, engine_input: dict, extra_env: dict):
     return output, error, meta
 
 
+def read_tool_log(err: str, limit: int = 4000) -> list[dict]:
+    """Tool calls from the stderr lines of agent.py: `tool <name> <args JSON> -> <result as JSON string>`.
+    Lines in another form are skipped."""
+    calls = []
+    for line in err.splitlines():
+        head, sep, out = line.partition('} -> "')
+        if not line.startswith("tool ") or not sep or " " not in head[5:]:
+            continue
+        name, args = head[5:].split(" ", 1)
+        try:
+            calls.append({"name": name, "input": json.loads(args + "}"), "output": json.loads('"' + out)[:limit]})
+        except ValueError:
+            continue
+    return calls
+
+
 def call_python(uc: str, engine_input: dict, extra_env: dict):
     folder = config.USECASES_DIR / uc / "python"
     if not (folder / "agent.py").exists():
@@ -253,7 +269,9 @@ def call_python(uc: str, engine_input: dict, extra_env: dict):
     cmd = ["uv", "run", "--project", str(config.ROOT), "python", "agent.py"]
     code, out, err = _run(cmd, folder, json.dumps(engine_input, ensure_ascii=False), engine_env(extra_env),
                           TIMEOUTS["python"])
-    meta = {"stderr": _tail(err, 40)}  # the last log lines of agent.py (e.g. its tool calls)
+    # The last log lines of agent.py (long lines cut), and its tool calls for the results page and the judge.
+    meta = {"stderr": "\n".join(line[:300] for line in _tail(err, 40).splitlines()),
+            "tool_calls": read_tool_log(err)}
     if code is None:
         return None, f"agent.py did not finish in {TIMEOUTS['python']} s", meta
     if code != 0:

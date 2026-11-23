@@ -13,7 +13,8 @@ Every part of the kit builds against these. Change them only together with all p
 
 Settings come only from `kit/config.py` (`settings()`), which reads `.env` again on each call (so a new key
 works without a restart of `make serve`; a variable set in the shell wins over `.env`). Modes: `N8N=local|hosted`,
-`LANGFUSE=local|hosted|off`. Compose project name: `maxit-kit`.
+`LANGFUSE=local|hosted|off`. Compose project name: default `maxit-kit` (`name:` in `docker-compose.yml`); `COMPOSE_PROJECT_NAME` in
+`.env` or the shell changes it (for example a second copy of the kit, with other ports).
 
 ## 2. Use case folder
 
@@ -59,8 +60,8 @@ usecases/<uc>/
 | `contains` | `value` is in `result[field]` (substring for text, member for a list); case-insensitive for text | `value` |
 | `not_contains` | the opposite of `contains`; also passes when the field is missing or empty | `value` |
 | `count` | `result[field]` is a list, and its length is `equals` / at least `min` / at most `max` | one or more of `equals`, `min`, `max` (whole numbers) |
-| `any` | `result[field]` is a list of objects, and one item matches all of `where` (equal as text, case-insensitive) and all of `contains` (substring, case-insensitive); keys can be dotted paths in the item | `where` and/or `contains`, e.g. `{"where": {"kind": "trip"}, "contains": {"event": "Riga"}}` |
-| `judge` | an OpenAI model (`KIT_JUDGE_MODEL`) scores `result[field]` 1–5 against `rubric`, given the case input; pass ≥ `min` | `rubric`, `min` (default 4) |
+| `any` | `result[field]` is a list of objects, and one item matches all of `where` and all of `contains`. Text values match as case-insensitive substring ("Elena" matches "Elena Popescu"), in `where` too; numbers and true/false in `where` must be equal. Keys can be dotted paths in the item. On a fail the reason names the fields of the closest item that do not match | `where` and/or `contains`, e.g. `{"where": {"kind": "trip"}, "contains": {"event": "Riga"}}` |
+| `judge` | an OpenAI model (`KIT_JUDGE_MODEL`) scores `result[field]` 1–5 against `rubric`, given the case input and the engine's tool calls (`meta.tool_calls`, a few KB; facts from tool results are allowed); pass ≥ `min` | `rubric`, `min` (default 4) |
 
 The schema check (§4) always runs first. A case passes when the schema check and all its checks pass.
 A `judge` that cannot run (no key, API error, timeout) is **skipped**: `"passed": null, "skipped": true`, the
@@ -100,7 +101,8 @@ compare(run_id_a, run_id_b) -> dict     # per case: better / worse / same
 ```
 
 `make check` names its runs `check`: the UI hides them in the Runs list (link "Show checks") and in Compare.
-Compare defaults to the previous run of the same engine, lists that engine first, and marks runs with other
+Compare defaults to the last older run of the same engine with the same case ids (else the last one that ran
+all of these cases, else the last one of that engine), lists that engine first, and marks runs with other
 case ids ("other cases").
 
 `on_progress(event: dict)` is called with `{"case_id", "status": "running"|"done", "passed"?, "error"?}`. Cases run up to
@@ -119,7 +121,9 @@ Run file `runs/<run_id>.json`, `run_id` = `<YYYYmmdd-HHMMSS>-<uc>-<engine>`:
 ```
 
 Each case result also has `today` (the agent's date) and, for claude and python, `meta.stderr` (the last lines
-of the engine's stderr; the results page shows it as "Engine log"). `kit run-case <uc> <engine> <case_id>` runs
+of the engine's stderr; the results page shows it as "Engine log"). `meta.tool_calls` (`[{"name", "input",
+"output"}]`): claude from its stream-json, python from the `tool <name> <args JSON> -> <result JSON string>` lines
+that `agent.py` writes to stderr; n8n has none (see the execution in n8n). `kit run-case <uc> <engine> <case_id>` runs
 one case without a run file and prints the engine input, output, tool calls, stderr and checks.
 
 `case_hash` (each case result): a short hash of the case's `today`, `input`, `expected` and `checks`. Compare
@@ -152,7 +156,7 @@ adding a function. `kit/tools.py` exposes `serve()` (blocking) and `start_backgr
 | Tool | Returns |
 |---|---|
 | `contacts_lookup(query)` | matching contacts from `usecases/marketing/data/contacts.csv` |
-| `inbox_history(sender)` | earlier emails of that sender (from, date, subject, first 500 chars) |
-| `events_list(date_from, date_to)` | events from `usecases/travel/data/events.csv` |
+| `inbox_history(sender, before=None)` | earlier emails of that sender, newest first (file, from, date, subject, first 500 chars). `before` (YYYY-MM-DD): only emails sent before that day. The scaffolds pass `before=<today>` of the case; without it you also get emails sent after the case's "today" |
+| `events_list(date_from=None, date_to=None)` | events from `usecases/travel/data/events.csv` that overlap the span (both optional, YYYY-MM-DD); events without a date are in `undated` |
 | `trains_search(from_place, to_place, date, arrive_by=None, depart_after=None, modes="rail")` | up to 5 connections on that day, no prices (MOTIS plan API: `TRAINS_URL`, fallback `TRAINS_FALLBACK_URL`). `arrive_by`: the last ones that arrive before the time, latest first; `depart_after`: from that time on (default 06:00). `modes`: `rail` (trains and S-Bahn, no buses) or `all` |
-| `rules_get(usecase, name)` | the text of `usecases/<uc>/data/<name>.md` |
+| `rules_get(usecase, name="")` | the text of `usecases/<uc>/data/<name>.md`; an empty or unknown name gives the list of names |

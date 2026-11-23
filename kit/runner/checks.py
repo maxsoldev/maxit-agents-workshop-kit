@@ -44,7 +44,25 @@ def schema_check(output, schema: dict) -> dict:
     if error is None:
         return result("schema", "", True, "matches output.schema.json")
     where = ".".join(str(p) for p in error.absolute_path) or "result"
-    return result("schema", where, False, f"{where}: {error.message}")
+    return result("schema", where, False, schema_words(error, where))
+
+
+def schema_words(error, where: str) -> str:
+    """A schema error in plain words: extra field, missing field, wrong value. Else the jsonschema text."""
+    prefix = "" if where == "result" else f"{where}."
+    if error.validator == "additionalProperties" and isinstance(error.instance, dict):
+        extra = [k for k in error.instance if k not in (error.schema.get("properties") or {})]
+        names = ", ".join(f"`{prefix}{k}`" for k in extra)
+        return (f"the agent added a field that is not in the schema: {names}. Tell the agent to use only the "
+                f"fields of output_schema, or add the field to output.schema.json")
+    if error.validator == "required" and isinstance(error.instance, dict):
+        missing = [k for k in error.validator_value if k not in error.instance]
+        return f"the field {', '.join(f'`{prefix}{k}`' for k in missing)} is missing"
+    if error.validator == "enum":
+        return f"`{where}` must be one of {short(error.validator_value, 200)}, got {short(error.instance)}"
+    if error.validator == "type":
+        return f"`{where}` must be of type {error.validator_value}, got {short(error.instance)}"
+    return f"{where}: {error.message}"
 
 
 def _contains(got, value) -> bool:
@@ -59,27 +77,31 @@ def _text(value) -> str:
     return (value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)).strip().lower()
 
 
-def _item_matches(item, where: dict, contains: dict) -> bool:
-    """`any` check: every `where` key equals its value, every `contains` key has its value as a substring.
-    Keys can be dotted paths; values are compared as text, case-insensitive."""
-    for key, want in where.items():
+def _item_misses(item, where: dict, contains: dict) -> list[str]:
+    """`any` check: the keys of one item that do not match (empty list = the item matches).
+    Text values: case-insensitive "contains" ("Elena" matches "Elena Popescu"), in `where` too.
+    Other values (numbers, true/false) in `where` must be equal. Keys can be dotted paths."""
+    misses = []
+    for key, want in {**where, **contains}.items():
         got = get_field(item, key)
-        if got is MISSING or _text(got) != _text(want):
-            return False
-    for key, want in contains.items():
-        got = get_field(item, key)
-        if got is MISSING or _text(want) not in _text(got):
-            return False
-    return True
+        if got is MISSING:
+            misses.append(f"`{key}` is missing")
+            continue
+        exact = key in where and not isinstance(want, str) and key not in contains
+        ok = _text(got) == _text(want) if exact else _text(want) in _text(got)
+        if not ok:
+            misses.append(f"`{key}` is {short(json.dumps(got, ensure_ascii=False))}")
+    return misses
 
 
-def run_check(check: dict, output, expected: dict, case_input: dict) -> dict:
-    """Run one check on the output. Never raises: a problem is a failed check with a reason."""
+def run_check(check: dict, output, expected: dict, case_input: dict, tool_calls: list | None = None) -> dict:
+    """Run one check on the output. Never raises: a problem is a failed check with a reason.
+    `tool_calls` of the engine (if any) go to the judge: facts from tool results are allowed."""
     kind, field = check.get("type", "?"), check.get("field", "")
     if output is None:
         return result(kind, field, False, "no output")
     if "*" in field.split("."):
-        return _every_item(check, output, expected, case_input)
+        return _every_item(check, output, expected, case_input, tool_calls)
     got = get_field(output, field)
     if got is MISSING and kind == "not_contains":  # nothing there, so the value is not there either
         return result(kind, field, True, f"`{field}` is missing or empty, so it does not have {short(check.get('value'))}")
@@ -113,22 +135,28 @@ def run_check(check: dict, output, expected: dict, case_input: dict) -> dict:
         if not isinstance(got, list):
             return result(kind, field, False, f"`{field}` is not a list: {short(got)}")
         where, contains = check.get("where") or {}, check.get("contains") or {}
-        hits = [i for i, item in enumerate(got) if _item_matches(item, where, contains)]
-        want = short({**where, **{k: f"~{v}" for k, v in contains.items()}})
+        misses = [_item_misses(item, where, contains) for item in got]
+        want = short({**where, **{k: f"~{v}" for k, v in contains.items()}}, 200)
+        hits = [i for i, m in enumerate(misses) if not m]
         if hits:
             return result(kind, field, True, f"item {hits[0] + 1} of {len(got)} matches {want}")  # 1 = the first
-        return result(kind, field, False, f"no item of {len(got)} matches {want}")
+        if not got:
+            return result(kind, field, False, f"`{field}` is empty, so no item matches {want}")
+        best = min(range(len(got)), key=lambda i: len(misses[i]))  # the item that is closest
+        return result(kind, field, False, f"no item of {len(got)} matches {want}; closest is item {best + 1}: "
+                                          + ", ".join(misses[best]))
     if kind == "judge":
         minimum = check.get("min", 4)
         try:
-            score, reason = with_deadline(lambda: judge.score(got, check.get("rubric", ""), case_input), JUDGE_DEADLINE_S)
+            score, reason = with_deadline(lambda: judge.score(got, check.get("rubric", ""), case_input, tool_calls),
+                                          JUDGE_DEADLINE_S)
         except Exception as e:  # no key, API error, timeout: the judge did not run, so it neither passes nor fails
             return {**result(kind, field, None, f"judge skipped: {e}"), "skipped": True}
         return result(kind, field, score >= minimum, f"score {score}/5 (min {minimum}): {reason}")
     return result(kind, field, False, f"unknown check type {kind!r}")
 
 
-def _every_item(check: dict, output, expected: dict, case_input: dict) -> dict:
+def _every_item(check: dict, output, expected: dict, case_input: dict, tool_calls: list | None = None) -> dict:
     """`options.*.trains`: run the check on `trains` of every item of `options`; all items must pass.
     An empty list passes. The expected value of item i is at `options.i.trains` in `expected`."""
     kind, field = check.get("type", "?"), check["field"]
@@ -143,7 +171,8 @@ def _every_item(check: dict, output, expected: dict, case_input: dict) -> dict:
                       else f"`{base}` is not a list: {short(items)}")
     for i, item in enumerate(items):
         exp = get_field(expected, f"{base}.{i}" if base else str(i))
-        sub = run_check({**check, "field": rest}, item, exp if not rest or isinstance(exp, dict) else {}, case_input)
+        sub = run_check({**check, "field": rest}, item, exp if not rest or isinstance(exp, dict) else {}, case_input,
+                        tool_calls)
         if sub["passed"] is None:
             return {**result(kind, field, None, sub["reason"]), "skipped": True}
         if not sub["passed"]:
@@ -151,7 +180,8 @@ def _every_item(check: dict, output, expected: dict, case_input: dict) -> dict:
     return result(kind, field, True, f"all {len(items)} items pass")
 
 
-def run_checks(case: dict, output, schema: dict, case_input: dict) -> list[dict]:
+def run_checks(case: dict, output, schema: dict, case_input: dict, tool_calls: list | None = None) -> list[dict]:
     """The schema check first, then the case checks."""
     expected = case.get("expected", {})
-    return [schema_check(output, schema)] + [run_check(c, output, expected, case_input) for c in case.get("checks", [])]
+    return [schema_check(output, schema)] + [run_check(c, output, expected, case_input, tool_calls)
+                                             for c in case.get("checks", [])]

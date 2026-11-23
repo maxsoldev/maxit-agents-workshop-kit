@@ -11,7 +11,7 @@ import pytest
 USECASES = Path(__file__).resolve().parent.parent / "usecases"
 UCS = sorted(p.name for p in USECASES.iterdir() if (p / "cases.jsonl").exists())
 CHECK_KEYS = {"equals": set(), "in": {"values"}, "contains": {"value"}, "not_contains": {"value"},
-              "judge": {"rubric"}}
+              "judge": {"rubric"}, "count": set(), "any": set()}
 MISSING = object()
 
 

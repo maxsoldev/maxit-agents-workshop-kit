@@ -15,6 +15,7 @@ makes the score go up.
    service, what goes in, what comes out, and what "good" means.
 2. **Cases first.** Write at least 5 cases: an input, the expected answer, and the checks. The business
    people on the team write them. Run the first eval on the scaffold. It fails: good, now you see the gap.
+   A high first score means your cases are too easy: add harder ones.
 3. **The loop.** Change one thing, run the eval, read the result and the trace. Keep the change if the score
    goes up. Repeat.
 

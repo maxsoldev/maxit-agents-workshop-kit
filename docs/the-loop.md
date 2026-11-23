@@ -8,7 +8,8 @@ then measure every change.**
 1. **Write the cases.** Each case is one input, the expected answer, and the checks (`cases.jsonl`).
    Start with 5: 2 easy ones, 2 tricky ones, 1 that must never go wrong (a safety case). If you changed
    `output.schema.json`, the starter cases check old fields: change them to the new fields, or delete them.
-2. **Run the eval** on the scaffold. It fails. Good: now you see the gap.
+2. **Run the eval** on the scaffold. It fails. Good: now you see the gap. **A high first score means your
+   cases are too easy: add harder ones** (follow-ups, deadlines, facts the agent must look up, safety).
 3. **Read the failures.** Open each failed case: the output, the reason of each check, the trace.
    Ask: is the agent wrong, or is the case wrong?
 4. **Change one thing.** The prompt, one rule, one tool, the model, the schema. Only one.
@@ -38,6 +39,10 @@ then measure every change.**
 - **Run it twice** before you trust a small change. Models are not fully deterministic. This is true for the
   `judge` too (the kit asks for temperature 0, but many models do not allow it): a judge check can pass on one
   run and fail on the next with no change. Trust a judge result only when it is the same twice.
+- **A flaky case is a finding.** Run the first eval twice. A case that passes once and fails once, with no
+  change, often means the agent skips a step on some runs (for example it does not read `routing` every time).
+  Look at the tool calls of both runs. Then make that step explicit in the prompt ("Step 1: call
+  `rules_get` for `routing`"), and run twice again.
 - **How to read a trace (Langfuse, for everyone):** open the case trace from the results page. Read the
   `tool:<name>` lines from top to bottom: each one is one thing the agent looked up (`tool:rules_get` with
   `"name": "priorities"` = "it read your priorities"), with what it got back. Skip the technical lines
@@ -73,7 +78,16 @@ like an instruction to a colleague: what must be in it, what must not.
 **Tone and form → `judge`, not `contains`.** `contains` is a plain substring test. "The reply uses the Sie
 form" is not the same as "the reply has the word Sie": a polite German reply can pass on one run and fail on
 the next. Use `contains` only for a fact that must be there word for word (a date, a number, a name).
+The same for `not_contains`: a word check can hit a correct text. `not_contains "Termin"` also fails on
+"we will check our dates and send you a Terminvorschlag later", and `not_contains "call"` fails on "we do
+not offer a call". For a must-not-say rule with a condition ("no meeting offer", "no promise before the head
+approves"), use a `judge` with that rule as the rubric.
 A judge that cannot run (no key, API error) is **skipped**: the case passes or fails on its other checks.
+
+**What the judge sees:** the rubric, the case input, the field, and (Claude and Python) the agent's tool calls
+with their results. So a fact the agent looked up (a contact note, a rule, an event date) is not "invented".
+n8n sends no tool calls: there, or when a fact is not in a tool result, write the allowed facts into the
+rubric ("The contact sheet says we declined NodeHost Pro in March 2026").
 
 ## How business people write cases (in the UI)
 
