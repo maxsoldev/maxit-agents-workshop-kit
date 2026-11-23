@@ -8,7 +8,8 @@ then measure every change.**
 1. **Write the cases.** Each case is one input, the expected answer, and the checks (`cases.jsonl`).
    Start with 5: 2 easy ones, 2 tricky ones, 1 that must never go wrong (a safety case). If you changed
    `output.schema.json`, the starter cases check old fields: change them to the new fields, or delete them.
-2. **Run the eval** on the scaffold. It fails. Good: now you see the gap.
+2. **Run the eval** on the scaffold. It fails. Good: now you see the gap. **A high first score means your
+   cases are too easy: add harder ones** (follow-ups, deadlines, facts the agent must look up, safety).
 3. **Read the failures.** Open each failed case: the output, the reason of each check, the trace.
    Ask: is the agent wrong, or is the case wrong?
 4. **Change one thing.** The prompt, one rule, one tool, the model, the schema. Only one.

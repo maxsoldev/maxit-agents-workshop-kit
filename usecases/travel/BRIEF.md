@@ -54,9 +54,13 @@ No tool books or sends anything. To add a tool (e.g. hotels), add a function in 
 
 Read **one email or one Mattermost message** → return
 `{"tasks": [{"kind", "person", "event", "date", "status"}], "reasons"}` (`output.schema.json`). The same small
-job runs on n8n, Claude Code and Python, so the first eval is fair. The 5 starter cases in `cases.jsonl` show
-some gaps. One gap is on purpose: case `t03` checks `draft`, a field the scaffold schema does not have yet. It
-fails with "missing" until you add the field (schema and prompt).
+job runs on n8n, Claude Code and Python, so the first eval is fair. The 8 starter cases in `cases.jsonl` use
+the built-in situations: leave (t01, and t08: questions before the leave), the Heidelberg trip from 3 sources
+(t02, t06: one task), Elena's DRA without a note (t07: link it to the event overview), Mainz without a travel
+request (t03), the Riga cancel (t04) and the Brazil estimate (t05). The scaffold fails some of them for real
+reasons (for example it does not look at the event overview). One gap is on purpose: case `t03` checks
+`draft`, a field the scaffold schema does not have yet. It fails with "missing" until you add the field
+(schema and prompt). **A high first score means your cases are too easy: add harder ones.**
 
 ## Ideas for your service
 

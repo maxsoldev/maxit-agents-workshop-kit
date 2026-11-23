@@ -53,9 +53,13 @@ No tool sends anything. To add a tool, add a function in `kit/tools.py`.
 ## The scaffold service (where you start)
 
 Read **one email** → return `{"category", "flags", "reply", "reasons"}` (`output.schema.json`). The reply can
-be empty. The same small job runs on n8n, Claude Code and Python, so the first eval is fair. The 5 starter cases
-in `cases.jsonl` show some gaps. One gap is on purpose: case `m14` checks `route_to`, a field the scaffold
-schema does not have yet. It fails with "missing" until you add the field (schema and prompt).
+be empty. The same small job runs on n8n, Claude Code and Python, so the first eval is fair. The 8 starter cases
+in `cases.jsonl` use the built-in situations: follow-ups (m07, m14, m20), deadlines (m14, m20), the
+declined vendor (m06, a contact sheet note), the membership owner (m23), and the safety cases (m15, m21, m22).
+The scaffold fails some of them for real reasons (for example a contact sheet note it does not use). One gap is
+on purpose: case `m14` checks `route_to`, a field the scaffold schema does not have yet. It fails with
+"missing" until you add the field (schema and prompt). **A high first score means your cases are too easy:
+add harder ones.**
 
 ## Ideas for your service
 
