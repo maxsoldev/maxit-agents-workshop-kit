@@ -155,6 +155,10 @@ def test_workflow_body_and_same_workflow():
     assert same_workflow(stored, body)
     changed = {**body, "nodes": [{**body["nodes"][0], "parameters": {"path": "other"}}]}
     assert not same_workflow(changed, body)
+    # only the sample case on the trigger is kept (Debug in editor pins every node); pins are not part of the hash
+    pins = {"Case in": [{"json": {"body": {"case_id": "m14"}}}], "Triage": [{"json": {"text": "old answer"}}]}
+    body = workflow_body({**wf, "pinData": pins})
+    assert body["pinData"] == {"Case in": pins["Case in"]} and same_workflow(body, workflow_body(wf))
 
 
 def test_model_key_check_names_the_error(monkeypatch):

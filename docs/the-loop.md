@@ -73,7 +73,7 @@ the team then keeps its cases and scores next to the workflow.
   `tool:<name>` lines from top to bottom: each one is one thing the agent looked up (`tool:rules_get` with
   `"name": "priorities"` = "it read your priorities"), with what it got back. Skip the technical lines
   (`claude_code.llm_request` = one model call, `ToolSearch`, `blocked_on_user`): they are not your rules.
-  An n8n trace also has one line per node, in the order they ran (`Triage`, `Junk?`, `Find sender`, ...); open
+  An n8n trace also has one line per node, in the order they ran (`Triage`, `Junk?`, `Look up the sender in the contact sheet`, ...); open
   the model line under an AI node (`Draft model`) to see the prompt it got and what it answered.
 - **Keep 3 to 5 cases aside.** After many loops, your cases get easy: the agent is tuned to them. Mark a few
   new cases as **holdout** (tick in the case form, or `"holdout": true`). The eval skips them; run them at the

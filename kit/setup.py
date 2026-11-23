@@ -100,12 +100,16 @@ def fill_placeholders(text: str, credential_id: str, tools_url: str) -> str:
 
 
 def workflow_body(wf: dict) -> dict:
-    """Only the fields the n8n public API accepts on create and update."""
+    """Only the fields the n8n public API accepts on create and update. pinData: only the sample case on the
+    trigger `Case in` (for Execute workflow in the editor; production webhook runs ignore pins). Other pins
+    (e.g. from Debug in editor) stay out, so an exported file does not freeze an AI node's output."""
+    pins = {k: v for k, v in (wf.get("pinData") or {}).items() if k == "Case in"}
     return {
         "name": wf["name"],
         "nodes": wf["nodes"],
         "connections": wf.get("connections", {}),
         "settings": wf.get("settings") or {},
+        **({"pinData": pins} if pins else {}),
     }
 
 

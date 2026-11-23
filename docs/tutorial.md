@@ -12,7 +12,7 @@ its own service (the design block).
 |---|---|---|
 | Python | `usecases/marketing/python/agent.py`, the text `PROMPT = """..."""` | save the file |
 | Claude | `usecases/marketing/claude/CLAUDE.md`, parts "Steps" and "Answer" | save the file |
-| n8n | n8n editor (http://localhost:5702, log in with `N8N_OWNER_EMAIL` and `N8N_OWNER_PASSWORD` from `.env`), workflow `Kit: marketing workflow`, node **Decide and draft** (the last AI step) → Chat Messages → **Message** (the steps). The node **Triage** has its own, smaller prompt | n8n saves your edit as a draft. Click **Publish** (top right): the eval runs only the published version. Then `make n8n-export UC=marketing` |
+| n8n | n8n editor (http://localhost:5702, log in with `N8N_OWNER_EMAIL` and `N8N_OWNER_PASSWORD` from `.env`), workflow `Kit: marketing workflow`, node **Decide and draft** (the last AI step) → Chat Messages → **Message** (the steps). The node **Triage** has its own, smaller prompt. **Execute** (bottom) runs the pinned sample email (m14) in the editor, so every node shows its data. To see one eval case: kit results page → the case → **n8n execution ↗** (each workflow has its own Executions: marketing cases are under `Kit: marketing workflow`) → double-click a node (read only); top right **Copy to editor** (a run that worked) or **Debug in editor** (a failed run) loads it into the editor (n8n asks once for the free Registered Community Edition) | n8n saves your edit as a draft. Click **Publish** (top right): the eval runs only the published version. Then `make n8n-export UC=marketing` |
 
 You need `make serve` running and the kit UI open: http://localhost:5700 → **marketing**.
 
@@ -27,7 +27,8 @@ You need `make serve` running and the kit UI open: http://localhost:5700 → **m
 3. Read it from top to bottom: the **checks** (✓ and ✗, each with a reason), the **Output** next to the
    **Expected**, and the **Input**. Also the **Tool calls** (all engines: what the agent looked up, with the
    results). Claude and Python: also the **Engine log**; with Langfuse on, the **Langfuse trace** link. n8n:
-   the **n8n execution ↗** link opens the run in n8n.
+   the **n8n execution ↗** link opens exactly this case's run in n8n: double-click a node to see its input and
+   output.
 
 **What you see**
 
