@@ -121,6 +121,24 @@ def _run(cmd: list[str]) -> tuple[bool, str]:
 
 # ---------- step 1: host checks ----------
 
+def model_key_works() -> tuple[bool, str]:
+    """One cheap call: GET {base}/models (OpenAI or the gateway). Returns (works, short text)."""
+    s = settings()
+    base = s.openai_base_url or "https://api.openai.com/v1"
+    try:
+        r = httpx.get(f"{base}/models", headers={"Authorization": f"Bearer {s.openai_api_key}"}, timeout=15)
+    except httpx.HTTPError as e:
+        return False, f"cannot reach {base} ({type(e).__name__})"
+    if r.status_code == 200:
+        return True, f"{base} answers"
+    try:
+        err = r.json().get("error", r.text)
+        msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+    except ValueError:
+        msg = r.text
+    return False, f"{base} answered {r.status_code}: {' '.join(msg.split())[:200].rstrip('. ')}"
+
+
 def check_host() -> bool:
     print("Host")
     good = True
@@ -130,7 +148,12 @@ def check_host() -> bool:
         fail(".env is missing. Run: cp .env.example .env  (then set OPENAI_API_KEY)")
         return False
     if settings().openai_api_key:
-        ok("OPENAI_API_KEY is set")
+        works, text = model_key_works()
+        if works:
+            ok(f"OPENAI_API_KEY works ({text})")
+        else:
+            fail(f"OPENAI_API_KEY does not work: {text}. Fix the key (or OPENAI_BASE_URL) in .env, then run make setup again")
+            good = False
     else:
         fail("OPENAI_API_KEY is empty. Put your key in .env, then run make setup again")
         good = False
