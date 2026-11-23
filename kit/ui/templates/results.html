@@ -66,11 +66,11 @@
         {% if c.trace_url and langfuse_link %}<a href="{{ c.trace_url }}" target="_blank">Langfuse trace ↗</a>{% endif %}
         {% if c.n8n_execution_url %}<a href="{{ c.n8n_execution_url }}" target="_blank">n8n execution ↗</a>{% endif %}
       </div>
-      <div class="cols">
-        <div><h3>Output</h3><pre>{{ c.output|pretty }}</pre></div>
-        <div><h3>Expected</h3><pre>{{ c.expected|pretty }}</pre>
-          {% if c._also_want %}<div class="small also-want">The checks also want: {{ c._also_want|join(' · ') }}{% if c._targets_from_today %} <span class="muted">(from today's case)</span>{% endif %}</div>{% endif %}</div>
-      </div>
+      {# Order of the case story: input → tool calls → output next to expected. Input and output open. #}
+      <details class="tool-calls" open><summary>Input{% if c.today %} (today {{ c.today }}){% endif %}</summary>
+        {% with previews = c._files %}{% include "_previews.html" %}{% endwith %}
+        <details><summary class="muted small">Input as JSON (what the engine got)</summary><pre>{{ c.input|pretty }}</pre></details>
+      </details>
       {% if (c.meta or {}).tool_calls %}
       <details class="tool-calls"><summary>Tool calls ({{ c.meta.tool_calls|length }})</summary>
         {% for t in c.meta.tool_calls %}
@@ -78,13 +78,16 @@
         {% endfor %}
       </details>
       {% endif %}
+      <details class="tool-calls" open><summary>Output and expected</summary>
+        <div class="cols">
+          <div><h3>Output</h3><pre>{{ c.output|pretty }}</pre></div>
+          <div><h3>Expected</h3><pre>{{ c.expected|pretty }}</pre>
+            {% if c._also_want %}<div class="small also-want">The checks also want: {{ c._also_want|join(' · ') }}{% if c._targets_from_today %} <span class="muted">(from today's case)</span>{% endif %}</div>{% endif %}</div>
+        </div>
+      </details>
       {% if (c.meta or {}).stderr %}
       <details class="tool-calls"><summary>Engine log (stderr, last lines)</summary><pre>{{ c.meta.stderr }}</pre></details>
       {% endif %}
-      <details class="tool-calls"><summary>Input{% if c.today %} (today {{ c.today }}){% endif %}</summary>
-        {% with previews = c._files %}{% include "_previews.html" %}{% endwith %}
-        <details><summary class="muted small">Input as JSON (what the engine got)</summary><pre>{{ c.input|pretty }}</pre></details>
-      </details>
     </div>
   </details>
   {% endfor %}

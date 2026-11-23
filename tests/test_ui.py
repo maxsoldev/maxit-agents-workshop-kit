@@ -175,6 +175,11 @@ def test_run_results_runs(client):
     # the row (also the title) opens the details; the edit page is one link inside them
     assert page.text.count('href="/uc/demo/cases/m06/edit"') == 1
     assert '<a href="/uc/demo/cases/m06/edit">Edit this case</a>' in page.text
+    case = page.text.split('id="c-m06"', 1)[1].split("</details>\n  {% endfor", 1)[0]
+    spots = [case.index(s) for s in ("<summary>Input", "<summary>Output and expected")]
+    assert spots == sorted(spots)  # input first, then (tool calls), then output next to expected
+    assert '<details class="tool-calls" open><summary>Input' in case
+    assert '<details class="tool-calls" open><summary>Output and expected' in case
     assert client.get("/runs/nope").status_code == 404
 
 
