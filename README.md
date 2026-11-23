@@ -54,6 +54,8 @@ anything: the agent only proposes, a person decides.
 ```text
 README.md  SETUP.md        start here
 Makefile                   make up · make setup · make serve · make check · make eval · make n8n-export · make down
+                           make test · make fmt (format Python) · make lint (check, change nothing)
+pyproject.toml             Python packages and the ruff settings (line length 120)
 docker-compose.yml         n8n and Langfuse (profiles n8n, langfuse)
 .env.example               settings: copy to .env
 usecases/<uc>/             YOUR TEAM OWNS THIS FOLDER

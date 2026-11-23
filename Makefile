@@ -7,7 +7,7 @@ ENGINE ?= n8n
 CASES ?=
 NAME ?=
 
-.PHONY: help up down setup n8n-export check serve eval run-case logs reset test
+.PHONY: help up down setup n8n-export check serve eval run-case logs reset test fmt lint
 
 help:
 	@echo "make up       start n8n and/or Langfuse in Docker (as set in .env), wait until healthy"
@@ -18,6 +18,9 @@ help:
 	@echo "make check    one case per use case and engine: OK or what to fix"
 	@echo "make eval UC=marketing ENGINE=n8n [CASES=m01,m02] [NAME=try-1] [HOLDOUT=1]"
 	@echo "make run-case UC=marketing ENGINE=python CASE=m14   one case: input, output, log, checks"
+	@echo "make test     run the kit tests"
+	@echo "make fmt      format the Python code (ruff: layout and import order)"
+	@echo "make lint     check format and code (ruff), change nothing"
 	@echo "make logs     follow the Docker logs"
 	@echo "make down     stop the containers (data stays)"
 	@echo "make reset    stop the containers and DELETE their data (asks first)"
@@ -71,3 +74,12 @@ reset:
 
 test:
 	uv run pytest -q
+
+# Settings in pyproject.toml ([tool.ruff]); data and run files are excluded there.
+fmt:
+	uv run ruff check --select I --fix --quiet .
+	uv run ruff format .
+
+lint:
+	uv run ruff format --check .
+	uv run ruff check .
