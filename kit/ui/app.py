@@ -1025,30 +1025,27 @@ DOCS_FIRST = {
     "SETUP.md": "Setup",
     "docs/tutorial.md": "Tutorial",
 }
-DOCS_AFTER_BRIEFS = {"docs/contracts.md": "Infra and architecture", "docs/data-pack.md": "Data pack"}
-KNOWN_USECASES = ["marketing", "travel"]
+# Reference docs for agents and the trainer: in the repo, not in the Guide.
+DOCS_HIDDEN = {"docs/contracts.md", "docs/data-pack.md"}
 
 
 def doc_files() -> dict[str, tuple[str, Path]]:
     """Docs in sidebar order: name -> (title, path). The name is the `?name=` in the URL.
-    A use case gets "<Uc> brief"; a docs/*.md not in the lists goes last, with its file name."""
+    A docs/*.md not in the lists goes last, with its file name."""
     root = config.ROOT
-    ucs = sorted(usecases(), key=lambda uc: (uc not in KNOWN_USECASES, uc))
     found = {k: (t, root / k) for k, t in DOCS_FIRST.items()}
-    found.update({f"{uc}/BRIEF.md": (f"{uc_name(uc)} brief", config.USECASES_DIR / uc / "BRIEF.md") for uc in ucs})
-    found.update({k: (t, root / k) for k, t in DOCS_AFTER_BRIEFS.items()})
     for p in sorted((root / "docs").glob("*.md")):
-        found.setdefault(f"docs/{p.name}", (p.name, p))
+        if f"docs/{p.name}" not in DOCS_HIDDEN:
+            found.setdefault(f"docs/{p.name}", (p.name, p))
     return {k: v for k, v in found.items() if v[1].is_file()}
 
 
 def doc_path(path: Path) -> str:
-    """The file path to show, e.g. `docs/tutorial.md` or `usecases/travel/BRIEF.md`."""
-    base = config.ROOT if path.is_relative_to(config.ROOT) else config.USECASES_DIR.parent
-    return str(path.relative_to(base))
+    """The file path to show, e.g. `docs/tutorial.md`."""
+    return str(path.relative_to(config.ROOT))
 
 
-MARKDOWN = MarkdownIt("commonmark", {"html": False}).enable("table")  # no raw HTML: participants edit BRIEF.md
+MARKDOWN = MarkdownIt("commonmark", {"html": False}).enable("table")  # no raw HTML: participants edit the docs
 
 
 def render_doc(name: str, text: str, files: dict, panel: bool = False) -> Markup:

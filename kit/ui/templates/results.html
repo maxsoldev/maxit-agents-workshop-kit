@@ -39,7 +39,7 @@
       <span class="muted">{{ counts.same }} same{% if counts.new %} · {{ counts.new }} new case(s){% endif %}{% if counts.changed %} · {{ counts.changed }} case(s) changed since then{% endif %}</span>
       {% if delta.seconds is not none %}<span class="muted" title="per case on average, this run minus the other">Δ time {{ '%+.1f'|format(delta.seconds) }} s</span>{% endif %}
       {% if delta.cost_usd is not none %}<span class="muted" title="per case on average, this run minus the other">Δ cost {{ delta.cost_usd|usd(true) }}</span>{% endif %}
-      {% if agent_changed %}<span class="badge changed" title="the agent files (n8n: the workflow and its prompts) are not the same as in the other run">{{ 'workflow' if (run.engine or '').startswith('n8n') else 'agent' }} changed</span>{% endif %}</div>
+      {% if agent_changed %}<span class="badge changed" title="the agent files (n8n: the workflow and its rules files) are not the same as in the other run">{{ 'workflow' if (run.engine or '').startswith('n8n') else 'agent' }} changed</span>{% endif %}</div>
     {% endif %}
   </form>
 </div>

@@ -34,7 +34,7 @@ booked or sent without Martina.
 
 Each engine has **one business rules file**: its steps and the owner's rules (categories, kinds ...), plain
 text, read on every case. Claude: `claude/CLAUDE.md` (Claude Code loads it). Python: `python/prompt.md`
-(`agent.py` reads it). n8n: one file per AI step, e.g. `n8n/triage.md` (the node *Read the rules* gets it from
+(`agent.py` reads it). n8n: one file per AI step, e.g. `n8n/read_message.md` (the node *Read the rules* gets it from
 the tools server; no push). Edit them in the kit UI: **Rules** (pick your engine). Write rules as lists, one
 item per line, not as tables.
 

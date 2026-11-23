@@ -33,7 +33,7 @@ You need `make serve` running and http://localhost:5700 open, use case **Marketi
 - `m15` (an unknown fund wants to "tokenize your science") is red on most runs:
   ``equals flags: got ["unverified", "off_target"], expected ["unverified"]``. The category is right; the agent
   adds a second flag.
-- `m08` (a support request with a deadline) is red: ``equals priority: `priority` is missing``. That is level 3.
+- `m08` (a support request with a deadline) is red: ``equals priority: `priority` is missing in the result``. That is level 3.
 
 **Learn:** for each red case ask: **is the agent wrong, or is the case wrong?** Open **Rules**, part "Flags":
 `off_target` is for an offer that "assumes we are a speculative token or crypto project". The fund talks about

@@ -11,14 +11,14 @@ then measure every change.**
    harder ones** (follow-ups, deadlines, facts to look up, safety).
 3. **Read the failures:** the output, the reason of each check, the trace. Is the agent wrong, or the case?
 4. **Change one thing:** the prompt, one rule, one tool, the model, the schema. Only one.
-5. **Run the eval again** and compare (Results → Compare). Better: keep it and commit. Worse: undo it.
+5. **Run the eval again** and compare (results page → **Compare with**). Better: keep it and commit. Worse: undo it.
    n8n: the eval saves your n8n graph edits to `n8n/workflow.json`: commit them.
 6. **Every new failure becomes a case.** Write the case before you fix it. Then the fix stays fixed.
 
 ## Rules that save time
 
 - **One change at a time.** A new output field is one change: the field in `output.schema.json` plus one line
-  in the prompt of each engine you use (`claude/CLAUDE.md`, the n8n prompt, `python/prompt.md`).
+  in the prompt of each engine you use (`claude/CLAUDE.md`, `n8n/<step>.md`, `python/prompt.md`).
 - **Read the trace, not only the score.** The results page lists the tool calls for all engines. More detail:
   Langfuse (link on the results page), for n8n also **n8n execution ↗**, for Python the **Engine log**.
 - **Look at one case closely:** `make run-case UC=marketing ENGINE=python CASE=m15` prints the input, output,
@@ -77,9 +77,9 @@ counts only if the score stays the same.
 
 ## How business people change the rules (in the UI)
 
-Open **Rules** and pick your engine: its business rules file (`CLAUDE.md`, `prompt.md`, `n8n/triage.md`):
+Open **Rules** and pick your engine: its business rules file (`CLAUDE.md`, `prompt.md`, `n8n/<step>.md`):
 the steps and the owner's lists (categories, flags, kinds), written as lists, not tables. Change a rule,
-**Save** (Ctrl+S), then run the eval on that engine and compare ("agent files changed"). The categories,
+**Save** (Ctrl+S), then run the eval on that engine and compare (the results page shows "agent changed"). The categories,
 flags and kinds live only in this file: add one there, with no change to the code or the schema. The page and
 the file stay in sync: an edit on disk (by a developer or Claude Code) shows in the page, and the page never
 saves over an edit it has not seen.

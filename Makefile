@@ -12,7 +12,7 @@ NAME ?=
 help:
 	@echo "make up       start n8n and/or Langfuse in Docker (as set in .env), wait until healthy"
 	@echo "make setup    first-time setup: n8n login, API key, OpenAI credential, workflows (n8n-push); Langfuse check"
-	@echo "make n8n-push [UC=travel]  files -> n8n: usecases/<uc>/n8n/ (workflow.json, prompts/*.md), then publish"
+	@echo "make n8n-push [UC=travel]  files -> n8n: usecases/<uc>/n8n/workflow.json (the graph), then publish"
 	@echo "make n8n-pull [UC=travel]  n8n -> files: your published n8n edits (n8n-export = the same)"
 	@echo "              both stop if the other side changed too; FORCE=1 overwrites it (backup in runs/n8n-backup/)"
 	@echo "make serve    kit UI on :5700 and tools server on :5701 (keep it running)"

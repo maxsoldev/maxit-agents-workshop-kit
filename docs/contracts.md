@@ -26,24 +26,24 @@ usecases/<uc>/
   output.schema.json    JSON Schema of the result (§4)
   n8n/workflow.json     n8n workflow `Kit: <uc> workflow` (nodes; no AI Agent node), webhook path = <uc>
   n8n/<step>.md         the business rules file of each n8n AI step (e.g. n8n/triage.md): its prompt, plain text
-  claude/               Claude Code agent folder: CLAUDE.md, .mcp.json, .claude/settings.json
+  claude/               Claude Code agent folder: CLAUDE.md, .mcp.json, .claude/settings.json, .claude/skills/
   python/agent.py       Python agent: stdin → stdout; its prompt is python/prompt.md
   business rules files  claude/CLAUDE.md (+ skills), python/prompt.md, n8n/<step>.md: what the agent is told, its
                         steps and the owner's rules, as lists, no tables (`config.RULE_FILES`). Read on every
                         case: Claude Code loads CLAUDE.md, agent.py reads prompt.md, an n8n AI node gets its file
                         from the node Read the rules (`GET {KIT_TOOLS_URL}/rules/<uc>/n8n/<file>`, §7). Edited on
                         the Rules page. Part of `agent_version` (§5): a rules change is an agent change
+  extend/               more of the owner's material (rules/*.md, claude-skills/): not used by the starter agent
 ```
 
 ## 3. Case (one JSON object per line in `cases.jsonl`)
 
 ```json
-{"id": "m06", "title": "Service offer (NodeHost Pro)", "today": "2026-11-04",
- "input": {"email_file": "data/emails/06.eml"},
- "expected": {"category": "service_offer"},
+{"id": "m13", "title": "A company sells us a service (SEO)", "today": "2026-11-11",
+ "input": {"email_file": "data/emails/13_2026-11-11.eml"},
+ "expected": {"category": "service_offer", "flags": []},
  "checks": [{"type": "equals", "field": "category"},
-            {"type": "not_contains", "field": "reply", "value": "@"},
-            {"type": "judge", "field": "reply", "rubric": "Polite no; does not promise a call."}]}
+            {"type": "equals", "field": "flags"}]}
 ```
 
 - `id` unique in the file; `title` short; `today` ISO date (the agent's "today"), optional.
@@ -76,7 +76,7 @@ under `"skipped": {"judge": n}` (not in `by_check`).
 
 ## 4. Engine contract
 
-Engine input (JSON): `{"case_id": "m06", "today": "2026-11-04", "input": {<case input with file texts added>},
+Engine input (JSON): `{"case_id": "m13", "today": "2026-11-11", "input": {<case input with file texts added>},
 "output_schema": {<the parsed output.schema.json>}}`.
 Engine output: one JSON object that must validate against `output_schema`. The scaffolds read the shape from
 `output_schema` (Claude `CLAUDE.md`, `python/agent.py`, and the n8n model node of the last AI step, Response Format → Schema, by the expression
@@ -85,7 +85,7 @@ Engine output: one JSON object that must validate against `output_schema`. The s
 | Engine | How the runner calls it | Timeout |
 |---|---|---|
 | `n8n` | `POST {N8N_URL}/webhook/<uc>`, body = engine input; the response body is the result (workflow ends with Respond to Webhook). The scaffold `n8n/workflow.json` is a chain of nodes (code decides the path, the model fills in the steps): the starters have one AI step: marketing Case in → Read the rules → Triage (AI) → Read result → Result out; travel Case in → Read the rules → Read message (AI) → Read result → Result out. Teams add steps (tools, more AI steps, IF nodes). An AI step has no Structured Output Parser (it fails on a valid answer without its `{"output": ...}` wrapper): its model node uses the Responses API with Response Format = JSON Schema, and a Code node after it (`Read result`) parses the JSON text into `output` (also wrapped or in a ```json block). Tool nodes are HTTP Request nodes on `{KIT_TOOLS_URL}/call/<tool>` (§7), body "Using Fields Below" (one field per argument); the runner finds tool calls by their answer `{"tool", "input", "output"}`, not by node name. Every main node has a short canvas note. The files have no `pinData` (they define the pipeline, not one case): push and pull drop all pins (Debug in editor pins every node), pins are not part of the "same workflow" hash, and setup removes the pins from a workflow it updates. If n8n answers an error, the runner reads the failed execution and reports `n8n failed at <node>: <message>` with the execution link | 120 s |
-| `claude` | in `usecases/<uc>/claude/`: `claude -p <prompt> --output-format stream-json --verbose --mcp-config .mcp.json --strict-mcp-config --permission-mode dontAsk --allowedTools mcp__kit` + `--setting-sources project` + `--settings {"claudeMdExcludes": [the CLAUDE.md files of the parent folders up to the repo root], "skillOverrides": {<each skill in the root .claude/skills/>: "off"}}` (Claude Code also loads parent CLAUDE.md files and skills: those are for the builder session at the repo root, not the agent) + `--json-schema <output_schema without "$schema">`; prompt = "Process this case. Answer with only the result JSON.\n\n" + engine input. The result is `structured_output` of the last `result` event (Claude Code checks it against the schema); without it, the JSON in the `result` text (a fenced ```json block, or the whole text) | 300 s |
+| `claude` | in `usecases/<uc>/claude/`: `claude -p <prompt> --output-format stream-json --verbose --mcp-config .mcp.json --strict-mcp-config --permission-mode dontAsk --allowedTools mcp__kit --setting-sources project --no-session-persistence` + `--settings {"claudeMdExcludes": [~/.claude/CLAUDE.md and the CLAUDE.md and CLAUDE.local.md files of all parent folders], "skillOverrides": {<each skill in a .claude/skills/ of a parent folder inside the repo, not one of the agent's own names>: "off"}}` (Claude Code also loads parent CLAUDE.md files and skills: those are for the builder session at the repo root, not the agent) + `--json-schema <output_schema without "$schema">`; prompt = "Process this case. Answer with only the result JSON.\n\n" + engine input. The result is `structured_output` of the last `result` event (Claude Code checks it against the schema); without it, the JSON in the `result` text (a fenced ```json block, or the whole text) | 300 s |
 | `python` | in `usecases/<uc>/python/`: `uv run --project <repo root> python agent.py`, engine input on stdin, result JSON on stdout (stderr = logs). The scaffold uses the OpenAI Responses API (`/v1/responses`; new models allow function tools only there), also through `OPENAI_BASE_URL` | 300 s |
 
 Timeouts are wall-clock time. Each case has a hard deadline of engine timeout + 10 s: then the runner stops
@@ -93,17 +93,17 @@ waiting and the case fails with "hard deadline". A `judge` check has its own lim
 `settings.executionTimeout` to 110 s (under the runner timeout). On macOS the runner keeps the computer awake
 during an eval (`caffeinate -i`): a sleeping computer stops every engine.
 
-Env passed to engines: `OPENAI_API_KEY`, `KIT_MODEL`, `KIT_TOOLS_URL`, and for Claude the OTel/`TRACEPARENT`
+Env passed to engines: `OPENAI_API_KEY`, `KIT_MODEL`, `KIT_TOOLS_URL`, `OPENAI_BASE_URL` (only if set), and for Claude the OTel/`TRACEPARENT`
 variables (§6). Claude uses the participant's own login.
 
 ## 5. Runner API (Python, `kit/runner/`) and run file
 
 ```python
-from kit.runner import run_eval, list_runs, load_run, compare
+from kit.runner import run_eval, list_runs, load_run, compare, n8n_warning
 run = run_eval(usecase, engine, case_ids=None, name=None, on_progress=None, holdout=False)  # blocking
 list_runs(usecase=None) -> list[dict]   # newest first; summary fields and the sorted `case_ids`
 load_run(run_id) -> dict
-compare(run_id_a, run_id_b) -> dict     # per case: better / worse / same; agent_changed
+compare(run_id_a, run_id_b) -> dict     # per case: better / worse / same (or new / removed); agent_changed
 n8n_warning(usecase) -> str | None      # a warning if the n8n workflow is not in sync with the files,
                                         # or has edits that are not published
 ```
@@ -136,12 +136,13 @@ The node's `text` (what it gets: the email, the case) is n8n wiring, in `workflo
 still imports the workflows, inactive and without the credential; the next run with a key activates them.
 
 **Agent version.** Each run file has `agent_version`: `{"hash", "git"}`. n8n: `workflow_hash` of the workflow
-file with its prompts (after the sync, so what ran); claude, python: a hash of all files of the engine folder.
+file (after the sync, so what ran) plus its business rules files (`n8n/*.md`); claude, python: a hash of all files of the engine folder.
 `git` = `HEAD` (short) if that folder has no changes that are not committed, else null. `compare` sets
 `agent_changed` when both runs of one engine have different hashes; the results page shows "workflow changed"
 (n8n) or "agent changed"; `kit compare A B` (`make compare A= B=`) prints it.
 
-`make check` names its runs `check`: the UI hides them in the Runs list (link "Show checks") and in Compare.
+`make check` names its runs `check`: the UI hides them in the runs list of the Evals page (link "Show checks")
+and in the Compare list of the results page.
 Compare defaults to the last older run of the same engine with the same case ids (else the last one that ran
 all of these cases, else the last one of that engine), lists that engine first, and marks runs with other
 case ids ("other cases").
@@ -154,12 +155,12 @@ Run file `runs/<run_id>.json`, `run_id` = `<YYYYmmdd-HHMMSS>-<uc>-<engine>`:
 ```json
 {"run_id": "...", "name": "...", "usecase": "marketing", "engine": "n8n", "started_at": "...", "ended_at": "...",
  "experiment_url": "http://localhost:5703/project/<id>/experiments/results?baseline=<id>",
- "summary": {"cases": 5, "passed": 4, "by_check": {"equals": [4, 5], "judge": [3, 3]},
-             "by_field": {"schema": [5, 5], "equals category": [4, 5], "judge reply": [3, 3]}, "skipped": {},
+ "summary": {"cases": 5, "passed": 4, "by_check": {"schema": [5, 5], "equals": [9, 10], "judge": [3, 3]},
+             "by_field": {"schema": [5, 5], "equals category": [4, 5], "equals flags": [5, 5], "judge reply": [3, 3]}, "skipped": {},
              "totals": {"seconds": 16.0, "tokens_in": 30500, "tokens_out": 1900, "cost_usd": 0.004, "cost_cases": 5,
                         "judge_cost_usd": 0.0021, "avg_seconds": 3.2, "avg_tokens_in": 6100, "avg_tokens_out": 380,
                         "avg_cost_usd": 0.0008}},
- "cases": [{"id": "m06", "title": "...", "passed": false, "seconds": 3.2, "error": null,
+ "cases": [{"id": "m13", "title": "...", "passed": false, "seconds": 3.2, "error": null,
             "tokens_in": 6100, "tokens_out": 380, "cost_usd": 0.0008,
             "judge": {"seconds": 1.4, "tokens_in": 1200, "tokens_out": 40, "cost_usd": 0.0014},
             "input": {...}, "expected": {...}, "output": {...},
@@ -201,7 +202,7 @@ one case without a run file and prints the engine input, output, tool calls, std
 
 `case_hash` (each case result): a short hash of the case's `today`, `input`, `expected` and `checks`. Compare
 marks a case "case changed" when the hash differs between the two runs (and "new case" when it was not in the
-other run); the Runs list shows "13 cases (2 new, 1 changed)" against the run before. `list_runs` rows have
+other run); the runs list on the Evals page shows "13 cases (2 new, 1 changed)" against the run before. `list_runs` rows have
 `case_hashes` (`{id: hash}`).
 
 `n8n_execution_url` (n8n only, needs `N8N_API_KEY`): the runner sends an `x-kit-call` header with each POST and
@@ -232,7 +233,7 @@ parser) nest under their AI node; the rest is flat under the case root. The `too
 n8n too. Not found (no `N8N_API_KEY`) or any error: no node spans, the case goes on. The run file does not get
 the nodes.
 
-**Dataset and experiment** (`run_eval`: UI Run and `make eval`; not `make check` runs, named `check`, and not
+**Dataset and experiment** (`run_eval`: the Evals page and `make eval`; not `make check` runs, named `check`, and not
 `run-case`). Before the cases run, the runner syncs **all** cases of `cases.jsonl` (holdout too) to the Langfuse
 dataset `<uc>`: one item per case, item id `<uc>-<case_id>`, input = case `input`, expected output = case
 `expected`, metadata = `title`, `today`, `checks`, `holdout`. Only changed items are written. Items of removed
@@ -279,7 +280,7 @@ body not an object: 400; a wrong argument: 200 with `output = {"error", "hint"}`
 | Tool | Returns |
 |---|---|
 | `contacts_lookup(query)` | matching contacts from `usecases/marketing/data/contacts.csv` |
-| `inbox_history(sender, before=None)` | earlier emails of that sender, newest first (file, from, date, subject, first 500 chars). `before` (YYYY-MM-DD): only emails sent before that day. The scaffolds pass `before=<today>` of the case; without it you also get emails sent after the case's "today" |
+| `inbox_history(sender, before=None)` | earlier emails of that sender, newest first (file, from, date, subject, first 500 chars). `before` (YYYY-MM-DD): only emails sent before that day. Pass `before=<today>` of the case: without it you also get emails sent after the case's "today" |
 | `events_list(date_from=None, date_to=None)` | events from `usecases/travel/data/events.csv` that overlap the span (both optional, YYYY-MM-DD); events without a date are in `undated` |
 | `trains_search(from_place, to_place, date, arrive_by=None, depart_after=None, modes="rail")` | up to 5 connections on that day, no prices (MOTIS plan API: `TRAINS_URL`, fallback `TRAINS_FALLBACK_URL`). `arrive_by`: the last ones that arrive before the time, latest first; `depart_after`: from that time on (default 06:00). `modes`: `rail` (trains and S-Bahn, no buses) or `all` |
 | (not a tool) `GET /mcp/rules/<uc>/<engine>/<file>` | one business rules file of an engine (`config.RULE_FILES`), `{"file", "text"}`; 404 with the list of files for any other name. The n8n node Read the rules uses it; the models do not see it |

@@ -383,23 +383,32 @@ def test_checks_in_words():
     )
 
 
-def test_docs_page(client):
+def doc_root(tmp_path, monkeypatch, demo: str) -> None:
+    """A fake repo root: README links to SETUP, docs/demo.md has `demo`."""
+    root = tmp_path / "repo"
+    (root / "docs").mkdir(parents=True)
+    (root / "README.md").write_text("# Kit\n\n[setup](SETUP.md)\n", encoding="utf-8")
+    (root / "SETUP.md").write_text("# Setup\n", encoding="utf-8")
+    (root / "docs" / "demo.md").write_text(demo, encoding="utf-8")
+    monkeypatch.setattr(config, "ROOT", root)
+
+
+def test_docs_page(client, tmp_path, monkeypatch):
     assert client.get("/docs").status_code == 200
-    brief = "# Demo brief\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n<script>alert(1)</script>\n\n"
-    brief += "[web](https://example.org)\n"
-    (config.USECASES_DIR / "demo" / "BRIEF.md").write_text(brief, encoding="utf-8")
-    html = client.get("/docs?name=demo/BRIEF.md").text
-    assert "<h1>Demo brief</h1>" in html and "<table>" in html
+    demo = "# Demo doc\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n<script>alert(1)</script>\n\n"
+    demo += "[web](https://example.org)\n"
+    doc_root(tmp_path, monkeypatch, demo)
+    html = client.get("/docs?name=docs/demo.md").text
+    assert "<h1>Demo doc</h1>" in html and "<table>" in html
     assert "<script>alert" not in html and "&lt;script&gt;" in html  # raw HTML is shown as text
     assert 'href="https://example.org"' in html
     assert 'href="/docs?name=SETUP.md"' in client.get("/docs?name=README.md").text  # a link to another doc
 
 
-def test_doc_fragment_for_the_side_panel(client):
-    brief = "# Demo brief\n\n<script>x</script>\n\n[web](https://example.org) [setup](../../SETUP.md) [top](#a)\n"
-    (config.USECASES_DIR / "demo" / "BRIEF.md").write_text(brief, encoding="utf-8")
-    r = client.get("/docs/fragment?name=demo/BRIEF.md")
-    assert r.status_code == 200 and "<h1>Demo brief</h1>" in r.text
+def test_doc_fragment_for_the_side_panel(client, tmp_path, monkeypatch):
+    doc_root(tmp_path, monkeypatch, "# Demo doc\n\n<script>x</script>\n\n[web](https://example.org) [top](#a)\n")
+    r = client.get("/docs/fragment?name=docs/demo.md")
+    assert r.status_code == 200 and "<h1>Demo doc</h1>" in r.text
     assert "<header" not in r.text and "<script>x" not in r.text  # only the doc, raw HTML still off
     assert '<a href="https://example.org" target="_blank" rel="noopener">' in r.text  # outside: new tab
     assert '<a href="#a">' in r.text  # an anchor stays in the panel
@@ -555,20 +564,21 @@ def test_results_targets_from_run_file(client):
 def test_docs_names_order_and_file_path(client, tmp_path, monkeypatch):
     root = tmp_path / "repo"
     (root / "docs").mkdir(parents=True)
-    for f in ["README.md", "SETUP.md", "docs/day-plan.md", "docs/tutorial.md", "docs/contracts.md", "docs/zz-new.md"]:
+    docs = ["README.md", "SETUP.md", "docs/day-plan.md", "docs/tutorial.md", "docs/contracts.md", "docs/data-pack.md"]
+    for f in docs + ["docs/zz-new.md"]:
         (root / f).write_text(f"# {f}\n", encoding="utf-8")
-    for uc in ["travel", "marketing", "demo"]:
-        (config.USECASES_DIR / uc / "data").mkdir(parents=True, exist_ok=True)
-        (config.USECASES_DIR / uc / "BRIEF.md").write_text(f"# {uc}\n", encoding="utf-8")
+    (config.USECASES_DIR / "travel" / "data").mkdir(parents=True, exist_ok=True)
+    (config.USECASES_DIR / "travel" / "BRIEF.md").write_text("# travel\n", encoding="utf-8")
     monkeypatch.setattr(config, "ROOT", root)
     html = client.get("/docs").text
-    names = ["Overview", "Day plan", "Setup", "Tutorial", "Marketing brief", "Travel brief", "Demo brief"]
-    names += ["Infra and architecture", "zz-new.md"]  # a doc not in the list is still there, at the end
+    names = ["Overview", "Day plan", "Setup", "Tutorial", "zz-new.md"]  # a doc not in the list goes last
     spots = [html.index(f">{n}</a>") for n in names]
     assert spots == sorted(spots)
+    for hidden in ["brief</a>", "contracts.md</a>", "data-pack.md</a>", "Infra and architecture", "Data pack"]:
+        assert hidden not in html  # briefs and reference docs stay out of the Guide
     assert '<a href="/docs/raw?name=README.md"><code>README.md</code></a>' in html  # /docs opens Overview
-    assert "<code>usecases/travel/BRIEF.md</code>" in client.get("/docs?name=travel/BRIEF.md").text
     assert client.get("/docs/raw?name=docs/zz-new.md").text == "# docs/zz-new.md\n"
+    assert client.get("/docs/raw?name=travel/BRIEF.md").status_code == 404
 
 
 def test_start_page_opens_the_last_used_use_case(client):

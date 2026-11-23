@@ -27,7 +27,7 @@ The scaffold does the same small job on each engine, so you can compare them.
 
 | Engine | What you change |
 |---|---|
-| **n8n** (:5702) | the workflow `Kit: <uc> workflow` in the n8n editor (click **Publish**), the prompt `n8n/triage.md` (no push), the graph `n8n/workflow.json` (then `make n8n-push`). The eval saves n8n edits to the files |
+| **n8n** (:5702) | the workflow `Kit: <uc> workflow` in the n8n editor (click **Publish**), the rules file `n8n/<step>.md`, e.g. `triage.md` (no push), the graph `n8n/workflow.json` (then `make n8n-push`). The eval saves n8n edits to the files |
 | **Claude Code** (your login) | `claude/CLAUDE.md`, skills in `claude/.claude/skills/` |
 | **Python** (OpenAI SDK) | `python/prompt.md`, the code in `python/agent.py` |
 
@@ -44,7 +44,7 @@ proposes, a person decides.
 
 ```text
 CLAUDE.md  .claude/skills/ for Claude Code at the repo root: it builds and evals the agents with you
-Makefile                   make up · setup · serve · check · eval · compare · n8n-push · n8n-pull · down · test · lint
+Makefile                   make up · setup · serve · check · eval · run-case · compare · n8n-push · n8n-pull · down · test · lint
 .env.example               settings template: copy to .env
 usecases/<uc>/             YOUR TEAM OWNS THIS FOLDER
   BRIEF.md                 the business problem; you write your design in it

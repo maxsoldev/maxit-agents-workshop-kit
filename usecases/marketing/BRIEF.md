@@ -47,6 +47,7 @@ paste what you need into your file):
 - `routing.md`: who handles what; when the head of department must approve.
 - `reply_guidelines.md`: tone, language, facts, unverified senders, security.
 - `contact_rules.md`: when to create or update a contact.
+- `deadlines.md`: how to write a deadline (date) from the email.
 - `process.md`: the owner's description of the process and the success criteria.
 
 Test situations in the data (details: `docs/data-pack.md`): follow-ups (Wollner 01→07, Hoffmann 08→14, Schulz 09→20), a support case with a
