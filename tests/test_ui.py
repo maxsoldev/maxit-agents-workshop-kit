@@ -357,6 +357,12 @@ def test_active_use_case_and_empty_runs_page(client):
     assert '<a href="/uc/demo/runs">Demo has 1 run →</a>' in page
 
 
+def test_header_is_sticky(client):
+    assert '<header class="top sticky">' in client.get("/docs").text
+    top = client.get("/static/style.css").text.split(".top {", 1)[1].split("}", 1)[0]
+    assert "position: sticky" in top and "top: 0" in top and "z-index" in top and "background" in top
+
+
 def test_docs_names_order_and_file_path(client, tmp_path, monkeypatch):
     root = tmp_path / "repo"
     (root / "docs").mkdir(parents=True)

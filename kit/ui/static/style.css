@@ -21,9 +21,10 @@ h3 { font-size: 1rem; margin: 0.6rem 0 0.2rem; }
 .small { font-size: 0.82rem; }
 .bad { color: var(--fail); }
 
-/* top bar */
+/* top bar: sticky, so it stays at the top when you scroll; solid background and z-index, so nothing shows through */
 .top { display: flex; align-items: center; gap: 1.5rem; padding: 0.55rem 1.5rem; background: #24292f; color: #fff;
-  flex-wrap: wrap; }
+  flex-wrap: wrap; position: sticky; top: 0; z-index: 100; }
+[id] { scroll-margin-top: 4rem; } /* a link to #case-m06 does not hide the row under the header */
 .top a { color: #d0d7de; padding: 0.25rem 0.6rem; border-radius: 6px; }
 .top a:hover { color: #fff; background: #3a414a; text-decoration: none; }
 .top a.on { color: #fff; background: #0b5cad; }
@@ -163,6 +164,7 @@ table.checks-res tr.fail { background: #fff8f7; }
 
 /* docs */
 .docs { display: grid; grid-template-columns: 15rem 1fr; gap: 1.5rem; }
+.doc-list { position: sticky; top: 4rem; align-self: start; } /* under the sticky header */
 .doc-list a { display: block; padding: 0.3rem 0.5rem; border-radius: 6px; }
 .doc-list a.on { background: var(--soft); font-weight: 600; }
 .doc { max-width: 52rem; }
