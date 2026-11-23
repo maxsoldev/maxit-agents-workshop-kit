@@ -41,6 +41,9 @@ usecases/<uc>/
 - `id` unique in the file; `title` short; `today` ISO date (the agent's "today"), optional.
 - `input`: free JSON. Every key that ends in `_file` is a path relative to the use case folder; the runner adds
   the file text under the same key without `_file` (for example `email_file` → `email`). Engines never read files.
+  An `.eml` file is decoded: `email` = readable text ("From: …", "To: …", "Date: …", "Subject: …", a blank line,
+  then the plain body; an HTML-only body becomes text), and `email_raw` = the raw file. More files of one kind:
+  `email_2_file` → `email_2`, and so on.
 - `expected`: free JSON, used by checks.
 - `checks`: list. `field` is a dotted path into the result (`reply`, `flags`, `options.0.price`).
 

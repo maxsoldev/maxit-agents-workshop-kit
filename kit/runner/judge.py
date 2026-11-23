@@ -21,6 +21,7 @@ def score(value, rubric: str, case_input: dict) -> tuple[int, str]:
 
     client = OpenAI(api_key=s.openai_api_key, base_url=s.openai_base_url or None, timeout=45, max_retries=1)
     text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, indent=1)
+    case_input = {k: v for k, v in case_input.items() if not k.endswith("_raw")}  # the decoded text is enough
     user = (f"Rubric:\n{rubric}\n\nCase input:\n{json.dumps(case_input, ensure_ascii=False)[:8000]}\n\n"
             f"Field value:\n{text[:8000]}")
     args = dict(model=s.judge_model, response_format={"type": "json_object"},

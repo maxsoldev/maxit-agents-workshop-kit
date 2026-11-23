@@ -69,6 +69,22 @@ def test_load_cases_and_resolve_files():
     assert inp["input"]["note"].startswith("Thanks") and inp["input"]["note_file"] == "data/note.txt"
 
 
+def test_eml_files_are_decoded(tmp_path, monkeypatch):
+    (tmp_path / "x" / "data").mkdir(parents=True)
+    qp = ("From: Anna <a@x.example>\nDate: Tue, 03 Nov 2026 11:22:00 +0100\nSubject: =?utf-8?q?Gr=C3=BC=C3=9Fe?=\n"
+          "Content-Type: text/plain; charset=utf-8\nContent-Transfer-Encoding: quoted-printable\n\nVielen Dank f=C3=BCr Ihre Mail.\n")
+    html = ("From: B <b@x.example>\nSubject: Only HTML\nContent-Type: text/html; charset=utf-8\n\n"
+            "<html><style>p {color: red}</style><body><p>Hello <b>team</b></p><p>Second line</p></body></html>\n")
+    (tmp_path / "x" / "data" / "qp.eml").write_text(qp)
+    (tmp_path / "x" / "data" / "html.eml").write_text(html)
+    monkeypatch.setattr(config, "USECASES_DIR", tmp_path)
+    out = cases.resolve_input("x", {"email_file": "data/qp.eml", "email_2_file": "data/html.eml"})
+    assert out["email"].startswith("From: Anna <a@x.example>\nDate: Tue, 03 Nov 2026")
+    assert "Subject: Grüße" in out["email"] and "Vielen Dank für Ihre Mail." in out["email"]
+    assert "f=C3=BCr" in out["email_raw"]
+    assert "Hello team\nSecond line" in out["email_2"] and "color" not in out["email_2"]
+
+
 def test_bad_line_has_line_number(tmp_path, monkeypatch):
     (tmp_path / "x").mkdir()
     (tmp_path / "x" / "cases.jsonl").write_text('{"id": "a", "checks": []}\n{"id": "b",\n', encoding="utf-8")
