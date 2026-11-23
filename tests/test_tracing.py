@@ -105,6 +105,47 @@ def test_check_runs_make_no_experiment(lf, lf_on):
     assert run["experiment_url"] is None and lf.writes == [] and lf_on == [("f01", None)]
 
 
+class FakeSpan:
+    """Records start_observation calls; children are FakeSpans too."""
+
+    def __init__(self, log, name="root"):
+        self.log, self.name, self._otel_span = log, name, NS(_start_time=0)
+
+    def start_observation(self, name, as_type, **kw):
+        child = FakeSpan(self.log, name)
+        self.log.append({"name": name, "parent": self.name, "type": as_type, "child": child} | kw)
+        return child
+
+    def end(self, end_time):
+        self.end_time = end_time
+
+
+def test_n8n_nodes_are_observations_with_execution_times():
+    log = []
+    root = FakeSpan(log)
+    root.trace_id = "t"
+    trace = tracing.CaseTrace(NS(get_trace_url=lambda trace_id: None), root, "mk")
+    model = {
+        "name": "M",
+        "node_type": "lm",
+        "kind": "generation",
+        "model": "fast",
+        "usage": {"input": 3},
+        "branch": None,
+    }
+    nodes = [
+        model | {"start": 2, "end": 3, "input": ["System: x"], "output": "y", "error": None, "parent": 1},
+        {"name": "Agent", "node_type": "x.agent", "kind": "agent", "model": None, "usage": None, "branch": None}
+        | {"start": 1, "end": 5, "input": {}, "output": {}, "error": "boom", "parent": None},
+    ]
+    trace.n8n_nodes(nodes)
+    agent, m = log  # the parent is made first
+    assert (agent["name"], agent["parent"], agent["type"], agent["level"]) == ("Agent", "root", "agent", "ERROR")
+    assert (m["parent"], m["type"], m["model"], m["usage_details"]) == ("Agent", "generation", "fast", {"input": 3})
+    assert agent["child"]._otel_span._start_time == 1_000_000 and m["child"].end_time == 3_000_000
+    trace.n8n_nodes([{"broken": True}])  # never raises
+
+
 def test_langfuse_down_the_eval_still_runs(lf_on, monkeypatch, capsys):
     monkeypatch.setattr(tracing, "client", lambda: (_ for _ in ()).throw(ConnectionError("refused")))
     run = runner.run_eval("fake", "python", case_ids=["f01"], name="x")

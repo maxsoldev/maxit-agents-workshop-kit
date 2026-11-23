@@ -303,6 +303,66 @@ def test_n8n_tool_calls_from_execution():
     assert engines.n8n_tool_calls(None) == [] and engines.n8n_tool_calls({"data": {}}) == []
 
 
+def test_n8n_nodes_of_the_workflow():
+    # a real (trimmed) run of `Kit: marketing workflow` (m14, the reply path)
+    execution = json.loads((FIX / "n8n_workflow_execution.json").read_text(encoding="utf-8"))
+    nodes = engines.n8n_nodes(execution)
+    main = [n["name"] for n in nodes if n["parent"] is None]
+    assert main == [
+        "Case in",
+        "Load rules",
+        "Triage",
+        "Junk?",
+        "Find sender",
+        "Earlier emails",
+        "Decide and draft",
+        "Result out",
+    ]
+    by = {n["name"]: n for n in nodes}
+    assert [nodes[by[s]["parent"]]["name"] for s in ("Triage model", "Triage fields")] == ["Triage", "Triage"]
+    model = by["Draft model"]
+    assert model["kind"] == "generation" and model["model"] == "fast"
+    assert model["usage"] == {"input": 3633, "output": 326, "total": 3959}
+    assert model["input"][0].startswith("System: You help the marketing team")
+    assert by["Triage"]["kind"] == "chain" and by["Junk?"]["branch"] == 1
+    assert by["Find sender"]["kind"] == "tool" and by["Find sender"]["input"] == {
+        "query": by["Junk?"]["output"]["output"]["sender_email"]
+    }
+    assert by["Junk?"]["input"] == by["Triage"]["output"]  # a main node's input = the output of the node before
+    assert by["Triage"]["start"] <= by["Triage model"]["start"] and by["Triage"]["end"] >= by["Triage model"]["end"]
+    assert all(n["error"] is None for n in nodes) and engines.n8n_nodes(None) == []
+
+
+def test_n8n_nodes_of_the_agent_nest_under_it():
+    execution = json.loads((FIX / "n8n_agent_execution.json").read_text(encoding="utf-8"))
+    nodes = engines.n8n_nodes(execution, limit=100)
+    agent = next(i for i, n in enumerate(nodes) if n["name"] == "Agent")
+    subs = [n for n in nodes if n["parent"] == agent]
+    assert nodes[agent]["kind"] == "agent" and [n["kind"] for n in subs].count("generation") == 2
+    assert [n["name"] for n in subs if n["kind"] == "tool"] == [
+        f"Kit tools (MCP): {t}" for t in ("rules_get", "inbox_history", "contacts_lookup")
+    ]
+    assert nodes[agent]["start"] == min(n["start"] for n in subs)  # the agent node is saved after its first model call
+    assert all(len(n["output"]) <= 100 for n in subs if isinstance(n["output"], str))
+
+
+def test_n8n_node_error():
+    run_data = {
+        "Case in": [
+            {"executionIndex": 0, "startTime": 10, "executionTime": 1, "data": {"main": [[{"json": {"a": 1}}]]}}
+        ],
+        "Load rules": [
+            {
+                "executionIndex": 1, "startTime": 11, "executionTime": 5, "executionStatus": "error",
+                "source": [{"previousNode": "Case in"}], "error": {"message": "connection refused"},
+            }
+        ],
+    }  # fmt: skip
+    nodes = engines.n8n_nodes({"data": {"resultData": {"runData": run_data}}})
+    assert nodes[1]["error"] == "connection refused" and nodes[1]["input"] == {"a": 1}
+    assert (nodes[1]["start"], nodes[1]["end"], nodes[1]["output"]) == (11, 16, None)
+
+
 def test_n8n_tool_calls_from_http_nodes():
     """The workflows call the tools by plain HTTP; the answer repeats the input."""
 

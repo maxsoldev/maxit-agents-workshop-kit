@@ -101,6 +101,7 @@ def run_case(uc: str, engine: str, case: dict, schema: dict, run_id: str, run_na
             output, error, meta = engines.call_with_deadline(uc, engine, inp, trace.env(engine))
             res.update(output=output, error=error, meta=meta)
             res["n8n_execution_url"] = meta.pop("execution_url", None)
+            trace.n8n_nodes(meta.pop("n8n_nodes", None) or [])
             trace.tool_calls(meta.get("tool_calls") or [])
             res["checks"] = checks.run_checks(case, output, schema, inp["input"], meta.get("tool_calls"))
             res["passed"] = error is None and all(c["passed"] is not False for c in res["checks"])  # skipped ok

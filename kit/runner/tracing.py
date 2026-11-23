@@ -39,6 +39,9 @@ class NoTrace:
     def tool_calls(self, calls: list[dict]) -> None:
         pass
 
+    def n8n_nodes(self, nodes: list[dict]) -> None:
+        pass
+
 
 class CaseTrace(NoTrace):
     def __init__(self, lf, span, uc: str):
@@ -80,6 +83,33 @@ class CaseTrace(NoTrace):
                 self.span.start_observation(
                     name=f"tool:{c['name']}", as_type="tool", input=c.get("input"), output=c.get("output")
                 ).end()
+        except Exception:
+            pass  # tracing must never break a run
+
+    def n8n_nodes(self, nodes: list[dict]) -> None:
+        """One observation per n8n node run (`engines.n8n_nodes`), with the start and end time of the execution.
+        Sub-nodes (model, tool, parser) nest under their AI node; model runs are generations with tokens."""
+        made: dict[int, object] = {}
+
+        def make(i: int):
+            if i not in made:
+                n = nodes[i]
+                parent = self.span if n["parent"] is None else make(n["parent"])
+                extra = {"model": n["model"], "usage_details": n["usage"]} if n["kind"] == "generation" else {}
+                meta = {"n8n_node_type": n["node_type"]} | ({"branch": n["branch"]} if n["branch"] is not None else {})
+                o = parent.start_observation(
+                    name=n["name"], as_type=n["kind"], input=n["input"], output=n["output"], metadata=meta,
+                    level="ERROR" if n["error"] else None, status_message=n["error"], **extra,
+                )  # fmt: skip
+                o._otel_span._start_time = int(n["start"] * 1e6)  # the SDK has no start time argument (ms -> ns)
+                made[i] = o
+            return made[i]
+
+        try:
+            for i in range(len(nodes)):
+                make(i)
+            for i, o in made.items():
+                o.end(end_time=int(nodes[i]["end"] * 1e6))
         except Exception:
             pass  # tracing must never break a run
 

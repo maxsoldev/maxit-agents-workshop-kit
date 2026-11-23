@@ -1,0 +1,609 @@
+{
+ "id": "261",
+ "status": "success",
+ "workflowData": {
+  "name": "Kit: marketing agent (example)",
+  "nodes": [
+   {
+    "name": "Case in",
+    "type": "n8n-nodes-base.webhook"
+   },
+   {
+    "name": "Agent",
+    "type": "@n8n/n8n-nodes-langchain.agent"
+   },
+   {
+    "name": "OpenAI model",
+    "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi"
+   },
+   {
+    "name": "Kit tools (MCP)",
+    "type": "@n8n/n8n-nodes-langchain.mcpClientTool"
+   },
+   {
+    "name": "Result shape",
+    "type": "@n8n/n8n-nodes-langchain.outputParserStructured"
+   },
+   {
+    "name": "Result out",
+    "type": "n8n-nodes-base.respondToWebhook"
+   }
+  ]
+ },
+ "data": {
+  "resultData": {
+   "runData": {
+    "Case in": [
+     {
+      "startTime": 1795434968557,
+      "executionIndex": 0,
+      "source": [],
+      "hints": [],
+      "executionTime": 0,
+      "executionStatus": "success",
+      "data": {
+       "main": [
+        [
+         {
+          "json": {
+           "headers": {
+            "host": "localhost:5722",
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate",
+            "connection": "keep-alive",
+            "user-agent": "python-httpx/0.28.1",
+            "x-kit-call": "6f61936e98224c6db5a3118e77a63ba8",
+            "content-length": "1910",
+            "content-type": "application/json"
+           },
+           "params": {},
+           "query": {},
+           "body": {
+            "case_id": "m14",
+            "today": "2026-11-12",
+            "input": {
+             "email_file": "data/emails/14_2026-11-12.eml",
+             "email": "From: Lena Hoffmann <lena.hoffmann@mpi-example-history.example>\nTo: bloxberg Info <info@bloxberg.example>\nDate: Thu, 12 Nov 2026 11:40:00 +0100\nSubject: AW: Zertifikat lässt sich nicht verifizieren\n\nH...",
+             "email_raw": "From: Lena Hoffmann <lena.hoffmann@mpi-example-history.example>\nTo: bloxberg Info <info@bloxberg.example>\nSubject: AW: Zertifikat =?utf-8?q?l=C3=A4sst?= sich nicht verifizieren\nDate: Thu, 12 Nov 2026 ..."
+            },
+            "output_schema": {
+             "$schema": "https://json-schema.org/draft/2020-12/schema",
+             "title": "Marketing inbox: result for one email",
+             "type": "object",
+             "required": [
+              "category",
+              "flags",
+              "reply",
+              "reasons"
+             ],
+             "additionalProperties": false,
+             "properties": {
+              "category": {
+               "type": "string",
+               "enum": [
+                "institute_request",
+                "membership",
+                "partnership",
+                "event_invitation",
+                "press",
+                "service_offer",
+                "unverified_outreach",
+                "newsletter",
+                "spam"
+               ],
+               "description": "Exactly one category, see data/categories.md."
+              },
+              "flags": {
+               "type": "array",
+               "items": {
+                "type": "string",
+                "enum": [
+                 "phishing",
+                 "injection",
+                 "unverified",
+                 "off_target"
+                ]
+               },
+               "description": "Zero or more warning flags, see data/categories.md."
+              },
+              "reply": {
+               "type": "string",
+               "description": "A reply draft for a human to check. Empty string when we do not reply."
+              },
+              "reasons": {
+               "type": "string",
+               "description": "Short explanation of the decision, for the reviewer."
+              }
+             }
+            }
+           },
+           "webhookUrl": "http://localhost:5722/webhook/marketing-agent",
+           "executionMode": "production"
+          },
+          "pairedItem": {
+           "item": 0
+          }
+         }
+        ]
+       ]
+      }
+     }
+    ],
+    "OpenAI model": [
+     {
+      "startTime": 1795434968583,
+      "executionTime": 1993,
+      "executionIndex": 2,
+      "executionStatus": "success",
+      "source": [
+       {
+        "previousNode": "Agent",
+        "previousNodeRun": 0
+       }
+      ],
+      "data": {
+       "ai_languageModel": [
+        [
+         {
+          "json": {
+           "response": {
+            "generations": [
+             [
+              {
+               "text": "",
+               "generationInfo": {
+                "finish_reason": "tool_calls",
+                "model_name": "fast"
+               }
+              }
+             ]
+            ]
+           },
+           "tokenUsage": {
+            "completionTokens": 139,
+            "promptTokens": 1686,
+            "totalTokens": 1825
+           }
+          }
+         }
+        ]
+       ]
+      },
+      "inputOverride": {
+       "ai_languageModel": [
+        [
+         {
+          "json": {
+           "messages": [
+            "System: You help the marketing team of bloxberg with the info inbox.\nYou get ONE email (key \"email\" in the input) and the date of today. Return ONE result JSON.\nA person reads your result, changes the..."
+           ],
+           "estimatedTokens": 712
+          }
+         }
+        ]
+       ]
+      },
+      "metadata": {
+       "tracing": {
+        "gen_ai.operation.name": "chat",
+        "gen_ai.provider.name": "openai",
+        "gen_ai.request.model": "fast",
+        "gen_ai.response.model": "fast",
+        "gen_ai.usage.input_tokens": 1686,
+        "gen_ai.usage.output_tokens": 139
+       },
+       "subRun": [
+        {
+         "node": "OpenAI model",
+         "runIndex": 0
+        }
+       ]
+      }
+     },
+     {
+      "startTime": 1795434970638,
+      "executionTime": 4694,
+      "executionIndex": 7,
+      "executionStatus": "success",
+      "source": [
+       {
+        "previousNode": "Agent",
+        "previousNodeRun": 0
+       }
+      ],
+      "data": {
+       "ai_languageModel": [
+        [
+         {
+          "json": {
+           "response": {
+            "generations": [
+             [
+              {
+               "text": "",
+               "generationInfo": {
+                "finish_reason": "tool_calls",
+                "model_name": "fast"
+               }
+              }
+             ]
+            ]
+           },
+           "tokenUsage": {
+            "completionTokens": 242,
+            "promptTokens": 6118,
+            "totalTokens": 6360
+           }
+          }
+         }
+        ]
+       ]
+      },
+      "inputOverride": {
+       "ai_languageModel": [
+        [
+         {
+          "json": {
+           "messages": [
+            "System: You help the marketing team of bloxberg with the info inbox.\nYou get ONE email (key \"email\" in the input) and the date of today. Return ONE result JSON.\nA person reads your result, changes the..."
+           ],
+           "estimatedTokens": 5167
+          }
+         }
+        ]
+       ]
+      },
+      "metadata": {
+       "tracing": {
+        "gen_ai.operation.name": "chat",
+        "gen_ai.provider.name": "openai",
+        "gen_ai.request.model": "fast",
+        "gen_ai.response.model": "fast",
+        "gen_ai.usage.input_tokens": 6118,
+        "gen_ai.usage.output_tokens": 242
+       },
+       "subRun": [
+        {
+         "node": "OpenAI model",
+         "runIndex": 1
+        }
+       ]
+      }
+     }
+    ],
+    "Kit tools (MCP)": [
+     {
+      "inputOverride": {
+       "ai_tool": [
+        [
+         {
+          "json": {
+           "usecase": "marketing",
+           "name": "categories,routing,reply_guidelines,contact_rules,process",
+           "tool": "Kit_tools__MCP__rules_get"
+          },
+          "pairedItem": {
+           "item": 0,
+           "input": 0,
+           "sourceOverwrite": {
+            "previousNode": "Case in",
+            "previousNodeOutput": 0,
+            "previousNodeRun": 0
+           }
+          }
+         }
+        ]
+       ]
+      },
+      "source": [
+       {
+        "previousNode": "Agent",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      ],
+      "executionIndex": 3,
+      "executionTime": 11,
+      "startTime": 1795434970580,
+      "hints": [],
+      "metadata": {
+       "preserveSourceOverwrite": true,
+       "preservedSourceOverwrite": {
+        "previousNode": "Case in",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      },
+      "executionStatus": "success",
+      "data": {
+       "ai_tool": [
+        [
+         {
+          "json": {
+           "response": [
+            {
+             "type": "text",
+             "text": "{\n  \"usecase\": \"marketing\",\n  \"name\": \"categories,routing,reply_guidelines,contact_rules,process\",\n  \"text\": \"=== categories.md ===\\n# Categories for the bloxberg info inbox\\n\\nGive every email exactl..."
+            }
+           ]
+          },
+          "pairedItem": {
+           "item": 0
+          }
+         }
+        ]
+       ]
+      }
+     },
+     {
+      "inputOverride": {
+       "ai_tool": [
+        [
+         {
+          "json": {
+           "sender": "lena.hoffmann@mpi-example-history.example",
+           "before": "2026-11-12",
+           "tool": "Kit_tools__MCP__inbox_history"
+          },
+          "pairedItem": {
+           "item": 0,
+           "input": 0,
+           "sourceOverwrite": {
+            "previousNode": "Case in",
+            "previousNodeOutput": 0,
+            "previousNodeRun": 0
+           }
+          }
+         }
+        ]
+       ]
+      },
+      "source": [
+       {
+        "previousNode": "Agent",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      ],
+      "executionIndex": 4,
+      "executionTime": 17,
+      "startTime": 1795434970591,
+      "hints": [],
+      "metadata": {
+       "preserveSourceOverwrite": true,
+       "preservedSourceOverwrite": {
+        "previousNode": "Case in",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      },
+      "executionStatus": "success",
+      "data": {
+       "ai_tool": [
+        [
+         {
+          "json": {
+           "response": [
+            {
+             "type": "text",
+             "text": "{\n  \"count\": 1,\n  \"emails\": [\n    {\n      \"from\": \"Lena Hoffmann <lena.hoffmann@mpi-example-history.example>\",\n      \"date\": \"2026-11-06T09:48:00+01:00\",\n      \"subject\": \"Zertifikat lässt sich nicht ..."
+            }
+           ]
+          },
+          "pairedItem": {
+           "item": 0
+          }
+         }
+        ]
+       ]
+      }
+     },
+     {
+      "inputOverride": {
+       "ai_tool": [
+        [
+         {
+          "json": {
+           "query": "lena.hoffmann@mpi-example-history.example",
+           "tool": "Kit_tools__MCP__contacts_lookup"
+          },
+          "pairedItem": {
+           "item": 0,
+           "input": 0,
+           "sourceOverwrite": {
+            "previousNode": "Case in",
+            "previousNodeOutput": 0,
+            "previousNodeRun": 0
+           }
+          }
+         }
+        ]
+       ]
+      },
+      "source": [
+       {
+        "previousNode": "Agent",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      ],
+      "executionIndex": 5,
+      "executionTime": 3,
+      "startTime": 1795434970608,
+      "hints": [],
+      "metadata": {
+       "preserveSourceOverwrite": true,
+       "preservedSourceOverwrite": {
+        "previousNode": "Case in",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      },
+      "executionStatus": "success",
+      "data": {
+       "ai_tool": [
+        [
+         {
+          "json": {
+           "response": [
+            {
+             "type": "text",
+             "text": "{\n  \"count\": 1,\n  \"contacts\": [\n    {\n      \"Name\": \"Lena Hoffmann\",\n      \"Organisation\": \"MPI für Beispielgeschichte\",\n      \"Role\": \"IT coordination\",\n      \"Email\": \"lena.hoffmann@mpi-example-hist..."
+            }
+           ]
+          },
+          "pairedItem": {
+           "item": 0
+          }
+         }
+        ]
+       ]
+      }
+     }
+    ],
+    "Result shape": [
+     {
+      "startTime": 1795434975333,
+      "executionTime": 0,
+      "executionIndex": 8,
+      "executionStatus": "success",
+      "source": [
+       {
+        "previousNode": "Agent",
+        "previousNodeRun": 0
+       }
+      ],
+      "data": {
+       "ai_outputParser": [
+        [
+         {
+          "json": {
+           "action": "parse",
+           "response": {
+            "output": {
+             "category": "institute_request",
+             "flags": [],
+             "reply": "Liebe Frau Hoffmann,\n\nvielen Dank für Ihre Nachfrage und entschuldigen Sie bitte die Verzögerung. In Ihrer ersten Nachricht schilderten Sie, dass bei der Prüfung des Zertifikats auf der Verifizierungs...",
+             "reasons": "Erneute Supportanfrage einer aktiven Nutzerin zu einem nicht verifizierbaren Zertifikat. Dringend an das Technikteam weiterleiten; die Bestätigung wird bis zum 28. November 2026 benötigt."
+            }
+           }
+          }
+         }
+        ]
+       ]
+      },
+      "inputOverride": {
+       "ai_outputParser": [
+        [
+         {
+          "json": {
+           "action": "parse",
+           "text": "{\"output\":{\"category\":\"institute_request\",\"flags\":[],\"reply\":\"Liebe Frau Hoffmann,\\n\\nvielen Dank für Ihre Nachfrage und entschuldigen Sie bitte die Verzögerung. In Ihrer ersten Nachricht schilderten ..."
+          }
+         }
+        ]
+       ]
+      },
+      "metadata": {
+       "subRun": [
+        {
+         "node": "Result shape",
+         "runIndex": 0
+        }
+       ]
+      }
+     }
+    ],
+    "Agent": [
+     {
+      "startTime": 1795434970611,
+      "executionIndex": 6,
+      "source": [
+       {
+        "previousNode": "Case in",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      ],
+      "hints": [],
+      "executionTime": 4727,
+      "metadata": {
+       "tracing": {
+        "llm.tokens.in": 6118,
+        "llm.tokens.out": 242,
+        "llm.tokens.total": 6360,
+        "llm.tokens.estimated": false,
+        "ai.agent.version": "v3",
+        "ai.agent.streaming.enabled": true,
+        "ai.agent.items.total": 1,
+        "ai.agent.items.failed": 0,
+        "ai.agent.tool_calls.requested": 0,
+        "ai.agent.tool_calls.completed": 3,
+        "ai.agent.iteration.count": 0,
+        "ai.agent.memory.loads": 0,
+        "ai.agent.memory.saves": 0,
+        "ai.agent.execution.succeeded": true
+       }
+      },
+      "executionStatus": "success",
+      "data": {
+       "main": [
+        [
+         {
+          "json": {
+           "output": {
+            "category": "institute_request",
+            "flags": [],
+            "reply": "Liebe Frau Hoffmann,\n\nvielen Dank für Ihre Nachfrage und entschuldigen Sie bitte die Verzögerung. In Ihrer ersten Nachricht schilderten Sie, dass bei der Prüfung des Zertifikats auf der Verifizierungs...",
+            "reasons": "Erneute Supportanfrage einer aktiven Nutzerin zu einem nicht verifizierbaren Zertifikat. Dringend an das Technikteam weiterleiten; die Bestätigung wird bis zum 28. November 2026 benötigt."
+           }
+          },
+          "pairedItem": {
+           "item": 0
+          }
+         }
+        ]
+       ]
+      }
+     }
+    ],
+    "Result out": [
+     {
+      "startTime": 1795434975338,
+      "executionIndex": 9,
+      "source": [
+       {
+        "previousNode": "Agent",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      ],
+      "hints": [],
+      "executionTime": 1,
+      "executionStatus": "success",
+      "data": {
+       "main": [
+        [
+         {
+          "json": {
+           "output": {
+            "category": "institute_request",
+            "flags": [],
+            "reply": "Liebe Frau Hoffmann,\n\nvielen Dank für Ihre Nachfrage und entschuldigen Sie bitte die Verzögerung. In Ihrer ersten Nachricht schilderten Sie, dass bei der Prüfung des Zertifikats auf der Verifizierungs...",
+            "reasons": "Erneute Supportanfrage einer aktiven Nutzerin zu einem nicht verifizierbaren Zertifikat. Dringend an das Technikteam weiterleiten; die Bestätigung wird bis zum 28. November 2026 benötigt."
+           }
+          },
+          "pairedItem": {
+           "item": 0
+          }
+         }
+        ]
+       ]
+      }
+     }
+    ]
+   },
+   "lastNodeExecuted": "Result out"
+  }
+ }
+}

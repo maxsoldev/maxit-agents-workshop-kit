@@ -1,0 +1,706 @@
+{
+ "id": "260",
+ "status": "success",
+ "workflowData": {
+  "name": "Kit: marketing workflow",
+  "nodes": [
+   {
+    "name": "Case in",
+    "type": "n8n-nodes-base.webhook"
+   },
+   {
+    "name": "Load rules",
+    "type": "n8n-nodes-base.httpRequest"
+   },
+   {
+    "name": "Triage",
+    "type": "@n8n/n8n-nodes-langchain.chainLlm"
+   },
+   {
+    "name": "Triage model",
+    "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi"
+   },
+   {
+    "name": "Triage fields",
+    "type": "@n8n/n8n-nodes-langchain.outputParserStructured"
+   },
+   {
+    "name": "Junk?",
+    "type": "n8n-nodes-base.if"
+   },
+   {
+    "name": "Result: no reply",
+    "type": "n8n-nodes-base.code"
+   },
+   {
+    "name": "Find sender",
+    "type": "n8n-nodes-base.httpRequest"
+   },
+   {
+    "name": "Earlier emails",
+    "type": "n8n-nodes-base.httpRequest"
+   },
+   {
+    "name": "Decide and draft",
+    "type": "@n8n/n8n-nodes-langchain.chainLlm"
+   },
+   {
+    "name": "Draft model",
+    "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi"
+   },
+   {
+    "name": "Result shape",
+    "type": "@n8n/n8n-nodes-langchain.outputParserStructured"
+   },
+   {
+    "name": "Result out",
+    "type": "n8n-nodes-base.respondToWebhook"
+   }
+  ]
+ },
+ "data": {
+  "resultData": {
+   "runData": {
+    "Case in": [
+     {
+      "startTime": 1795434955084,
+      "executionIndex": 0,
+      "source": [],
+      "hints": [],
+      "executionTime": 0,
+      "executionStatus": "success",
+      "data": {
+       "main": [
+        [
+         {
+          "json": {
+           "headers": {
+            "host": "localhost:5722",
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate",
+            "connection": "keep-alive",
+            "user-agent": "python-httpx/0.28.1",
+            "x-kit-call": "18096695de954746ad4158bb377c9642",
+            "content-length": "1910",
+            "content-type": "application/json"
+           },
+           "params": {},
+           "query": {},
+           "body": {
+            "case_id": "m14",
+            "today": "2026-11-12",
+            "input": {
+             "email_file": "data/emails/14_2026-11-12.eml",
+             "email": "From: Lena Hoffmann <lena.hoffmann@mpi-example-history.example>\nTo: bloxberg Info <info@bloxberg.example>\nDate: Thu, 12 Nov 2026 11:40:00 +0100\nSubject: AW: Zertifikat lässt sich nicht verifizieren\n\nH...",
+             "email_raw": "From: Lena Hoffmann <lena.hoffmann@mpi-example-history.example>\nTo: bloxberg Info <info@bloxberg.example>\nSubject: AW: Zertifikat =?utf-8?q?l=C3=A4sst?= sich nicht verifizieren\nDate: Thu, 12 Nov 2026 ..."
+            },
+            "output_schema": {
+             "$schema": "https://json-schema.org/draft/2020-12/schema",
+             "title": "Marketing inbox: result for one email",
+             "type": "object",
+             "required": [
+              "category",
+              "flags",
+              "reply",
+              "reasons"
+             ],
+             "additionalProperties": false,
+             "properties": {
+              "category": {
+               "type": "string",
+               "enum": [
+                "institute_request",
+                "membership",
+                "partnership",
+                "event_invitation",
+                "press",
+                "service_offer",
+                "unverified_outreach",
+                "newsletter",
+                "spam"
+               ],
+               "description": "Exactly one category, see data/categories.md."
+              },
+              "flags": {
+               "type": "array",
+               "items": {
+                "type": "string",
+                "enum": [
+                 "phishing",
+                 "injection",
+                 "unverified",
+                 "off_target"
+                ]
+               },
+               "description": "Zero or more warning flags, see data/categories.md."
+              },
+              "reply": {
+               "type": "string",
+               "description": "A reply draft for a human to check. Empty string when we do not reply."
+              },
+              "reasons": {
+               "type": "string",
+               "description": "Short explanation of the decision, for the reviewer."
+              }
+             }
+            }
+           },
+           "webhookUrl": "http://localhost:5722/webhook/marketing",
+           "executionMode": "production"
+          },
+          "pairedItem": {
+           "item": 0
+          }
+         }
+        ]
+       ]
+      }
+     }
+    ],
+    "Load rules": [
+     {
+      "startTime": 1795434955084,
+      "executionIndex": 1,
+      "source": [
+       {
+        "previousNode": "Case in",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      ],
+      "hints": [],
+      "executionTime": 8,
+      "executionStatus": "success",
+      "data": {
+       "main": [
+        [
+         {
+          "json": {
+           "tool": "rules_get",
+           "input": {
+            "usecase": "marketing",
+            "name": "categories,routing,reply_guidelines,contact_rules"
+           },
+           "output": {
+            "usecase": "marketing",
+            "name": "categories,routing,reply_guidelines,contact_rules",
+            "text": "=== categories.md ===\n# Categories for the bloxberg info inbox\n\nGive every email exactly one category. If two fit, take the one that best describes what the sender wants from us.\n\n| Category | What it..."
+           }
+          },
+          "pairedItem": {
+           "item": 0
+          }
+         }
+        ]
+       ]
+      }
+     }
+    ],
+    "Triage model": [
+     {
+      "startTime": 1795434955119,
+      "executionTime": 1705,
+      "executionIndex": 3,
+      "executionStatus": "success",
+      "source": [
+       {
+        "previousNode": "Triage",
+        "previousNodeRun": 0
+       }
+      ],
+      "data": {
+       "ai_languageModel": [
+        [
+         {
+          "json": {
+           "response": {
+            "generations": [
+             [
+              {
+               "text": "```json\n{\n  \"output\": {\n    \"category\": \"institute_request\",\n    \"flags\": [],\n    \"sender_email\": \"lena.hoffmann@mpi-example-history.example\",\n    \"reason\": \"The sender follows up on a certificate ver...",
+               "generationInfo": {
+                "finish_reason": "stop",
+                "model_name": "fast"
+               }
+              }
+             ]
+            ]
+           },
+           "tokenUsage": {
+            "completionTokens": 70,
+            "promptTokens": 2894,
+            "totalTokens": 2964
+           }
+          }
+         }
+        ]
+       ]
+      },
+      "inputOverride": {
+       "ai_languageModel": [
+        [
+         {
+          "json": {
+           "messages": [
+            "System: You sort ONE email for the bloxberg info inbox. You do not write a reply.\nReturn:\n- category: one of institute_request, membership, partnership, event_invitation, press,\n  service_offer, unver..."
+           ],
+           "estimatedTokens": 2888
+          }
+         }
+        ]
+       ]
+      },
+      "metadata": {
+       "tracing": {
+        "gen_ai.operation.name": "chat",
+        "gen_ai.provider.name": "openai",
+        "gen_ai.request.model": "fast",
+        "gen_ai.response.model": "fast",
+        "gen_ai.usage.input_tokens": 2894,
+        "gen_ai.usage.output_tokens": 70
+       },
+       "subRun": [
+        {
+         "node": "Triage model",
+         "runIndex": 0
+        }
+       ]
+      }
+     }
+    ],
+    "Triage fields": [
+     {
+      "startTime": 1795434956826,
+      "executionTime": 1,
+      "executionIndex": 4,
+      "executionStatus": "success",
+      "source": [
+       {
+        "previousNode": "Triage",
+        "previousNodeRun": 0
+       }
+      ],
+      "data": {
+       "ai_outputParser": [
+        [
+         {
+          "json": {
+           "action": "parse",
+           "response": {
+            "output": {
+             "category": "institute_request",
+             "flags": [],
+             "sender_email": "lena.hoffmann@mpi-example-history.example",
+             "reason": "The sender follows up on a certificate verification problem with a deadline of 28 November."
+            }
+           }
+          }
+         }
+        ]
+       ]
+      },
+      "inputOverride": {
+       "ai_outputParser": [
+        [
+         {
+          "json": {
+           "action": "parse",
+           "text": "```json\n{\n  \"output\": {\n    \"category\": \"institute_request\",\n    \"flags\": [],\n    \"sender_email\": \"lena.hoffmann@mpi-example-history.example\",\n    \"reason\": \"The sender follows up on a certificate ver..."
+          }
+         }
+        ]
+       ]
+      },
+      "metadata": {
+       "subRun": [
+        {
+         "node": "Triage fields",
+         "runIndex": 0
+        }
+       ]
+      }
+     }
+    ],
+    "Triage": [
+     {
+      "startTime": 1795434955092,
+      "executionIndex": 2,
+      "source": [
+       {
+        "previousNode": "Load rules",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      ],
+      "hints": [],
+      "executionTime": 1735,
+      "metadata": {
+       "tracing": {
+        "llm.tokens.in": 2894,
+        "llm.tokens.out": 70,
+        "llm.tokens.total": 2964,
+        "llm.tokens.estimated": false
+       }
+      },
+      "executionStatus": "success",
+      "data": {
+       "main": [
+        [
+         {
+          "json": {
+           "output": {
+            "category": "institute_request",
+            "flags": [],
+            "sender_email": "lena.hoffmann@mpi-example-history.example",
+            "reason": "The sender follows up on a certificate verification problem with a deadline of 28 November."
+           }
+          },
+          "pairedItem": {
+           "item": 0
+          }
+         }
+        ]
+       ]
+      }
+     }
+    ],
+    "Junk?": [
+     {
+      "startTime": 1795434956827,
+      "executionIndex": 5,
+      "source": [
+       {
+        "previousNode": "Triage",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      ],
+      "hints": [],
+      "executionTime": 4,
+      "executionStatus": "success",
+      "data": {
+       "main": [
+        [],
+        [
+         {
+          "json": {
+           "output": {
+            "category": "institute_request",
+            "flags": [],
+            "sender_email": "lena.hoffmann@mpi-example-history.example",
+            "reason": "The sender follows up on a certificate verification problem with a deadline of 28 November."
+           }
+          },
+          "pairedItem": {
+           "item": 0
+          }
+         }
+        ]
+       ]
+      }
+     }
+    ],
+    "Find sender": [
+     {
+      "startTime": 1795434956831,
+      "executionIndex": 6,
+      "source": [
+       {
+        "previousNode": "Junk?",
+        "previousNodeOutput": 1,
+        "previousNodeRun": 0
+       }
+      ],
+      "hints": [],
+      "executionTime": 9,
+      "executionStatus": "success",
+      "data": {
+       "main": [
+        [
+         {
+          "json": {
+           "tool": "contacts_lookup",
+           "input": {
+            "query": "lena.hoffmann@mpi-example-history.example"
+           },
+           "output": {
+            "count": 1,
+            "contacts": [
+             {
+              "Name": "Lena Hoffmann",
+              "Organisation": "MPI für Beispielgeschichte",
+              "Role": "IT coordination",
+              "Email": "lena.hoffmann@mpi-example-history.example",
+              "Category": "Institute",
+              "Language": "DE",
+              "Topics": "bloxberg certification",
+              "Last contact": "2026-09-03",
+              "Status": "Active user",
+              "Notes": "Uses bloxberg for research datasets since 2025"
+             }
+            ]
+           }
+          },
+          "pairedItem": {
+           "item": 0
+          }
+         }
+        ]
+       ]
+      }
+     }
+    ],
+    "Earlier emails": [
+     {
+      "startTime": 1795434956840,
+      "executionIndex": 7,
+      "source": [
+       {
+        "previousNode": "Find sender",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      ],
+      "hints": [],
+      "executionTime": 27,
+      "executionStatus": "success",
+      "data": {
+       "main": [
+        [
+         {
+          "json": {
+           "tool": "inbox_history",
+           "input": {
+            "sender": "lena.hoffmann@mpi-example-history.example",
+            "before": "2026-11-12"
+           },
+           "output": {
+            "count": 1,
+            "emails": [
+             {
+              "from": "Lena Hoffmann <lena.hoffmann@mpi-example-history.example>",
+              "date": "2026-11-06T09:48:00+01:00",
+              "subject": "Zertifikat lässt sich nicht verifizieren",
+              "text": "Hallo zusammen,\n\nwir nutzen bloxberg seit letztem Jahr für unsere Datensätze. Ein externer Gutachter meldet nun, dass sich eines unserer Zertifikate (PDF vom März 2026) über die Verifizierungsseite ni...",
+              "file": "data/emails/08_2026-11-06.eml"
+             }
+            ]
+           }
+          },
+          "pairedItem": {
+           "item": 0
+          }
+         }
+        ]
+       ]
+      }
+     }
+    ],
+    "Draft model": [
+     {
+      "startTime": 1795434956889,
+      "executionTime": 5851,
+      "executionIndex": 9,
+      "executionStatus": "success",
+      "source": [
+       {
+        "previousNode": "Decide and draft",
+        "previousNodeRun": 0
+       }
+      ],
+      "data": {
+       "ai_languageModel": [
+        [
+         {
+          "json": {
+           "response": {
+            "generations": [
+             [
+              {
+               "text": "{\"output\":{\"category\":\"institute_request\",\"flags\":[],\"reply\":\"Liebe Frau Hoffmann,\\n\\nvielen Dank für Ihre Nachfrage. Bitte entschuldigen Sie, dass Sie auf eine Antwort zu Ihrer Nachricht vom 6. Novem...",
+               "generationInfo": {
+                "finish_reason": "stop",
+                "model_name": "fast"
+               }
+              }
+             ]
+            ]
+           },
+           "tokenUsage": {
+            "completionTokens": 326,
+            "promptTokens": 3633,
+            "totalTokens": 3959
+           }
+          }
+         }
+        ]
+       ]
+      },
+      "inputOverride": {
+       "ai_languageModel": [
+        [
+         {
+          "json": {
+           "messages": [
+            "System: You help the marketing team of bloxberg with the info inbox.\nYou get ONE email, the triage of it, the sender's rows in the contact sheet and the sender's earlier emails.\nReturn ONE result JSON..."
+           ],
+           "estimatedTokens": 3627
+          }
+         }
+        ]
+       ]
+      },
+      "metadata": {
+       "tracing": {
+        "gen_ai.operation.name": "chat",
+        "gen_ai.provider.name": "openai",
+        "gen_ai.request.model": "fast",
+        "gen_ai.response.model": "fast",
+        "gen_ai.usage.input_tokens": 3633,
+        "gen_ai.usage.output_tokens": 326
+       },
+       "subRun": [
+        {
+         "node": "Draft model",
+         "runIndex": 0
+        }
+       ]
+      }
+     }
+    ],
+    "Result shape": [
+     {
+      "startTime": 1795434962741,
+      "executionTime": 0,
+      "executionIndex": 10,
+      "executionStatus": "success",
+      "source": [
+       {
+        "previousNode": "Decide and draft",
+        "previousNodeRun": 0
+       }
+      ],
+      "data": {
+       "ai_outputParser": [
+        [
+         {
+          "json": {
+           "action": "parse",
+           "response": {
+            "output": {
+             "category": "institute_request",
+             "flags": [],
+             "reply": "Liebe Frau Hoffmann,\n\nvielen Dank für Ihre Nachfrage. Bitte entschuldigen Sie, dass Sie auf eine Antwort zu Ihrer Nachricht vom 6. November warten mussten.\n\nWir geben das Problem mit der Verifizierung...",
+             "reasons": "Erneute technische Supportanfrage: dringend und mit hoher Priorität an das tech_team weiterleiten; Frist ist der 28.11.2026. Für den bestehenden Kontakt bei Antwort „Last contact“ auf 2026-11-12 setze..."
+            }
+           }
+          }
+         }
+        ]
+       ]
+      },
+      "inputOverride": {
+       "ai_outputParser": [
+        [
+         {
+          "json": {
+           "action": "parse",
+           "text": "{\"output\":{\"category\":\"institute_request\",\"flags\":[],\"reply\":\"Liebe Frau Hoffmann,\\n\\nvielen Dank für Ihre Nachfrage. Bitte entschuldigen Sie, dass Sie auf eine Antwort zu Ihrer Nachricht vom 6. Novem..."
+          }
+         }
+        ]
+       ]
+      },
+      "metadata": {
+       "subRun": [
+        {
+         "node": "Result shape",
+         "runIndex": 0
+        }
+       ]
+      }
+     }
+    ],
+    "Decide and draft": [
+     {
+      "startTime": 1795434956867,
+      "executionIndex": 8,
+      "source": [
+       {
+        "previousNode": "Earlier emails",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      ],
+      "hints": [],
+      "executionTime": 5874,
+      "metadata": {
+       "tracing": {
+        "llm.tokens.in": 3633,
+        "llm.tokens.out": 326,
+        "llm.tokens.total": 3959,
+        "llm.tokens.estimated": false
+       }
+      },
+      "executionStatus": "success",
+      "data": {
+       "main": [
+        [
+         {
+          "json": {
+           "output": {
+            "category": "institute_request",
+            "flags": [],
+            "reply": "Liebe Frau Hoffmann,\n\nvielen Dank für Ihre Nachfrage. Bitte entschuldigen Sie, dass Sie auf eine Antwort zu Ihrer Nachricht vom 6. November warten mussten.\n\nWir geben das Problem mit der Verifizierung...",
+            "reasons": "Erneute technische Supportanfrage: dringend und mit hoher Priorität an das tech_team weiterleiten; Frist ist der 28.11.2026. Für den bestehenden Kontakt bei Antwort „Last contact“ auf 2026-11-12 setze..."
+           }
+          },
+          "pairedItem": {
+           "item": 0
+          }
+         }
+        ]
+       ]
+      }
+     }
+    ],
+    "Result out": [
+     {
+      "startTime": 1795434962741,
+      "executionIndex": 11,
+      "source": [
+       {
+        "previousNode": "Decide and draft",
+        "previousNodeOutput": 0,
+        "previousNodeRun": 0
+       }
+      ],
+      "hints": [],
+      "executionTime": 3,
+      "executionStatus": "success",
+      "data": {
+       "main": [
+        [
+         {
+          "json": {
+           "output": {
+            "category": "institute_request",
+            "flags": [],
+            "reply": "Liebe Frau Hoffmann,\n\nvielen Dank für Ihre Nachfrage. Bitte entschuldigen Sie, dass Sie auf eine Antwort zu Ihrer Nachricht vom 6. November warten mussten.\n\nWir geben das Problem mit der Verifizierung...",
+            "reasons": "Erneute technische Supportanfrage: dringend und mit hoher Priorität an das tech_team weiterleiten; Frist ist der 28.11.2026. Für den bestehenden Kontakt bei Antwort „Last contact“ auf 2026-11-12 setze..."
+           }
+          },
+          "pairedItem": {
+           "item": 0
+          }
+         }
+        ]
+       ]
+      }
+     }
+    ]
+   },
+   "lastNodeExecuted": "Result out"
+  }
+ }
+}
