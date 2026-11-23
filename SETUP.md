@@ -84,6 +84,8 @@ cp .env.example .env      # skip if you did it before the day
 ```
 
 Open `.env` and set `OPENAI_API_KEY=sk-...`. Your trainer gives you `TRAINS_URL`.
+Put all your settings in `.env`, never in `.env.example`: that file is the template in git, and a change to it
+stops `git pull`.
 If your team does not use all engines, set them, e.g. `KIT_ENGINES=claude,python`: then `make up`, `make setup`
 and `make check` skip n8n, and the Run page shows only these engines.
 
