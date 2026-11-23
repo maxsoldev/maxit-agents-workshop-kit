@@ -1,0 +1,357 @@
+[
+ [
+  "seam/e",
+  "Case in",
+  "span",
+  {
+   "input": null,
+   "level": null,
+   "output": {
+    "body": {
+     "case_id": "m14",
+     "input": {
+      "email": "From: Lena Hoffmann <lena.hoffmann@mpi-example-history.example>\nTo: bloxberg Info <info@bloxberg.example>\nDate: Thu, 12 Nov 2026 11:40:00 +0100\nSubject: AW: Zertifikat lässt sich nicht verifizieren\n\nH...",
+      "email_file": "data/emails/14_2026-11-12.eml",
+      "email_raw": "From: Lena Hoffmann <lena.hoffmann@mpi-example-history.example>\nTo: bloxberg Info <info@bloxberg.example>\nSubject: AW: Zertifikat =?utf-8?q?l=C3=A4sst?= sich nicht verifizieren\nDate: Thu, 12 Nov 2026 ..."
+     },
+     "output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+       "category": {
+        "description": "Exactly one category, see data/categories.md.",
+        "enum": [
+         "institute_request",
+         "membership",
+         "partnership",
+         "event_invitation",
+         "press",
+         "service_offer",
+         "unverified_outreach",
+         "newsletter",
+         "spam"
+        ],
+        "type": "string"
+       },
+       "flags": {
+        "description": "Zero or more warning flags, see data/categories.md.",
+        "items": {
+         "enum": [
+          "phishing",
+          "injection",
+          "unverified",
+          "off_target"
+         ],
+         "type": "string"
+        },
+        "type": "array"
+       },
+       "reasons": {
+        "description": "Short explanation of the decision, for the reviewer.",
+        "type": "string"
+       },
+       "reply": {
+        "description": "A reply draft for a human to check. Empty string when we do not reply.",
+        "type": "string"
+       }
+      },
+      "required": [
+       "category",
+       "flags",
+       "reply",
+       "reasons"
+      ],
+      "title": "Marketing inbox: result for one email",
+      "type": "object"
+     },
+     "today": "2026-11-12"
+    },
+    "executionMode": "production",
+    "headers": {
+     "x-kit-call": "<call>"
+    },
+    "params": {},
+    "query": {},
+    "webhookUrl": "http://localhost:5722/webhook/marketing"
+   },
+   "status_message": null
+  }
+ ],
+ [
+  "seam/e",
+  "Load rules",
+  "tool",
+  {
+   "input": {
+    "name": "categories,routing,reply_guidelines,contact_rules",
+    "usecase": "marketing"
+   },
+   "level": null,
+   "output": "{\"usecase\": \"marketing\", \"name\": \"categories,routing,reply_guidelines,contact_rules\", \"text\": \"=== categories.md ===\\n# Categories for the bloxberg info inbox\\n\\nGive every email exactly one category. If two fit, take the one that best describes what the sender wants from us.\\n\\n| Category | What it...\"}",
+   "status_message": null
+  }
+ ],
+ [
+  "seam/e",
+  "Triage",
+  "chain",
+  {
+   "input": {
+    "input": {
+     "name": "categories,routing,reply_guidelines,contact_rules",
+     "usecase": "marketing"
+    },
+    "output": {
+     "name": "categories,routing,reply_guidelines,contact_rules",
+     "text": "=== categories.md ===\n# Categories for the bloxberg info inbox\n\nGive every email exactly one category. If two fit, take the one that best describes what the sender wants from us.\n\n| Category | What it...",
+     "usecase": "marketing"
+    },
+    "tool": "rules_get"
+   },
+   "level": null,
+   "output": {
+    "output": {
+     "category": "institute_request",
+     "flags": [],
+     "reason": "The sender follows up on a certificate verification problem with a deadline of 28 November.",
+     "sender_email": "lena.hoffmann@mpi-example-history.example"
+    }
+   },
+   "status_message": null
+  }
+ ],
+ [
+  "Triage",
+  "Triage model",
+  "generation",
+  {
+   "input": [
+    "System: You sort ONE email for the bloxberg info inbox. You do not write a reply.\nReturn:\n- category: one of institute_request, membership, partnership, event_invitation, press,\n  service_offer, unver..."
+   ],
+   "level": null,
+   "model": "fast",
+   "output": "```json\n{\n  \"output\": {\n    \"category\": \"institute_request\",\n    \"flags\": [],\n    \"sender_email\": \"lena.hoffmann@mpi-example-history.example\",\n    \"reason\": \"The sender follows up on a certificate ver...",
+   "status_message": null,
+   "usage_details": {
+    "input": 2894,
+    "output": 70,
+    "total": 2964
+   }
+  }
+ ],
+ [
+  "Triage",
+  "Triage fields",
+  "span",
+  {
+   "input": {
+    "action": "parse",
+    "text": "```json\n{\n  \"output\": {\n    \"category\": \"institute_request\",\n    \"flags\": [],\n    \"sender_email\": \"lena.hoffmann@mpi-example-history.example\",\n    \"reason\": \"The sender follows up on a certificate ver..."
+   },
+   "level": null,
+   "output": {
+    "action": "parse",
+    "response": {
+     "output": {
+      "category": "institute_request",
+      "flags": [],
+      "reason": "The sender follows up on a certificate verification problem with a deadline of 28 November.",
+      "sender_email": "lena.hoffmann@mpi-example-history.example"
+     }
+    }
+   },
+   "status_message": null
+  }
+ ],
+ [
+  "seam/e",
+  "Junk?",
+  "span",
+  {
+   "input": {
+    "output": {
+     "category": "institute_request",
+     "flags": [],
+     "reason": "The sender follows up on a certificate verification problem with a deadline of 28 November.",
+     "sender_email": "lena.hoffmann@mpi-example-history.example"
+    }
+   },
+   "level": null,
+   "output": {
+    "output": {
+     "category": "institute_request",
+     "flags": [],
+     "reason": "The sender follows up on a certificate verification problem with a deadline of 28 November.",
+     "sender_email": "lena.hoffmann@mpi-example-history.example"
+    }
+   },
+   "status_message": null
+  }
+ ],
+ [
+  "seam/e",
+  "Find sender",
+  "tool",
+  {
+   "input": {
+    "query": "lena.hoffmann@mpi-example-history.example"
+   },
+   "level": null,
+   "output": "{\"count\": 1, \"contacts\": [{\"Name\": \"Lena Hoffmann\", \"Organisation\": \"MPI für Beispielgeschichte\", \"Role\": \"IT coordination\", \"Email\": \"lena.hoffmann@mpi-example-history.example\", \"Category\": \"Institute\", \"Language\": \"DE\", \"Topics\": \"bloxberg certification\", \"Last contact\": \"2026-09-03\", \"Status\": \"Active user\", \"Notes\": \"Uses bloxberg for research datasets since 2025\"}]}",
+   "status_message": null
+  }
+ ],
+ [
+  "seam/e",
+  "Earlier emails",
+  "tool",
+  {
+   "input": {
+    "before": "2026-11-12",
+    "sender": "lena.hoffmann@mpi-example-history.example"
+   },
+   "level": null,
+   "output": "{\"count\": 1, \"emails\": [{\"from\": \"Lena Hoffmann <lena.hoffmann@mpi-example-history.example>\", \"date\": \"2026-11-06T09:48:00+01:00\", \"subject\": \"Zertifikat lässt sich nicht verifizieren\", \"text\": \"Hallo zusammen,\\n\\nwir nutzen bloxberg seit letztem Jahr für unsere Datensätze. Ein externer Gutachter meldet nun, dass sich eines unserer Zertifikate (PDF vom März 2026) über die Verifizierungsseite ni...\", \"file\": \"data/emails/08_2026-11-06.eml\"}]}",
+   "status_message": null
+  }
+ ],
+ [
+  "seam/e",
+  "Decide and draft",
+  "chain",
+  {
+   "input": {
+    "input": {
+     "before": "2026-11-12",
+     "sender": "lena.hoffmann@mpi-example-history.example"
+    },
+    "output": {
+     "count": 1,
+     "emails": [
+      {
+       "date": "2026-11-06T09:48:00+01:00",
+       "file": "data/emails/08_2026-11-06.eml",
+       "from": "Lena Hoffmann <lena.hoffmann@mpi-example-history.example>",
+       "subject": "Zertifikat lässt sich nicht verifizieren",
+       "text": "Hallo zusammen,\n\nwir nutzen bloxberg seit letztem Jahr für unsere Datensätze. Ein externer Gutachter meldet nun, dass sich eines unserer Zertifikate (PDF vom März 2026) über die Verifizierungsseite ni..."
+      }
+     ]
+    },
+    "tool": "inbox_history"
+   },
+   "level": null,
+   "output": {
+    "output": {
+     "category": "institute_request",
+     "flags": [],
+     "reasons": "Erneute technische Supportanfrage: dringend und mit hoher Priorität an das tech_team weiterleiten; Frist ist der 28.11.2026. Für den bestehenden Kontakt bei Antwort „Last contact“ auf 2026-11-12 setze...",
+     "reply": "Liebe Frau Hoffmann,\n\nvielen Dank für Ihre Nachfrage. Bitte entschuldigen Sie, dass Sie auf eine Antwort zu Ihrer Nachricht vom 6. November warten mussten.\n\nWir geben das Problem mit der Verifizierung..."
+    }
+   },
+   "status_message": null
+  }
+ ],
+ [
+  "Decide and draft",
+  "Draft model",
+  "generation",
+  {
+   "input": [
+    "System: You help the marketing team of bloxberg with the info inbox.\nYou get ONE email, the triage of it, the sender's rows in the contact sheet and the sender's earlier emails.\nReturn ONE result JSON..."
+   ],
+   "level": null,
+   "model": "fast",
+   "output": "{\"output\":{\"category\":\"institute_request\",\"flags\":[],\"reply\":\"Liebe Frau Hoffmann,\\n\\nvielen Dank für Ihre Nachfrage. Bitte entschuldigen Sie, dass Sie auf eine Antwort zu Ihrer Nachricht vom 6. Novem...",
+   "status_message": null,
+   "usage_details": {
+    "input": 3633,
+    "output": 326,
+    "total": 3959
+   }
+  }
+ ],
+ [
+  "Decide and draft",
+  "Result shape",
+  "span",
+  {
+   "input": {
+    "action": "parse",
+    "text": "{\"output\":{\"category\":\"institute_request\",\"flags\":[],\"reply\":\"Liebe Frau Hoffmann,\\n\\nvielen Dank für Ihre Nachfrage. Bitte entschuldigen Sie, dass Sie auf eine Antwort zu Ihrer Nachricht vom 6. Novem..."
+   },
+   "level": null,
+   "output": {
+    "action": "parse",
+    "response": {
+     "output": {
+      "category": "institute_request",
+      "flags": [],
+      "reasons": "Erneute technische Supportanfrage: dringend und mit hoher Priorität an das tech_team weiterleiten; Frist ist der 28.11.2026. Für den bestehenden Kontakt bei Antwort „Last contact“ auf 2026-11-12 setze...",
+      "reply": "Liebe Frau Hoffmann,\n\nvielen Dank für Ihre Nachfrage. Bitte entschuldigen Sie, dass Sie auf eine Antwort zu Ihrer Nachricht vom 6. November warten mussten.\n\nWir geben das Problem mit der Verifizierung..."
+     }
+    }
+   },
+   "status_message": null
+  }
+ ],
+ [
+  "seam/e",
+  "Result out",
+  "span",
+  {
+   "input": {
+    "output": {
+     "category": "institute_request",
+     "flags": [],
+     "reasons": "Erneute technische Supportanfrage: dringend und mit hoher Priorität an das tech_team weiterleiten; Frist ist der 28.11.2026. Für den bestehenden Kontakt bei Antwort „Last contact“ auf 2026-11-12 setze...",
+     "reply": "Liebe Frau Hoffmann,\n\nvielen Dank für Ihre Nachfrage. Bitte entschuldigen Sie, dass Sie auf eine Antwort zu Ihrer Nachricht vom 6. November warten mussten.\n\nWir geben das Problem mit der Verifizierung..."
+    }
+   },
+   "level": null,
+   "output": {
+    "output": {
+     "category": "institute_request",
+     "flags": [],
+     "reasons": "Erneute technische Supportanfrage: dringend und mit hoher Priorität an das tech_team weiterleiten; Frist ist der 28.11.2026. Für den bestehenden Kontakt bei Antwort „Last contact“ auf 2026-11-12 setze...",
+     "reply": "Liebe Frau Hoffmann,\n\nvielen Dank für Ihre Nachfrage. Bitte entschuldigen Sie, dass Sie auf eine Antwort zu Ihrer Nachricht vom 6. November warten mussten.\n\nWir geben das Problem mit der Verifizierung..."
+    }
+   },
+   "status_message": null
+  }
+ ],
+ [
+  "seam/e",
+  "tool:rules_get",
+  "tool",
+  {
+   "input": {
+    "name": "categories,routing,reply_guidelines,contact_rules",
+    "usecase": "marketing"
+   },
+   "output": "{\"usecase\": \"marketing\", \"name\": \"categories,routing,reply_guidelines,contact_rules\", \"text\": \"=== categories.md ===\\n# Categories for the bloxberg info inbox\\n\\nGive every email exactly one category. If two fit, take the one that best describes what the sender wants from us.\\n\\n| Category | What it...\"}"
+  }
+ ],
+ [
+  "seam/e",
+  "tool:contacts_lookup",
+  "tool",
+  {
+   "input": {
+    "query": "lena.hoffmann@mpi-example-history.example"
+   },
+   "output": "{\"count\": 1, \"contacts\": [{\"Name\": \"Lena Hoffmann\", \"Organisation\": \"MPI für Beispielgeschichte\", \"Role\": \"IT coordination\", \"Email\": \"lena.hoffmann@mpi-example-history.example\", \"Category\": \"Institute\", \"Language\": \"DE\", \"Topics\": \"bloxberg certification\", \"Last contact\": \"2026-09-03\", \"Status\": \"Active user\", \"Notes\": \"Uses bloxberg for research datasets since 2025\"}]}"
+  }
+ ],
+ [
+  "seam/e",
+  "tool:inbox_history",
+  "tool",
+  {
+   "input": {
+    "before": "2026-11-12",
+    "sender": "lena.hoffmann@mpi-example-history.example"
+   },
+   "output": "{\"count\": 1, \"emails\": [{\"from\": \"Lena Hoffmann <lena.hoffmann@mpi-example-history.example>\", \"date\": \"2026-11-06T09:48:00+01:00\", \"subject\": \"Zertifikat lässt sich nicht verifizieren\", \"text\": \"Hallo zusammen,\\n\\nwir nutzen bloxberg seit letztem Jahr für unsere Datensätze. Ein externer Gutachter meldet nun, dass sich eines unserer Zertifikate (PDF vom März 2026) über die Verifizierungsseite ni...\", \"file\": \"data/emails/08_2026-11-06.eml\"}]}"
+  }
+ ]
+]

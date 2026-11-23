@@ -1,0 +1,236 @@
+{
+ "agent_version": {
+  "git": null,
+  "hash": "e3b0c44298fc1c14"
+ },
+ "cases": [
+  {
+   "case_hash": "1bd0c1dcc288",
+   "checks": [
+    {
+     "field": "",
+     "passed": true,
+     "reason": "matches output.schema.json",
+     "type": "schema"
+    },
+    {
+     "def": {
+      "field": "category",
+      "type": "equals"
+     },
+     "field": "category",
+     "passed": true,
+     "reason": "got a",
+     "type": "equals"
+    },
+    {
+     "def": {
+      "field": "reply",
+      "type": "contains",
+      "value": "THANKS"
+     },
+     "field": "reply",
+     "passed": true,
+     "reason": "has THANKS",
+     "type": "contains"
+    },
+    {
+     "def": {
+      "field": "reply",
+      "rubric": "Polite.",
+      "type": "judge"
+     },
+     "field": "reply",
+     "passed": true,
+     "reason": "score 5/5 (min 4): r5",
+     "type": "judge"
+    }
+   ],
+   "error": null,
+   "expected": {
+    "category": "a"
+   },
+   "id": "s01",
+   "input": {
+    "mode": "ok",
+    "note": "Thanks for the mail.\n",
+    "note_file": "data/note.txt",
+    "want": "a"
+   },
+   "meta": {
+    "status": 200,
+    "tool_calls": [
+     {
+      "input": {
+       "name": "categories,routing,reply_guidelines,contact_rules",
+       "usecase": "marketing"
+      },
+      "name": "rules_get",
+      "output": "{\"usecase\": \"marketing\", \"name\": \"categories,routing,reply_guidelines,contact_rules\", \"text\": \"=== categories.md ===\\n# Categories for the bloxberg info inbox\\n\\nGive every email exactly one category. If two fit, take the one that best describes what the sender wants from us.\\n\\n| Category | What it...\"}"
+     },
+     {
+      "input": {
+       "query": "lena.hoffmann@mpi-example-history.example"
+      },
+      "name": "contacts_lookup",
+      "output": "{\"count\": 1, \"contacts\": [{\"Name\": \"Lena Hoffmann\", \"Organisation\": \"MPI für Beispielgeschichte\", \"Role\": \"IT coordination\", \"Email\": \"lena.hoffmann@mpi-example-history.example\", \"Category\": \"Institute\", \"Language\": \"DE\", \"Topics\": \"bloxberg certification\", \"Last contact\": \"2026-09-03\", \"Status\": \"Active user\", \"Notes\": \"Uses bloxberg for research datasets since 2025\"}]}"
+     },
+     {
+      "input": {
+       "before": "2026-11-12",
+       "sender": "lena.hoffmann@mpi-example-history.example"
+      },
+      "name": "inbox_history",
+      "output": "{\"count\": 1, \"emails\": [{\"from\": \"Lena Hoffmann <lena.hoffmann@mpi-example-history.example>\", \"date\": \"2026-11-06T09:48:00+01:00\", \"subject\": \"Zertifikat lässt sich nicht verifizieren\", \"text\": \"Hallo zusammen,\\n\\nwir nutzen bloxberg seit letztem Jahr für unsere Datensätze. Ein externer Gutachter meldet nun, dass sich eines unserer Zertifikate (PDF vom März 2026) über die Verifizierungsseite ni...\", \"file\": \"data/emails/08_2026-11-06.eml\"}]}"
+     }
+    ],
+    "url": "http://N8N/webhook/seam"
+   },
+   "n8n_execution_url": "http://N8N/workflow/w-seam/executions/ex-s01",
+   "output": {
+    "category": "a",
+    "reply": "Thanks for the mail.\n",
+    "tags": [
+     "n"
+    ]
+   },
+   "passed": true,
+   "seconds": "<s>",
+   "title": "Good",
+   "today": "2026-11-04",
+   "trace_url": null
+  },
+  {
+   "case_hash": "b5ab74d8c9ad",
+   "checks": [
+    {
+     "field": "",
+     "passed": true,
+     "reason": "matches output.schema.json",
+     "type": "schema"
+    },
+    {
+     "def": {
+      "field": "category",
+      "type": "equals"
+     },
+     "field": "category",
+     "passed": false,
+     "reason": "got b, expected a",
+     "type": "equals"
+    },
+    {
+     "def": {
+      "field": "reply",
+      "rubric": "Polite.",
+      "type": "judge"
+     },
+     "field": "reply",
+     "passed": false,
+     "reason": "score 2/5 (min 4): r2",
+     "type": "judge"
+    }
+   ],
+   "error": null,
+   "expected": {
+    "category": "a"
+   },
+   "id": "s02",
+   "input": {
+    "mode": "ok",
+    "want": "b"
+   },
+   "meta": {
+    "status": 200,
+    "tool_calls": [
+     {
+      "input": {
+       "name": "categories,routing,reply_guidelines,contact_rules",
+       "usecase": "marketing"
+      },
+      "name": "rules_get",
+      "output": "{\"usecase\": \"marketing\", \"name\": \"categories,routing,reply_guidelines,contact_rules\", \"text\": \"=== categories.md ===\\n# Categories for the bloxberg info inbox\\n\\nGive every email exactly one category. If two fit, take the one that best describes what the sender wants from us.\\n\\n| Category | What it...\"}"
+     },
+     {
+      "input": {
+       "query": "lena.hoffmann@mpi-example-history.example"
+      },
+      "name": "contacts_lookup",
+      "output": "{\"count\": 1, \"contacts\": [{\"Name\": \"Lena Hoffmann\", \"Organisation\": \"MPI für Beispielgeschichte\", \"Role\": \"IT coordination\", \"Email\": \"lena.hoffmann@mpi-example-history.example\", \"Category\": \"Institute\", \"Language\": \"DE\", \"Topics\": \"bloxberg certification\", \"Last contact\": \"2026-09-03\", \"Status\": \"Active user\", \"Notes\": \"Uses bloxberg for research datasets since 2025\"}]}"
+     },
+     {
+      "input": {
+       "before": "2026-11-12",
+       "sender": "lena.hoffmann@mpi-example-history.example"
+      },
+      "name": "inbox_history",
+      "output": "{\"count\": 1, \"emails\": [{\"from\": \"Lena Hoffmann <lena.hoffmann@mpi-example-history.example>\", \"date\": \"2026-11-06T09:48:00+01:00\", \"subject\": \"Zertifikat lässt sich nicht verifizieren\", \"text\": \"Hallo zusammen,\\n\\nwir nutzen bloxberg seit letztem Jahr für unsere Datensätze. Ein externer Gutachter meldet nun, dass sich eines unserer Zertifikate (PDF vom März 2026) über die Verifizierungsseite ni...\", \"file\": \"data/emails/08_2026-11-06.eml\"}]}"
+     }
+    ],
+    "url": "http://N8N/webhook/seam"
+   },
+   "n8n_execution_url": "http://N8N/workflow/w-seam/executions/ex-s02",
+   "output": {
+    "category": "b",
+    "reply": "hi",
+    "tags": [
+     "n"
+    ]
+   },
+   "passed": false,
+   "seconds": "<s>",
+   "title": "Wrong",
+   "today": null,
+   "trace_url": null
+  }
+ ],
+ "ended_at": "<time>",
+ "engine": "n8n",
+ "experiment_url": null,
+ "holdout": false,
+ "name": "n",
+ "run_id": "<run_id>",
+ "started_at": "<time>",
+ "summary": {
+  "by_check": {
+   "contains": [
+    1,
+    1
+   ],
+   "equals": [
+    1,
+    2
+   ],
+   "judge": [
+    1,
+    2
+   ],
+   "schema": [
+    2,
+    2
+   ]
+  },
+  "by_field": {
+   "contains reply": [
+    1,
+    1
+   ],
+   "equals category": [
+    1,
+    2
+   ],
+   "judge reply": [
+    1,
+    2
+   ],
+   "schema": [
+    2,
+    2
+   ]
+  },
+  "cases": 2,
+  "passed": 1,
+  "skipped": {}
+ },
+ "usecase": "seam"
+}

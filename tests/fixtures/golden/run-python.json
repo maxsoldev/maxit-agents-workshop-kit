@@ -1,0 +1,248 @@
+{
+ "agent_version": {
+  "git": null,
+  "hash": "c8ded6d8b8d2d822"
+ },
+ "cases": [
+  {
+   "case_hash": "1bd0c1dcc288",
+   "checks": [
+    {
+     "field": "",
+     "passed": true,
+     "reason": "matches output.schema.json",
+     "type": "schema"
+    },
+    {
+     "def": {
+      "field": "category",
+      "type": "equals"
+     },
+     "field": "category",
+     "passed": true,
+     "reason": "got a",
+     "type": "equals"
+    },
+    {
+     "def": {
+      "field": "reply",
+      "type": "contains",
+      "value": "THANKS"
+     },
+     "field": "reply",
+     "passed": true,
+     "reason": "has THANKS",
+     "type": "contains"
+    },
+    {
+     "def": {
+      "field": "reply",
+      "rubric": "Polite.",
+      "type": "judge"
+     },
+     "field": "reply",
+     "passed": true,
+     "reason": "score 5/5 (min 4): r5",
+     "type": "judge"
+    }
+   ],
+   "error": null,
+   "expected": {
+    "category": "a"
+   },
+   "id": "s01",
+   "input": {
+    "mode": "ok",
+    "note": "Thanks for the mail.\n",
+    "note_file": "data/note.txt",
+    "want": "a"
+   },
+   "meta": {
+    "stderr": "log line one\ntool rules_get {\"name\": \"routing\"} -> \"# Routing\\nok\"",
+    "tool_calls": [
+     {
+      "input": {
+       "name": "routing"
+      },
+      "name": "rules_get",
+      "output": "# Routing\nok"
+     }
+    ]
+   },
+   "n8n_execution_url": null,
+   "output": {
+    "category": "a",
+    "env": {
+     "has_schema": true,
+     "today": "2026-11-04"
+    },
+    "reply": "Thanks for the mail.\n",
+    "tags": [
+     "x"
+    ]
+   },
+   "passed": true,
+   "seconds": "<s>",
+   "title": "Good",
+   "today": "2026-11-04",
+   "trace_url": null
+  },
+  {
+   "case_hash": "b5ab74d8c9ad",
+   "checks": [
+    {
+     "field": "",
+     "passed": true,
+     "reason": "matches output.schema.json",
+     "type": "schema"
+    },
+    {
+     "def": {
+      "field": "category",
+      "type": "equals"
+     },
+     "field": "category",
+     "passed": false,
+     "reason": "got b, expected a",
+     "type": "equals"
+    },
+    {
+     "def": {
+      "field": "reply",
+      "rubric": "Polite.",
+      "type": "judge"
+     },
+     "field": "reply",
+     "passed": false,
+     "reason": "score 2/5 (min 4): r2",
+     "type": "judge"
+    }
+   ],
+   "error": null,
+   "expected": {
+    "category": "a"
+   },
+   "id": "s02",
+   "input": {
+    "mode": "ok",
+    "want": "b"
+   },
+   "meta": {
+    "stderr": "log line one\ntool rules_get {\"name\": \"routing\"} -> \"# Routing\\nok\"",
+    "tool_calls": [
+     {
+      "input": {
+       "name": "routing"
+      },
+      "name": "rules_get",
+      "output": "# Routing\nok"
+     }
+    ]
+   },
+   "n8n_execution_url": null,
+   "output": {
+    "category": "b",
+    "env": {
+     "has_schema": true,
+     "today": null
+    },
+    "reply": "no note",
+    "tags": [
+     "x"
+    ]
+   },
+   "passed": false,
+   "seconds": "<s>",
+   "title": "Wrong",
+   "today": null,
+   "trace_url": null
+  },
+  {
+   "case_hash": "67bd24c78f94",
+   "checks": [
+    {
+     "field": "result",
+     "passed": false,
+     "reason": "the field `reply` is missing",
+     "type": "schema"
+    }
+   ],
+   "error": null,
+   "expected": {},
+   "id": "s03",
+   "input": {
+    "mode": "bad"
+   },
+   "meta": {
+    "stderr": "log line one\ntool rules_get {\"name\": \"routing\"} -> \"# Routing\\nok\"",
+    "tool_calls": [
+     {
+      "input": {
+       "name": "routing"
+      },
+      "name": "rules_get",
+      "output": "# Routing\nok"
+     }
+    ]
+   },
+   "n8n_execution_url": null,
+   "output": {
+    "category": 5
+   },
+   "passed": false,
+   "seconds": "<s>",
+   "title": "Bad schema",
+   "today": null,
+   "trace_url": null
+  }
+ ],
+ "ended_at": "<time>",
+ "engine": "python",
+ "experiment_url": null,
+ "holdout": false,
+ "name": "py",
+ "run_id": "<run_id>",
+ "started_at": "<time>",
+ "summary": {
+  "by_check": {
+   "contains": [
+    1,
+    1
+   ],
+   "equals": [
+    1,
+    2
+   ],
+   "judge": [
+    1,
+    2
+   ],
+   "schema": [
+    2,
+    3
+   ]
+  },
+  "by_field": {
+   "contains reply": [
+    1,
+    1
+   ],
+   "equals category": [
+    1,
+    2
+   ],
+   "judge reply": [
+    1,
+    2
+   ],
+   "schema": [
+    2,
+    3
+   ]
+  },
+  "cases": 3,
+  "passed": 1,
+  "skipped": {}
+ },
+ "usecase": "seam"
+}
