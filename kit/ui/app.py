@@ -135,7 +135,7 @@ def input_picks(uc: str) -> list[dict]:
     for rel in data_files(uc):
         path = base / rel
         if path.suffix == ".md":
-            continue  # the owner's rules: the agent reads them with rules_get, they are not an input
+            continue  # not an input (the owner's rules are in <engine>/rules/, read with rules_get)
         messages = chat_messages(path) if path.suffix == ".txt" else []
         if messages:
             channel = path.stem.split("_")[0]  # mattermost_messages.txt -> mattermost
@@ -783,18 +783,24 @@ async def case_from_try(request: Request, uc: str):
     return case_form(request, uc, case, original_id="", raw=raw, note=note)
 
 
-# ---------- rules: the owner's data/*.md, kept in sync with the files on disk ----------
+# ---------- rules: the owner's rules of one engine, kept in sync with the files on disk ----------
 
 
-def rule_files(uc: str) -> list[str]:
-    """The owner's rule files of a use case: data/*.md (what the agents read with rules_get)."""
-    return sorted(p.name for p in (uc_dir(uc) / "data").glob("*.md"))
+def rule_engine(uc: str, engine: str) -> str:
+    """The engine whose rules the page shows: the one asked for, else the team's engine (default_engine)."""
+    return engine if engine in config.settings().engines else default_engine(uc)
 
 
-def rule_path(uc: str, name: str) -> Path:
-    if name not in rule_files(uc):
-        raise HTTPException(404, f"No rule file '{name}' in usecases/{uc}/data/")
-    return uc_dir(uc) / "data" / name
+def rule_files(uc: str, engine: str) -> list[str]:
+    """The owner's rule files of one engine: <engine>/rules/*.md (what that engine reads with rules_get)."""
+    uc_dir(uc)
+    return sorted(p.name for p in config.rules_dir(uc, engine).glob("*.md"))
+
+
+def rule_path(uc: str, engine: str, name: str) -> Path:
+    if engine not in config.ENGINES or name not in rule_files(uc, engine):
+        raise HTTPException(404, f"No rule file '{name}' in usecases/{uc}/{engine}/rules/")
+    return config.rules_dir(uc, engine) / name
 
 
 def text_version(path: Path) -> str:
@@ -803,14 +809,17 @@ def text_version(path: Path) -> str:
 
 
 @app.get("/uc/{uc}/rules", response_class=HTMLResponse)
-def rules_page(request: Request, uc: str, name: str = ""):
-    files = rule_files(uc)
+def rules_page(request: Request, uc: str, engine: str = "", name: str = ""):
+    engine = rule_engine(uc, engine)
+    files = rule_files(uc, engine)
     name = name if name in files else (files[0] if files else "")
-    path = rule_path(uc, name) if name else None
+    path = rule_path(uc, engine, name) if name else None
     return page(
         request,
         "rules.html",
         uc,
+        engine=engine,
+        run_engines=config.settings().engines,
         files=files,
         rule=name,
         text=path.read_text(encoding="utf-8") if path else "",
@@ -819,9 +828,9 @@ def rules_page(request: Request, uc: str, name: str = ""):
 
 
 @app.get("/uc/{uc}/rules/file")
-def rules_file(uc: str, name: str):
+def rules_file(uc: str, engine: str, name: str):
     """The file as it is on disk now: {"version", "text"}. The editor asks every 2 s."""
-    path = rule_path(uc, name)
+    path = rule_path(uc, engine, name)
     return {"version": text_version(path), "text": path.read_text(encoding="utf-8")}
 
 
@@ -830,7 +839,7 @@ async def rules_save(request: Request, uc: str):
     """Write the file, but only if it is still the version the page loaded (else 409: someone else changed it).
     `force=1` writes anyway. The write is atomic: an agent that reads the file sees the old or the new text."""
     f = await request.form()
-    path = rule_path(uc, str(f.get("name", "")))
+    path = rule_path(uc, str(f.get("engine", "")), str(f.get("name", "")))
     if not f.get("force") and str(f.get("version", "")) != text_version(path):
         return JSONResponse(
             {"ok": False, "version": text_version(path), "error": "The file changed on disk after you opened it."},

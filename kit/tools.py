@@ -1,7 +1,8 @@
 """Kit tools: one MCP server (name `kit`) on http://localhost:5701/mcp for all engines.
 
 Each tool is a plain function with a docstring; the docstring is the tool description the model sees.
-To add a tool, add a function with `@mcp.tool()`. Tools only read `usecases/*/data/` and send nothing.
+To add a tool, add a function with `@mcp.tool()`. Tools only read `usecases/*/data/` and the rules
+folders `usecases/*/<engine>/rules/`, and send nothing.
 On bad input a tool returns {"error": ..., "hint": ...}; it does not raise.
 The same tools also answer plain HTTP: POST /mcp/call/<tool> with the arguments as JSON (the n8n workflows use it).
 """
@@ -171,30 +172,41 @@ def trains_search(
 
 
 @mcp.tool()
-def rules_get(usecase: str, name: str = "") -> dict:
-    """Read a rules or process document of a use case (Markdown).
+def rules_get(usecase: str, engine: str, name: str = "*") -> dict:
+    """Read the owner's rules of a use case (Markdown files), for one engine.
 
-    `usecase`: "marketing" or "travel". `name`: document name without ".md", e.g. "routing", "travel_rules".
-    Several documents at once: names with commas, e.g. "routing,reply_guidelines".
-    With an empty or unknown name you get the list of names.
+    `usecase`: "marketing" or "travel". `engine`: your engine, "n8n", "claude" or "python".
+    `name`: "*" (the default) = all rule files at once. Or one name without ".md", e.g. "routing",
+    or several names with commas, e.g. "routing,reply_guidelines". An unknown name gives the list of names.
     """
-    uc = (usecase or "").strip()
-    wanted = [n.strip().removesuffix(".md") for n in (name or "").split(",")]
-    if any(bad in v for v in [uc, *wanted] for bad in ("/", "\\", "..")):
-        return _error("paths are not allowed", "Give only a use case and a document name, e.g. 'travel', 'team'.")
+    uc, eng = (usecase or "").strip(), (engine or "").strip()
+    wanted = [n.strip().removesuffix(".md") for n in (name or "*").split(",")]
+    if any(bad in v for v in [uc, eng, *wanted] for bad in ("/", "\\", "..")):
+        return _error("paths are not allowed", "Give a use case, an engine and a name, e.g. 'travel', 'n8n', 'team'.")
     known = sorted(p.parent.name for p in config.USECASES_DIR.glob("*/data"))
     if uc not in known:
         return _error(f"unknown use case: {uc!r}", f"Use one of: {', '.join(known)}.")
-    names = sorted(p.stem for p in _data(uc).glob("*.md"))
-    for nm in wanted:
+    if eng not in config.ENGINES:
+        return _error(f"unknown engine: {eng!r}", f"Use one of: {', '.join(config.ENGINES)}.")
+    folder = config.rules_dir(uc, eng)
+    names = sorted(p.stem for p in folder.glob("*.md"))
+    if wanted == ["*"]:
+        wanted = names
+    for nm in wanted or [""]:
         if nm not in names:
             return _error(
-                f"unknown document: {nm!r}" if nm else "no document name given", f"Use one of: {', '.join(names)}."
+                f"unknown document: {nm!r}" if nm else f"no rule files in usecases/{uc}/{eng}/rules/",
+                f"Use one of: {', '.join(names)}, or '*' for all." if names else "Add a .md file there.",
             )
-    if len(wanted) == 1:
-        return {"usecase": uc, "name": wanted[0], "text": (_data(uc) / f"{wanted[0]}.md").read_text(encoding="utf-8")}
-    texts = [f"=== {nm}.md ===\n{(_data(uc) / f'{nm}.md').read_text(encoding='utf-8')}" for nm in wanted]
-    return {"usecase": uc, "name": ",".join(wanted), "text": "\n\n".join(texts)}
+    if len(wanted) == 1 and name != "*":
+        return {
+            "usecase": uc,
+            "engine": eng,
+            "name": wanted[0],
+            "text": (folder / f"{wanted[0]}.md").read_text("utf-8"),
+        }
+    texts = [f"=== {nm}.md ===\n{(folder / f'{nm}.md').read_text(encoding='utf-8')}" for nm in wanted]
+    return {"usecase": uc, "engine": eng, "name": ",".join(wanted), "text": "\n\n".join(texts)}
 
 
 # ---------- try a tool by hand: kit tool <name> key=value ... ----------

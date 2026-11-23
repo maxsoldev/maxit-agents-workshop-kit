@@ -77,9 +77,10 @@ counts only if the score stays the same.
 
 ## How business people change the rules (in the UI)
 
-Open **Rules**: the owner's files `data/*.md` (categories, routing, reply guidelines, priorities, templates).
-Change a rule, **Save** (Ctrl+S), then run the eval and compare. The categories, flags, routes and status
-words live only in these files: add one there, with no change to the code or the schema. The page and the
+Open **Rules** and pick your engine: the owner's files `<engine>/rules/*.md` (categories, routing, reply
+guidelines, priorities, templates). Each engine has its own copy and reads all of it on every case. Change a
+rule, **Save** (Ctrl+S), then run the eval on that engine and compare ("agent files changed"). The categories,
+flags, routes and status words live only in these files: add one there, with no change to the code or the schema. The page and the
 file stay in sync: an edit on disk (by a developer or Claude Code) shows in the page, and the page never
 saves over an edit it has not seen.
 

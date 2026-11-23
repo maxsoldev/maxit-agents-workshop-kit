@@ -51,13 +51,13 @@ decide what is right.
 - `m12` is ▲ better ("we are glad you joined our webinar"). `m01` often too.
 - Another case can get **▼ worse** (a judge flip). Look at it next; it is no reason to stop.
 
-**Learn:** **one change, run again, compare.** The same line could also go into `data/reply_guidelines.md`
-(UI: **Rules**): then it is the owner's rule, for all engines at once.
+**Learn:** **one change, run again, compare.** The same line could also go into the rules file `reply_guidelines.md` of
+your engine (UI: **Rules**): then it is the owner's rule, and the owner can change it.
 
 ## Level 3. A new field: schema + prompt (about 8 min)
 
 `m14` (Hoffmann writes again: her certificate is still not verified) checks a field `route_to`: who must handle
-the email (here `tech_team`, see `data/routing.md`). The scaffold has no such field, on purpose.
+the email (here `tech_team`, see the rules file `routing.md`). The scaffold has no such field, on purpose.
 
 **Do**
 
@@ -71,12 +71,12 @@ the email (here `tech_team`, see `data/routing.md`). The scaffold has no such fi
    ```json
    "route_to": {
      "type": "string",
-     "description": "Who must handle the email: a route from data/routing.md. Empty when we reply ourselves."
+     "description": "Who must handle the email: a route from the rules file routing.md. Empty when we reply ourselves."
    }
    ```
 
    There is no list of the routes in the schema: the routes are the owner's words, and they live only in
-   `data/routing.md`. So the owner can add a route there with no change to the schema or the prompts.
+   the rules file `routing.md`. So the owner can add a route there with no change to the schema or the prompts.
 
 2. Add **one line** to the prompt, after the line about `reasons` (n8n: after step 5 in **Decide and draft**,
    then **Publish** or `make n8n-push UC=marketing`; the schema needs no edit in n8n):
@@ -92,7 +92,7 @@ the email (here `tech_team`, see `data/routing.md`). The scaffold has no such fi
 **▲ better**.
 
 **Learn:** the schema says *what* comes out; the prompt says *how*. A new field needs both. The words
-the owner uses (categories, routes, status words) stay in `data/*.md`.
+the owner uses (categories, routes, status words) stay in the rules files (`<engine>/rules/*.md`).
 
 ## Level 4. Run it twice (about 4 min)
 

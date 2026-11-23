@@ -640,28 +640,40 @@ def test_make_a_case_from_a_try(client):
 
 @pytest.fixture
 def rule(client):
-    path = config.USECASES_DIR / "demo" / "data" / "categories.md"
-    path.write_text("# Categories\n\n| `spam` | junk |\n", encoding="utf-8")
-    return path
+    """categories.md in the rules of two engines, with different text."""
+    for engine in ("n8n", "claude"):
+        folder = config.USECASES_DIR / "demo" / engine / "rules"
+        folder.mkdir(parents=True)
+        (folder / "categories.md").write_text(f"# Categories\n\n| `spam` | junk ({engine}) |\n", encoding="utf-8")
+    return config.USECASES_DIR / "demo" / "n8n" / "rules" / "categories.md"
 
 
-def test_rules_page_shows_the_file(client, rule):
-    page = client.get("/uc/demo/rules").text
-    assert "categories.md" in page and "| `spam` | junk |" in page
-    assert client.get("/uc/demo/rules?name=../cases.jsonl").status_code == 200  # unknown name: the first file
-    assert client.get("/uc/demo/rules/file?name=../cases.jsonl").status_code == 404
+def test_rules_page_shows_the_files_of_one_engine(client, rule):
+    page = client.get("/uc/demo/rules?engine=n8n").text
+    assert "categories.md" in page and "| `spam` | junk (n8n) |" in page and "junk (claude)" not in page
+    assert 'option value="claude"' in page and "usecases/demo/n8n/rules/categories.md" in page
+    assert "junk (claude)" in client.get("/uc/demo/rules?engine=claude&name=categories.md").text
+    assert "is empty" in client.get("/uc/demo/rules?engine=python").text  # no rules folder yet
+    assert client.get("/uc/demo/rules?engine=n8n&name=../cases.jsonl").status_code == 200  # unknown: first file
+    assert client.get("/uc/demo/rules/file?engine=n8n&name=../cases.jsonl").status_code == 404
+    assert client.get("/uc/demo/rules/file?engine=../demo&name=categories.md").status_code == 404
 
 
 def test_rules_save_needs_the_version_on_disk(client, rule):
-    v1 = client.get("/uc/demo/rules/file?name=categories.md").json()["version"]
-    r = client.post("/uc/demo/rules/save", data={"name": "categories.md", "text": "A\r\nB\n", "version": v1})
+    def save(**form):
+        return client.post("/uc/demo/rules/save", data={"engine": "n8n", "name": "categories.md", **form})
+
+    v1 = client.get("/uc/demo/rules/file?engine=n8n&name=categories.md").json()["version"]
+    r = save(text="A\r\nB\n", version=v1)
     assert r.json()["ok"] and rule.read_text(encoding="utf-8") == "A\nB\n"
+    other = config.USECASES_DIR / "demo" / "claude" / "rules" / "categories.md"
+    assert "junk (claude)" in other.read_text(encoding="utf-8")  # the other engine's copy stays as it was
     v2 = r.json()["version"]
-    assert v2 != v1 and client.get("/uc/demo/rules/file?name=categories.md").json() == {"version": v2, "text": "A\nB\n"}
+    assert client.get("/uc/demo/rules/file?engine=n8n&name=categories.md").json() == {"version": v2, "text": "A\nB\n"}
     rule.write_text("changed on disk\n", encoding="utf-8")  # a developer or Claude Code edits the file
-    r = client.post("/uc/demo/rules/save", data={"name": "categories.md", "text": "mine", "version": v2})
+    r = save(text="mine", version=v2)
     assert r.status_code == 409 and rule.read_text(encoding="utf-8") == "changed on disk\n"
-    r = client.post("/uc/demo/rules/save", data={"name": "categories.md", "text": "mine", "version": v2, "force": "1"})
+    r = save(text="mine", version=v2, force="1")
     assert r.json()["ok"] and rule.read_text(encoding="utf-8") == "mine"
 
 

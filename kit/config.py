@@ -85,6 +85,11 @@ class Settings:
         return self.langfuse_mode != "off" and bool(self.langfuse_public_key and self.langfuse_secret_key)
 
 
+def rules_dir(uc: str, engine: str) -> Path:
+    """The owner's rules of one engine: usecases/<uc>/<engine>/rules/*.md (read by rules_get, edited on Rules)."""
+    return USECASES_DIR / uc / engine / "rules"
+
+
 def settings() -> Settings:
     """Read the settings now (the .env file again each call, so edits work without a restart)."""
     global _file_now

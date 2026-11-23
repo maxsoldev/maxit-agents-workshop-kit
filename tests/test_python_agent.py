@@ -97,9 +97,14 @@ def test_agent_runs_the_tool_loop_on_the_responses_api(uc, monkeypatch):
     result = asyncio.run(agent.run(case, tools))
 
     assert result == {"ok": True}
-    assert tools.calls == [("rules_get", {"name": "process"})]
+    # First all the owner's rules, by code (not the model's choice); then the model's own tool call.
+    assert tools.calls == [
+        ("rules_get", {"usecase": uc, "engine": "python", "name": "*"}),
+        ("rules_get", {"name": "process"}),
+    ]
     assert len(requests) == 3
     first, second, last = requests
+    assert first["input"][0]["content"].startswith("The owner's rules (all files in python/rules/):\nrule text")
     assert first["tools"][0]["name"] == "rules_get" and first["tools"][0]["strict"] is False
     assert "text" not in first  # no result format in the tool turns
     # The tool result goes back with the call id, after the model's function_call item.

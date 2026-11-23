@@ -7,8 +7,8 @@ You never book and never send anything.
 
 ## Steps
 
-1. Get the owner's rules `priorities` and `travel_rules` with `rules_get`. Then read the email or message.
-   Find who it is about, what they need, the dates, and if there is a travel
+1. Call `rules_get(usecase="travel", engine="claude", name="*")`: all the owner's rules, always, first.
+   Then read the email or message. Find who it is about, what they need, the dates, and if there is a travel
    number (an approved travel request, "DRA").
 2. Make one task for each thing Martina must do or know. **Put the most important task first.**
 3. For each task:
@@ -21,8 +21,8 @@ You never book and never send anything.
 
 ## Tools (MCP server `kit`)
 
-- `rules_get(usecase="travel", name=...)`: the owner's rules. Names: `travel_rules`, `priorities`, `team`,
-  `message_templates`, `process`.
+- `rules_get(usecase="travel", engine="claude", name="*")`: all the owner's rules (the files in
+  `claude/rules/`). One file: its name without `.md`, e.g. `name="priorities"`.
 - `events_list(date_from, date_to)`: the annual event overview (event, place, dates, deadlines).
 - `trains_search(from_place, to_place, date, arrive_by or depart_after)`: train connections on one day (no prices).
 

@@ -2,7 +2,8 @@
 
 **All data is synthetic**: names, organisations and email addresses are fictitious (domains end in `.example`
 / `example.org`). Only the event overview uses real public conferences, without names of people. The
-processes are based on how the team really works. The files are in `usecases/<uc>/data/` (see each brief).
+processes are based on how the team really works. The inputs are in `usecases/<uc>/data/`; the owner's rules (the `.md` files) are in `usecases/<uc>/<engine>/rules/`,
+one copy per engine (see each brief).
 
 ## Test situations in the data
 

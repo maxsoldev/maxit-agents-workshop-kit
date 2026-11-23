@@ -16,7 +16,8 @@ evidence; the score counts only if the cases are honest. Method and check guide:
 | `claude` | `usecases/<uc>/claude/CLAUDE.md` and its skills in `usecases/<uc>/claude/.claude/skills/` (the agent's own, not this session's) |
 | `python` | `usecases/<uc>/python/agent.py`: the `PROMPT` text, the tools list, the loop |
 
-Shared by all engines: `usecases/<uc>/data/*.md` (the owner's rules, read by the agents through `rules_get`),
+Per engine: `usecases/<uc>/<engine>/rules/*.md` (the owner's rules; the agent reads all of them through `rules_get`
+on every case; a rule change is an agent change in Compare). Shared by all engines: `data/` (the inputs),
 `output.schema.json` (the result shape; every engine gets it with each case), `cases.jsonl`.
 
 ## 1. Run

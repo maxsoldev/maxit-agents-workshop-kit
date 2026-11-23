@@ -159,16 +159,19 @@ def test_schemas_are_openai_strict(uc):
                 _strict_ok(json.loads(opts["schema"]), f"{f.name}:{n['name']}")
 
 
-def owner_lists(uc: str) -> dict[str, set[str]]:
-    """The word lists the owner keeps in data/*.md: tables whose first column is a `word` (categories,
-    flags, task kinds, status words, routes). Key: "<file>: <table head>"."""
+ENGINES = ("n8n", "claude", "python")
+
+
+def owner_lists(uc: str, engine: str) -> dict[str, set[str]]:
+    """The word lists the owner keeps in <engine>/rules/*.md: tables whose first column is a `word`
+    (categories, flags, task kinds, status words, routes). Key: "<file>: <table head>"."""
     lists: dict[str, set[str]] = {}
-    for f in sorted((USECASES / uc / "data").glob("*.md")):
+    for f in sorted((USECASES / uc / engine / "rules").glob("*.md")):
         head = ""
         for line in f.read_text(encoding="utf-8").splitlines():
             m = re.match(r"\|\s*`([a-z_]+)`\s*\|", line)
             if m:
-                lists.setdefault(f"{f.name}: {head}", set()).add(m[1])
+                lists.setdefault(f"{engine}/rules/{f.name}: {head}", set()).add(m[1])
             elif line.startswith("|"):
                 head = head or line
             else:
@@ -182,22 +185,49 @@ def schema_enums(node) -> list[list]:
     return [e for v in node for e in schema_enums(v)] if isinstance(node, list) else []
 
 
+def agent_files(uc: str, engine: str) -> list[Path]:
+    """The prompt files of one engine: where an owner's list must not be copied."""
+    folder = USECASES / uc / engine
+    if engine == "n8n":
+        return sorted((folder / "prompts").glob("*.md"))
+    return (
+        [folder / "CLAUDE.md", *sorted((folder / ".claude").rglob("SKILL.md"))]
+        if engine == "claude"
+        else [folder / "agent.py"]
+    )
+
+
 @pytest.mark.parametrize("uc", UCS)
-def test_owner_lists_live_only_in_the_rules(uc):
-    """Lu's wish: the owner adds a category or a status word in data/*.md, with no code change.
+@pytest.mark.parametrize("engine", ENGINES)
+def test_owner_lists_live_only_in_the_rules(uc, engine):
+    """Lu's wish: the owner adds a category or a status word in the rules of their engine, with no code change.
     So no schema enum and no agent prompt repeats a list from the rules (one example word is fine)."""
-    lists = owner_lists(uc)
-    assert lists, f"{uc}: no word tables in data/*.md"
-    schema = json.loads((USECASES / uc / "output.schema.json").read_text())
-    agent_files = [USECASES / uc / "claude" / "CLAUDE.md", USECASES / uc / "python" / "agent.py"]
-    agent_files += sorted((USECASES / uc / "n8n" / "prompts").glob("*.md"))
+    lists = owner_lists(uc, engine)
+    assert lists, f"{uc}: no word tables in {engine}/rules/*.md"
+    schemas = [json.loads((USECASES / uc / "output.schema.json").read_text())]
     for n in json.loads((USECASES / uc / "n8n" / "workflow.json").read_text())["nodes"]:  # n8n model schemas
         fmt = n["parameters"].get("options", {}).get("textFormat", {}).get("textOptions") or {}
         if fmt.get("schema", "").startswith("{"):
-            schema = {"main": schema, n["name"]: json.loads(fmt["schema"])}
+            schemas.append(json.loads(fmt["schema"]))
     for where, words in lists.items():
-        for enum in schema_enums(schema):
+        for enum in schema_enums(schemas):
             assert not words & set(enum), f"{uc}: schema enum {enum} repeats {where}"
-        for f in agent_files:
+        for f in agent_files(uc, engine):
             named = {w for w in words if re.search(rf"\b{w}\b", f.read_text(encoding="utf-8"))}
             assert len(named) <= 2, f"{f.relative_to(USECASES)} lists {sorted(named)} from {where}"
+
+
+@pytest.mark.parametrize("uc", UCS)
+def test_each_engine_reads_all_its_own_rules(uc):
+    """Each engine has its own rules (<engine>/rules/*.md) and reads all of them on every case:
+    n8n and Python by code, Claude in step 1 of CLAUDE.md. data/ has the inputs only, no rules."""
+    assert not list((USECASES / uc / "data").glob("*.md")), f"{uc}: rules belong in <engine>/rules/, not data/"
+    for engine in ENGINES:
+        assert list((USECASES / uc / engine / "rules").glob("*.md")), f"{uc}: no {engine}/rules/*.md"
+    nodes = {n["name"]: n for n in json.loads((USECASES / uc / "n8n" / "workflow.json").read_text())["nodes"]}
+    body = {p["name"]: p["value"] for p in nodes["Read the rules"]["parameters"]["bodyParameters"]["parameters"]}
+    assert body == {"usecase": uc, "engine": "n8n", "name": "*"}
+    agent = (USECASES / uc / "python" / "agent.py").read_text()
+    assert '"engine": "python", "name": "*"' in agent and "await owner_rules(client)" in agent
+    claude = (USECASES / uc / "claude" / "CLAUDE.md").read_text()
+    assert f'1. Call `rules_get(usecase="{uc}", engine="claude", name="*")`' in claude

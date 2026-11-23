@@ -22,13 +22,21 @@ approved request must not be booked; questions must reach travellers before thei
 **What must not happen:** a booking without an approved travel request, work on a cancelled trip, or anything
 booked or sent without Martina.
 
-## What is in `data/`
+## What is in `data/` (the inputs, shared by all engines)
 
 | File | What it is |
 |---|---|
 | `emails/*.eml` | 8 emails to office management: trip notes, forwarded DRA approvals, SAP leave approvals |
 | `mattermost_messages.txt` | 5 Mattermost direct messages, copied from the chat window |
 | `events.csv` | The annual event overview 2027 (event, place, dates, deadlines) |
+
+## The owner's rules: `<engine>/rules/` (one copy per engine)
+
+Each engine has its own copy: `n8n/rules/`, `claude/rules/`, `python/rules/`. They start the same. The agent
+reads all files of its own copy on every case. Edit them in the kit UI: **Rules** (pick your engine).
+
+| File | What it is |
+|---|---|
 | `travel_rules.md` | Order of steps, home base (Munich), train / flight / hotel limits |
 | `priorities.md` | What comes first, one task per trip, task kinds and status words |
 | `team.md` | Team directory (names, emails, Mattermost names) |
@@ -44,7 +52,7 @@ paper training request mentioned only on Mattermost.
 
 | Tool | What it gives |
 |---|---|
-| `rules_get("travel", name)` | the text of `data/<name>.md` |
+| `rules_get("travel", engine, name="*")` | the owner's rules of that engine: all files, or one (`<engine>/rules/<name>.md`) |
 | `events_list(date_from, date_to)` | events from the event overview |
 | `trains_search(from_place, to_place, date, arrive_by / depart_after, modes)` | up to 5 real train connections on that day (times, trains, changes; **no prices**). Trains only, unless `modes="all"` |
 

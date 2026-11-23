@@ -9,7 +9,7 @@ After the workshop: castle tour 17:30–18:30, then dinner.
 | 10:40 | Coffee (20 min) | |
 | 11:00 | **Setup** (`SETUP.md`, "On the day") | `make check` runs on every laptop that builds |
 | 11:30 | **Tutorial** (`docs/tutorial.md`) | each person played the loop once on the marketing scaffold |
-| 12:00 | **Design** (30 min, hard stop) | the service written in `BRIEF.md` ("Your team decides"), and `output.schema.json` changed to fit. The business people say it, a developer types it (the UI cannot edit these files) |
+| 12:00 | **Design** (30 min, hard stop) | **one engine** for the team, the service written in `BRIEF.md` ("Your team decides"), and `output.schema.json` changed to fit. From now on the team changes only its engine's folder (its prompts and `rules/`). The business people say it, a developer types it (the UI cannot edit these files) |
 | 12:30 | Lunch | |
 | 13:30 | **Cases first** (30 min) | at least 5 cases with expected answers and checks, written by the business people. A new schema breaks the starter cases: change them or delete them. A first eval run (it fails: good) |
 | 14:00 | **Build loop 1** | score → change one thing → score again. **Checkpoint 14:45:** the score and the last change |

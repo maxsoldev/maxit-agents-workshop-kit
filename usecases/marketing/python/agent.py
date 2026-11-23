@@ -20,6 +20,7 @@ MODEL = os.environ.get("KIT_MODEL", "gpt-6-luna")
 TOOLS_URL = os.environ.get("KIT_TOOLS_URL", "http://localhost:5701/mcp")
 # The runner sends the result shape as case["output_schema"]; the file is the fallback for runs by hand.
 SCHEMA_FILE = Path(__file__).resolve().parent.parent / "output.schema.json"
+USECASE = Path(__file__).resolve().parent.parent.name  # the use case folder: "marketing" or "travel"
 MAX_STEPS = 10  # model turns before we give up
 
 PROMPT = """You help the marketing team of bloxberg with the info inbox.
@@ -27,14 +28,14 @@ You get ONE email (key "email" in the input) and the date of today. Return ONE r
 A person reads your result, changes the draft if needed, and sends it. You never send anything.
 
 Steps:
-1. Get the owner's rules "categories" and "routing" with rules_get. Then read the email. Find the sender,
-   what they want, the language and any deadline.
+1. Read the owner's rules: they are in the first message, before the case. Follow them.
+   Then read the email. Find the sender, what they want, the language and any deadline.
 2. Pick one category from the category table of the rules. Use only the words in that table.
 3. Add flags from the flag table if they apply (else []).
 4. Write a reply draft in the sender's language, or "" when the rules say that we do not reply.
 5. Write reasons: 1 to 3 short sentences that explain your decision to the reviewer.
 
-Tools: rules_get(usecase="marketing", name=categories|routing|reply_guidelines|contact_rules|process),
+Tools: rules_get(usecase="marketing", engine="python", name) reads one rule file again (you have them all),
 contacts_lookup(query), inbox_history(sender, before). Always pass before=<today> (YYYY-MM-DD) to
 inbox_history: else you also get emails that came after today.
 
@@ -91,16 +92,30 @@ async def call_tool(client: Client, name: str, args: dict) -> str:
     return "\n".join(getattr(c, "text", "") for c in result.content)
 
 
+async def owner_rules(client: Client) -> str:
+    """All the owner's rules of this engine (python/rules/*.md), read in code at the start of each case.
+    So the model sees every rule, also one it would not look up. The call shows in the trace."""
+    args = {"usecase": USECASE, "engine": "python", "name": "*"}
+    text = await call_tool(client, "rules_get", args)
+    log(f"tool rules_get {json.dumps(args)} -> {json.dumps(text[:2000], ensure_ascii=False)}")
+    try:
+        return json.loads(text).get("text") or text
+    except (ValueError, AttributeError):
+        return text
+
+
 async def run(case: dict, client: Client | None) -> dict:
     llm = OpenAI()  # reads OPENAI_API_KEY (and OPENAI_BASE_URL for a gateway)
     schema = case.get("output_schema") or json.loads(SCHEMA_FILE.read_text())
     tools = [to_openai_tool(t) for t in (await client.list_tools()).tools] if client else []
     with_tools = {"tools": tools} if tools else {}  # some APIs refuse an empty tool list
     # The conversation: our messages, then the model's output items and our tool results.
+    rules = await owner_rules(client) if client else "(the tools server is down: no rules)"
     items = [
         {
             "role": "user",
-            "content": f"Today is {case.get('today')}.\n\n" + json.dumps(case["input"], ensure_ascii=False),
+            "content": f"The owner's rules (all files in python/rules/):\n{rules}\n\n"
+            f"Today is {case.get('today')}.\n\nThe case:\n" + json.dumps(case["input"], ensure_ascii=False),
         }
     ]
     # Tool turns first, WITHOUT a result format: with it, many models never call a tool.

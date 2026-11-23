@@ -44,13 +44,17 @@
               "value": "marketing"
             },
             {
+              "name": "engine",
+              "value": "n8n"
+            },
+            {
               "name": "name",
-              "value": "categories,routing,reply_guidelines,contact_rules"
+              "value": "*"
             }
           ]
         }
       },
-      "notes": "Reads the rules: data/*.md",
+      "notes": "Reads all the rules: n8n/rules/*.md",
       "notesInFlow": true
     },
     {
@@ -344,7 +348,7 @@
         "color": 7,
         "width": 620,
         "height": 840,
-        "content": "## 1 The email comes in\nWhen you run an eval, the kit sends each test email (a **case**) to **Case in**. The email text is in `input.email`. **Read the rules** loads the owner's rules (`data/*.md`: categories, routing, reply_guidelines, contact_rules).\n\n**See the data of one eval case:** kit results → the case → **n8n execution ↗** → double-click a node."
+        "content": "## 1 The email comes in\nWhen you run an eval, the kit sends each test email (a **case**) to **Case in**. The email text is in `input.email`. **Read the rules** loads all the owner's rules of this engine (`usecases/marketing/n8n/rules/*.md`; kit UI → **Rules**, engine n8n).\n\n**See the data of one eval case:** kit results → the case → **n8n execution ↗** → double-click a node."
       }
     },
     {
@@ -376,7 +380,7 @@
         "color": 6,
         "width": 240,
         "height": 840,
-        "content": "## 3 Junk? (a rule, no AI)\nTriage says `no_reply` (the owner's routing rules): no reply, no more AI calls.\nChange the rule in **Junk?**, or the `no_reply` line in `data/routing.md`."
+        "content": "## 3 Junk? (a rule, no AI)\nTriage says `no_reply` (the owner's routing rules): no reply, no more AI calls.\nChange the rule in **Junk?**, or the `no_reply` line in `n8n/rules/routing.md` (kit UI → **Rules**)."
       }
     },
     {

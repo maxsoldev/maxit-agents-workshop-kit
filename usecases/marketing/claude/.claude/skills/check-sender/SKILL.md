@@ -7,7 +7,8 @@ description: Check an unknown sender before we reply. Use when an email makes co
 
 1. Call `contacts_lookup` with the sender's email address, then with the organisation name.
 2. Call `inbox_history` with the sender's email address and `before` = today. Note earlier emails and what we answered.
-3. Call `rules_get(usecase="marketing", name="reply_guidelines")` and read "Unverified senders".
+3. Read "Unverified senders" in the rules `reply_guidelines` (you have all rules from step 1 of CLAUDE.md;
+   else call `rules_get(usecase="marketing", engine="claude", name="reply_guidelines")`).
 4. Decide:
    - Known contact, or a research institution or university: a normal request. No `unverified` flag.
    - Unknown, with big commercial or financial claims: category `unverified_outreach`, flag `unverified`.

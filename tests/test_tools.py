@@ -71,7 +71,7 @@ def test_events_list_filter():
 
 
 def test_kit_tool_by_hand(capsys):
-    assert tools.try_tool("rules_get", ["usecase=travel", "name=team"]) == 0
+    assert tools.try_tool("rules_get", ["usecase=travel", "engine=n8n", "name=team"]) == 0
     assert '"name": "team"' in capsys.readouterr().out
     assert tools.try_tool("", []) == 0 and "trains_search(" in capsys.readouterr().out
     assert tools.try_tool("nope", []) == 1
@@ -79,23 +79,40 @@ def test_kit_tool_by_hand(capsys):
 
 
 def test_rules_get():
-    r = tools.rules_get("travel", "travel_rules")
-    assert r["text"].strip()
-    assert tools.rules_get("marketing", "routing.md")["name"] == "routing"
-    assert "routing" in tools.rules_get("marketing", "nope")["hint"]
-    assert "error" in tools.rules_get("sales", "x")
+    r = tools.rules_get("travel", "python", "travel_rules")
+    assert r["text"].strip() and r["engine"] == "python"
+    assert tools.rules_get("marketing", "claude", "routing.md")["name"] == "routing"
+    assert "routing" in tools.rules_get("marketing", "n8n", "nope")["hint"]
+    assert "error" in tools.rules_get("sales", "n8n", "x")
+    assert "unknown engine" in tools.rules_get("travel", "codex", "team")["error"]
     for bad in [
-        ("travel", "../marketing/data/routing"),
-        ("../travel", "team"),
-        ("travel", "a/b"),
-        ("travel", "team,../x"),
+        ("travel", "n8n", "../marketing/data/routing"),
+        ("../travel", "n8n", "team"),
+        ("travel", "../n8n", "team"),
+        ("travel", "n8n", "a/b"),
+        ("travel", "n8n", "team,../x"),
     ]:
         assert tools.rules_get(*bad)["error"] == "paths are not allowed"
-    both = tools.rules_get("travel", "team, priorities.md")
+    both = tools.rules_get("travel", "n8n", "team, priorities.md")
     assert both["name"] == "team,priorities" and both["text"].index("=== team.md") < both["text"].index(
         "=== priorities"
     )
-    assert "nope" in tools.rules_get("travel", "team,nope")["error"]
+    assert "nope" in tools.rules_get("travel", "n8n", "team,nope")["error"]
+
+
+def test_rules_get_all_reads_every_file_of_that_engine(tmp_path, monkeypatch):
+    from kit import config
+
+    for eng, files in {"n8n": ["a.md", "b.md"], "claude": ["c.md"]}.items():
+        (tmp_path / "uc" / eng / "rules").mkdir(parents=True)
+        for f in files:
+            (tmp_path / "uc" / eng / "rules" / f).write_text(f"# {f}\n", encoding="utf-8")
+    (tmp_path / "uc" / "data").mkdir()
+    monkeypatch.setattr(config, "USECASES_DIR", tmp_path)
+    r = tools.rules_get("uc", "n8n")  # name "*" is the default
+    assert r["name"] == "a,b" and "=== a.md ===\n# a.md" in r["text"] and "c.md" not in r["text"]
+    assert tools.rules_get("uc", "claude", "*")["name"] == "c"
+    assert "no rule files" in tools.rules_get("uc", "python")["error"]
 
 
 def test_plain_http_call():

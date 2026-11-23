@@ -30,6 +30,9 @@ The scaffold does the same small job on each engine, so you can compare them.
 | **Claude Code** (your login) | `claude/CLAUDE.md`, skills in `claude/.claude/skills/` |
 | **Python** (OpenAI SDK) | `python/agent.py` |
 
+Each engine also has its own copy of the owner's rules, `<engine>/rules/*.md` (kit UI: **Rules**), and reads
+all of it on every case. Your team picks one engine and changes only its folder.
+
 All three use the same tools (`kit/tools.py`, :5701). No tool sends or books anything: the agent only
 proposes, a person decides.
 
@@ -41,10 +44,10 @@ Makefile                   make up · setup · serve · check · eval · compare
 .env.example               settings template: copy to .env
 usecases/<uc>/             YOUR TEAM OWNS THIS FOLDER
   BRIEF.md                 the business problem; you write your design in it
-  data/                    emails, contacts, events, the owner's rules (.md)
+  data/                    the inputs: emails, contacts, events (all engines)
   cases.jsonl              the eval cases (edit them in the UI or by hand)
   output.schema.json       the shape of the result
-  n8n/  claude/  python/   the three scaffolds
+  n8n/  claude/  python/   the three scaffolds; each has rules/*.md, the owner's rules for that engine
 kit/                       the shared kit: UI, runner, tools, setup
 runs/                      one JSON file per eval run (not in git)
 docs/                      tutorial, the loop, day plan, contracts, data pack

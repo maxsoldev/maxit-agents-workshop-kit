@@ -15,5 +15,5 @@ Never put contact lists or other people's email addresses in a reply. Do not pro
 Today is {{ $('Case in').item.json.body.today }}.
 Answer with only the result JSON, with only the fields of the output schema.
 
-The owner's rules (data/*.md):
+The owner's rules (all files in n8n/rules/):
 {{ $('Read the rules').item.json.output.text }}

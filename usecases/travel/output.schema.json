@@ -13,11 +13,11 @@
         "required": ["kind", "person", "event", "date", "status"],
         "additionalProperties": false,
         "properties": {
-          "kind": {"type": "string", "description": "A task kind from data/priorities.md."},
+          "kind": {"type": "string", "description": "A task kind from the rules file priorities.md."},
           "person": {"type": "string", "description": "Full name of the team member."},
           "event": {"type": "string", "description": "Event name and place, or what the task is about."},
           "date": {"type": "string", "description": "Start date as YYYY-MM-DD, or empty if unknown."},
-          "status": {"type": "string", "description": "A status word from data/priorities.md."}
+          "status": {"type": "string", "description": "A status word from the rules file priorities.md."}
         }
       }
     },

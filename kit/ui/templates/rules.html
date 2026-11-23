@@ -2,18 +2,26 @@
 {% block title %}Rules · {{ uc|uc_name }}{% endblock %}
 {% block main %}
 <h1>The owner's rules <span class="muted">· {{ uc|uc_name }}</span></h1>
-<p class="muted">The agents read these files at each case (tool <code>rules_get</code>), on every engine. Change a
-  rule here, save, then <a href="/uc/{{ uc }}/run">run the eval</a> and compare: the score shows if the agent
-  follows the new rule. The categories, flags, routes and status words live only here, so you can add one with
-  no code change.</p>
-{% if not files %}<div class="alert">No rule files: <code>usecases/{{ uc }}/data/*.md</code> is empty.</div>{% else %}
+<form class="row3" method="get" action="/uc/{{ uc }}/rules">
+  <label>Engine <select name="engine" onchange="this.form.submit()">
+    {% for e in run_engines %}<option value="{{ e }}" {{ 'selected' if e == engine }}>{{ e }}</option>{% endfor %}
+  </select></label>
+  <input type="hidden" name="name" value="{{ rule }}">{# the same file in the other engine, if it has it #}
+  <noscript><button class="btn">Show</button></noscript>
+</form>
+<p class="muted">Each engine has its own copy of the rules. The <b>{{ engine }}</b> agent reads all the files below
+  on every case (tool <code>rules_get</code>); the other engines do not see them. Change a rule here, save, then
+  <a href="/uc/{{ uc }}/run?engine={{ engine }}">run the eval</a> on {{ engine }} and compare: the score shows if
+  the agent follows the new rule. The categories, flags, routes and status words live only here, so you can add
+  one with no code change.</p>
+{% if not files %}<div class="alert">No rule files: <code>usecases/{{ uc }}/{{ engine }}/rules/*.md</code> is empty.</div>{% else %}
 <div class="rules">
   <nav class="rule-files">
-    {% for f in files %}<a href="/uc/{{ uc }}/rules?name={{ f|urlencode }}" class="{{ 'on' if f == rule }}">{{ f }}</a>{% endfor %}
+    {% for f in files %}<a href="/uc/{{ uc }}/rules?engine={{ engine }}&name={{ f|urlencode }}" class="{{ 'on' if f == rule }}">{{ f }}</a>{% endfor %}
   </nav>
   <div class="rule-edit">
     <div class="rule-bar">
-      <code>usecases/{{ uc }}/data/{{ rule }}</code>
+      <code>usecases/{{ uc }}/{{ engine }}/rules/{{ rule }}</code>
       <span id="rule-state" class="muted small">In sync with the file</span>
       <span class="grow"></span>
       <button type="button" class="btn" id="rule-view" onclick="togglePreview()">Preview</button>
@@ -34,7 +42,7 @@
 <script>
 // Two-way sync with the file on disk. The page keeps the version (hash) it loaded:
 // save writes only if the disk still has that version; every 2 s it asks for the disk version.
-const UC = {{ uc|tojson }}, NAME = {{ rule|tojson }};
+const UC = {{ uc|tojson }}, ENGINE = {{ engine|tojson }}, NAME = {{ rule|tojson }};
 const box = document.getElementById("rule-text");
 let version = {{ version|tojson }}, saved = box.value, disk = null;
 
@@ -52,7 +60,7 @@ function conflict(text) {
 box.addEventListener("input", refresh);
 
 async function saveRule(force) {
-  const body = new URLSearchParams({name: NAME, text: box.value, version, force: force ? "1" : ""});
+  const body = new URLSearchParams({engine: ENGINE, name: NAME, text: box.value, version, force: force ? "1" : ""});
   const r = await fetch(`/uc/${UC}/rules/save`, {method: "POST", body});
   const j = await r.json();
   if (j.ok) {
@@ -70,7 +78,7 @@ function loadDisk() {
 async function poll() {
   let j;
   try {
-    const r = await fetch(`/uc/${UC}/rules/file?name=${encodeURIComponent(NAME)}`);
+    const r = await fetch(`/uc/${UC}/rules/file?engine=${ENGINE}&name=${encodeURIComponent(NAME)}`);
     if (!r.ok) return state(r.status === 404 ? "The file is not on disk any more" : "Cannot read the file");
     j = await r.json();
   } catch (e) { return state("The kit does not answer (is make serve running?)"); }

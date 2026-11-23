@@ -24,12 +24,20 @@ again; keeping the contact sheet up to date.
 call offer to an unverified "investor" (email 15), a reply that leaks contact data, or anything sent without a
 person's approval.
 
-## What is in `data/`
+## What is in `data/` (the inputs, shared by all engines)
 
 | File | What it is |
 |---|---|
 | `emails/*.eml` | 23 emails, 2–18 Nov 2026, German and English. All synthetic. |
 | `contacts.csv` | The contact sheet: 12 contacts with status and notes (e.g. "declined before"). |
+
+## The owner's rules: `<engine>/rules/` (one copy per engine)
+
+Each engine has its own copy: `n8n/rules/`, `claude/rules/`, `python/rules/`. They start the same. The agent
+reads all files of its own copy on every case. Edit them in the kit UI: **Rules** (pick your engine).
+
+| File | What it is |
+|---|---|
 | `categories.md` | The categories, flags and priorities the owner uses. |
 | `routing.md` | Who handles what; when the head of department must approve. |
 | `reply_guidelines.md` | Tone, language, facts, unverified senders, security. |
@@ -44,7 +52,7 @@ we declined before (06), contact sheet gaps.
 
 | Tool | What it gives |
 |---|---|
-| `rules_get("marketing", name)` | the text of `data/<name>.md` |
+| `rules_get("marketing", engine, name="*")` | the owner's rules of that engine: all files, or one (`<engine>/rules/<name>.md`) |
 | `contacts_lookup(query)` | matching rows of the contact sheet |
 | `inbox_history(sender, before)` | earlier emails from that sender, sent before `before` (the case's today) |
 

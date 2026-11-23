@@ -44,13 +44,17 @@
               "value": "travel"
             },
             {
+              "name": "engine",
+              "value": "n8n"
+            },
+            {
               "name": "name",
-              "value": "travel_rules,priorities,team"
+              "value": "*"
             }
           ]
         }
       },
-      "notes": "Reads the rules: data/*.md",
+      "notes": "Reads all the rules: n8n/rules/*.md",
       "notesInFlow": true
     },
     {
@@ -264,7 +268,7 @@
         "color": 7,
         "width": 620,
         "height": 840,
-        "content": "## 1 The message comes in\nWhen you run an eval, the kit sends each test email or Mattermost message (a **case**) to **Case in** (`input.email`, `input.message`). **Read the rules** loads the owner's rules (`data/*.md`: travel_rules, priorities, team).\n\n**See the data of one eval case:** kit results → the case → **n8n execution ↗** → double-click a node."
+        "content": "## 1 The message comes in\nWhen you run an eval, the kit sends each test email or Mattermost message (a **case**) to **Case in** (`input.email`, `input.message`). **Read the rules** loads all the owner's rules of this engine (`usecases/travel/n8n/rules/*.md`; kit UI → **Rules**, engine n8n).\n\n**See the data of one eval case:** kit results → the case → **n8n execution ↗** → double-click a node."
       }
     },
     {
