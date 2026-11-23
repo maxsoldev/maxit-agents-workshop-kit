@@ -1,6 +1,6 @@
 # Marketing inbox (bloxberg info inbox)
 
-> Your team owns this file. Rewrite it in the design block (12:00). Keep it short.
+> Your team owns this file. Rewrite it in the design block (13:30, after lunch). Keep it short.
 
 ## The problem
 
@@ -86,7 +86,7 @@ Pick one, or make your own. Each one is a different output: change `output.schem
 4. **Weekly digest.** One summary for the head of department: what came in, what is urgent, deadlines, what
    needs approval. Input: many emails in one case. Checks: `contains` for each deadline and name.
 
-## Your team decides (design block, 30 min)
+## Your team decides (design block, 45 min with the first cases)
 
 - **Who uses it**, and when? What do they do with the result?
 - **Input:** one email, a thread, or a whole week? Do you add history or the contact sheet to the input?

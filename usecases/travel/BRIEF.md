@@ -1,6 +1,6 @@
 # Events, business travel and office requests
 
-> Your team owns this file. Rewrite it in the design block (12:00). Keep it short.
+> Your team owns this file. Rewrite it in the design block (13:30, after lunch). Keep it short.
 
 ## The problem
 
@@ -92,7 +92,7 @@ Pick one, or make your own. Each one is a different output: change `output.schem
    open questions, as a draft for the traveller. Checks: `contains` for the dates, `judge` for "rough but
    honest".
 
-## Your team decides (design block, 30 min)
+## Your team decides (design block, 45 min with the first cases)
 
 - **Who uses it**, and when (each new message, every morning, once a week)? Where does she want to see it?
 - **Input:** one message, or all sources at once? Which sources arrive in practice?
