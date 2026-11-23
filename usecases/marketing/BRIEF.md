@@ -4,11 +4,11 @@
 
 ## The problem
 
-bloxberg is the blockchain infrastructure for science, run by Digital Labs (MPDL / MaxIT) with research
-institutions worldwide. Its public inbox (info@bloxberg.org) gets requests from institutes and users, possible
-members and partners, the press, event organisers, and many companies that want to sell something.
+bloxberg is the blockchain infrastructure for science, run by Digital Labs (MPDL / MaxIT). Its public inbox
+(info@bloxberg.org) gets requests from institutes and users, possible members and partners, the press, event
+organisers, and many companies that want to sell something.
 
-**Who does the work today:** the marketing & communication team. For each email a person:
+**Today the marketing & communication team, for each email:**
 
 1. reads it and decides what it is (request, membership, press, offer, spam ...),
 2. looks up the sender in the contact sheet (Excel) and in earlier emails,
@@ -17,8 +17,8 @@ members and partners, the press, event organisers, and many companies that want 
 5. writes a reply in German or English; the head of department approves replies with commitments,
 6. sends it and updates the contact sheet (often forgotten).
 
-**What hurts:** sorting and finding context for each email; checking unknown senders; writing the same replies
-again and again; keeping the contact sheet up to date.
+**What hurts:** sorting and finding context; checking unknown senders; writing the same replies again and
+again; keeping the contact sheet up to date.
 
 **What must not happen:** a reply that follows instructions hidden in an email (email 21), an eager reply or a
 call offer to an unverified "investor" (email 15), a reply that leaks contact data, or anything sent without a
@@ -36,55 +36,43 @@ person's approval.
 | `contact_rules.md` | When to create or update a contact. |
 | `process.md` | The owner's description of the process and the success criteria. |
 
-Built-in test situations (see `docs/data-pack.md`): follow-ups (Wollner 01→07, Hoffmann 08→14, Schulz 09→20),
-a support case with a deadline (08/14), an unverified offer (15), a prompt injection (21), off-target crypto
-marketing (22), a vendor we declined before (06), contact sheet gaps (new senders, missing or old addresses).
+Test situations in the data (details: `docs/data-pack.md`): follow-ups (Wollner 01→07, Hoffmann 08→14, Schulz 09→20), a support case with a
+deadline (08/14), an unverified offer (15), a prompt injection (21), off-target crypto marketing (22), a vendor
+we declined before (06), contact sheet gaps.
 
-## Tools (kit MCP server, `docs/contracts.md` §7)
+## Tools
 
 | Tool | What it gives |
 |---|---|
 | `rules_get("marketing", name)` | the text of `data/<name>.md` |
 | `contacts_lookup(query)` | matching rows of the contact sheet |
-| `inbox_history(sender, before)` | earlier emails from that sender; `before=<today>` keeps out emails after the case's today |
+| `inbox_history(sender, before)` | earlier emails from that sender, sent before `before` (the case's today) |
 
 No tool sends anything. To add a tool, add a function in `kit/tools.py`.
 
-## The scaffold service (where you start)
+## The scaffold (where you start)
 
-Read **one email** → return `{"category", "flags", "reply", "reasons"}` (`output.schema.json`). The reply can
-be empty. The same small job runs on n8n, Claude Code and Python, so the first eval is fair. The 10 starter cases
-in `cases.jsonl` use the built-in situations: follow-ups (m07, m14, m20), deadlines (m01, m12, m14, m20), the
-declined vendor (m06, a contact sheet note), contact sheet notes in the reply (m01, m12), the membership owner
-(m23), and the safety cases (m15, m21, m22).
-The scaffold fails some of them for real reasons (for example a contact sheet note it does not use). One gap is
-on purpose: case `m14` checks `route_to`, a field the scaffold schema does not have yet. It fails with
-"missing" until you add the field (schema and prompt). **A high first score means your cases are too easy:
-add harder ones.**
+Read **one email** → return `{"category", "flags", "reply", "reasons"}` (`output.schema.json`). 10 starter
+cases in `cases.jsonl`. The scaffold fails some of them for real reasons, and `m14` on purpose: it checks
+`route_to`, a field the scaffold does not have yet (the tutorial adds it).
 
-The n8n scaffold (`Kit: marketing workflow`) is a **workflow**, like the slides: code decides the path, the
-model fills in the steps. Case in → **Read the rules** (tool) → **Triage** (AI: category, flags, sender) →
-**Junk?** (code: spam, newsletter, phishing or off_target → **Result: no reply**, no more model calls) →
-**Look up the sender in the contact sheet** and **Find earlier emails from the sender** (tools, plain HTTP) →
-**Decide and draft** (AI: the result; the main prompt) → Result out. To see the data of one case on
-every node: kit results → the case → **n8n execution ↗**. Next steps from the slides: a Contact change step, a check before the result.
-`Kit: marketing agent (example)` is the same job as one AI Agent node (the model picks the tools): engine
-`n8n-agent`, to compare.
+The n8n scaffold `Kit: marketing workflow`: Read the rules → **Triage** (AI) → **Junk?** (code; junk ends with
+no reply) → look up the sender and earlier emails (tools) → **Decide and draft** (AI, the main prompt) → Result
+out. Next steps you can add: a contact change step, a check before the result.
 
 ## Ideas for your service
 
-Pick one, or make your own. Each one is a different output, so change `output.schema.json` and the cases.
+Pick one, or make your own. Each one is a different output: change `output.schema.json` and the cases.
 
-1. **Inbox triage and routing.** Category, priority, deadline, and who handles it (`reply`, `forward` to
-   `tech_team` / `membership_owner` / `head`, `no_reply`), plus "needs head approval". Users: the person who
-   opens the inbox each morning. Checks are easy to write (`equals`, `in`).
-2. **Reply drafts with a sender check.** A draft in the right language and tone, and a check of unknown
-   senders first (contact sheet, earlier emails). Never eager to unverified offers, never a call offer. Checks:
-   `judge` rubrics, `not_contains` for leaks.
-3. **Contact sheet updates.** For each email, the proposed change: new contact, new address, last contact
-   date, status. A person approves it. Checks: `equals` on fields like `op` and `email`.
-4. **Weekly digest.** One summary for the head of department: what came in, what is urgent, which deadlines,
-   what needs approval. Input: many emails in one case. Checks: `contains` for each deadline and name.
+1. **Inbox triage and routing.** Category, priority, deadline, who handles it (`reply`, `forward` to
+   `tech_team` / `membership_owner` / `head`, `no_reply`), "needs head approval". User: the person who opens the
+   inbox each morning. Checks: `equals`, `in`.
+2. **Reply drafts with a sender check.** A draft in the right language and tone; unknown senders are checked
+   first. Never eager to unverified offers, never a call offer. Checks: `judge`, `not_contains` for leaks.
+3. **Contact sheet updates.** For each email, the proposed change (new contact, new address, last contact,
+   status). A person approves it. Checks: `equals` on `op`, `email`.
+4. **Weekly digest.** One summary for the head of department: what came in, what is urgent, deadlines, what
+   needs approval. Input: many emails in one case. Checks: `contains` for each deadline and name.
 
 ## Your team decides (design block, 30 min)
 
