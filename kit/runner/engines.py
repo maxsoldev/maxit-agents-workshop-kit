@@ -80,6 +80,8 @@ def engine_env(extra: dict | None = None) -> dict:
     env.update({"OPENAI_API_KEY": s.openai_api_key, "KIT_MODEL": s.model, "KIT_TOOLS_URL": s.tools_url})
     if s.openai_base_url:
         env["OPENAI_BASE_URL"] = s.openai_base_url  # the OpenAI SDK reads it
+    else:
+        env.pop("OPENAI_BASE_URL", None)  # an empty value makes the SDK call "" (APIConnectionError)
     env.update(extra or {})
     return env
 

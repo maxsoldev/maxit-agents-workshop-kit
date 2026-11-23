@@ -23,7 +23,8 @@ def _read_env_file() -> dict[str, str]:
 
 # At start, copy .env into os.environ (for tools that read the env). Remember what came from the file:
 # settings() reads .env again each time, so a new key works without a restart.
-_FROM_FILE = {k: v for k, v in _read_env_file().items() if k not in os.environ}
+# Skip empty values: `OPENAI_BASE_URL=` must mean "not set", but the OpenAI SDK takes "" as the base URL.
+_FROM_FILE = {k: v for k, v in _read_env_file().items() if k not in os.environ and v}
 os.environ.update(_FROM_FILE)
 _file_now: dict[str, str] = {}
 

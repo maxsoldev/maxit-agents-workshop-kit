@@ -351,3 +351,11 @@ def test_cli(capsys):
     out = capsys.readouterr().out
     assert "✓ f01" in out and "✗ f02" in out and "got b, expected a" in out and "1/2 cases passed" in out
     assert cli.main("nope", "python") == 1
+
+
+def test_engine_env_drops_empty_base_url(monkeypatch):
+    """`OPENAI_BASE_URL=` in .env must not reach the SDK as "" (it then calls no host)."""
+    monkeypatch.setenv("OPENAI_BASE_URL", "")
+    assert "OPENAI_BASE_URL" not in engines.engine_env()
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://gw:4000/v1/")
+    assert engines.engine_env()["OPENAI_BASE_URL"] == "http://gw:4000/v1"
