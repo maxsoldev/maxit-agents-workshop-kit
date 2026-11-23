@@ -44,7 +44,7 @@
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.9,
       "position": [
-        460,
+        440,
         0
       ],
       "parameters": {
@@ -67,7 +67,7 @@
       "typeVersion": 1.3,
       "position": [
         420,
-        220
+        200
       ],
       "parameters": {
         "model": {
@@ -94,8 +94,8 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
       "position": [
-        580,
-        220
+        560,
+        200
       ],
       "parameters": {
         "schemaType": "manual",
@@ -108,7 +108,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        820,
+        780,
         0
       ],
       "parameters": {
@@ -142,8 +142,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1300,
-        -220
+        1860,
+        -180
       ],
       "parameters": {
         "jsCode": "// No reply and no more model calls: build the result in code, in the shape of the case schema.\nconst triage = $('Triage').first().json.output;\nconst schema = $('Case in').first().json.body.output_schema;\nconst result = { category: triage.category, flags: triage.flags, reply: '', reasons: 'No reply. ' + triage.reason };\n// Only the fields of the schema; a required field we do not know (e.g. route_to) gets an empty value.\nconst output = {};\nfor (const [key, prop] of Object.entries(schema.properties)) {\n  if (key in result) output[key] = result[key];\n  else if ((schema.required || []).includes(key)) output[key] = prop.type === 'array' ? [] : prop.type === 'boolean' ? false : '';\n}\nreturn [{ json: { output } }];"
@@ -155,8 +155,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1080,
-        100
+        1040,
+        0
       ],
       "parameters": {
         "method": "POST",
@@ -175,8 +175,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1300,
-        100
+        1240,
+        0
       ],
       "parameters": {
         "method": "POST",
@@ -195,8 +195,8 @@
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.9,
       "position": [
-        1560,
-        100
+        1460,
+        0
       ],
       "parameters": {
         "promptType": "define",
@@ -217,8 +217,8 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.3,
       "position": [
-        1520,
-        320
+        1440,
+        200
       ],
       "parameters": {
         "model": {
@@ -245,8 +245,8 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
       "position": [
-        1680,
-        320
+        1580,
+        200
       ],
       "parameters": {
         "schemaType": "manual",
@@ -259,7 +259,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        1960,
+        1860,
         0
       ],
       "parameters": {
@@ -275,12 +275,12 @@
       "typeVersion": 1,
       "position": [
         -80,
-        -640
+        -440
       ],
       "parameters": {
         "color": 7,
         "width": 440,
-        "height": 360,
+        "height": 760,
         "content": "## 1 Case in, rules (code)\nThe kit runner POSTs one case here: `{case_id, today, input, output_schema}`.\nFile texts are already in `input` (e.g. `input.email`).\n**Load rules** reads the owner's rules (`data/*.md`) with the kit tool `rules_get`.\nTest it: run an eval in the kit UI."
       }
     },
@@ -291,12 +291,12 @@
       "typeVersion": 1,
       "position": [
         380,
-        -640
+        -440
       ],
       "parameters": {
         "color": 4,
-        "width": 340,
-        "height": 360,
+        "width": 320,
+        "height": 760,
         "content": "## 2 Triage (AI step)\nOne model call: category, flags, sender address.\nPrompt: node **Triage** > Chat Messages > **Message**.\nThe fields: sub-node **Triage fields**."
       }
     },
@@ -306,13 +306,13 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        740,
-        -640
+        720,
+        -440
       ],
       "parameters": {
         "color": 6,
-        "width": 280,
-        "height": 360,
+        "width": 240,
+        "height": 760,
         "content": "## 3 Junk? (code)\n**Code decides the path.** Spam, newsletter, phishing or off_target: no reply, no more model calls (**Result: no reply**).\nChange the rule in the IF node."
       }
     },
@@ -322,13 +322,13 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        1040,
-        -640
+        980,
+        -440
       ],
       "parameters": {
         "color": 7,
-        "width": 420,
-        "height": 360,
+        "width": 400,
+        "height": 760,
         "content": "## 4 Context (tools, no AI)\nPlain HTTP calls to the kit tools (`POST .../mcp/call/<tool>`, body = the arguments):\n**Find sender** = `contacts_lookup`, **Earlier emails** = `inbox_history` (before today).\nMore context: copy a node, change the tool name and the body."
       }
     },
@@ -338,13 +338,13 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        1480,
-        -640
+        1400,
+        -440
       ],
       "parameters": {
         "color": 4,
-        "width": 380,
-        "height": 360,
+        "width": 340,
+        "height": 760,
         "content": "## 5 Decide and draft (AI step)\n**The main prompt is here**: node **Decide and draft** > Chat Messages > **Message** (the steps). Change one thing, Publish, run the eval again.\n**Result shape** forces the schema of the case (`output.schema.json`): a schema change needs no edit here."
       }
     },
@@ -354,13 +354,13 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        1880,
-        -640
+        1760,
+        -440
       ],
       "parameters": {
         "color": 2,
         "width": 300,
-        "height": 360,
+        "height": 760,
         "content": "## 6 Result out\nAnswers the runner with the result JSON.\nAfter an edit: **Publish** (top right). The eval runs only the published version. Then `make n8n-export`."
       }
     }
