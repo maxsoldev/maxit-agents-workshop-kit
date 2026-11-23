@@ -70,11 +70,6 @@ def form(**over) -> dict:
     return data
 
 
-def test_root_redirects(client):
-    r = client.get("/", follow_redirects=False)
-    assert r.headers["location"] == "/uc/demo/cases"
-
-
 def test_no_key_banner(client, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "")
     assert "judge checks are skipped" in client.get("/uc/demo/cases").text
@@ -581,15 +576,9 @@ def test_docs_names_order_and_file_path(client, tmp_path, monkeypatch):
     assert client.get("/docs/raw?name=travel/BRIEF.md").status_code == 404
 
 
-def test_start_page_opens_the_last_used_use_case(client):
-    (config.USECASES_DIR / "zeta").mkdir()
-    (config.USECASES_DIR / "zeta" / "cases.jsonl").write_text("", encoding="utf-8")
-    assert client.get("/", follow_redirects=False).headers["location"] == "/uc/demo/cases"  # the first one
-    client.get("/uc/zeta/cases")
-    assert client.get("/", follow_redirects=False).headers["location"] == "/uc/zeta/cases"
-    client.cookies.clear()
-    client.cookies.set("kit_last_uc", "gone")  # a use case that is not there any more
-    assert client.get("/", follow_redirects=False).headers["location"] == "/uc/demo/cases"
+def test_start_page_is_the_readme(client):
+    assert client.get("/", follow_redirects=False).headers["location"] == "/docs?name=README.md"
+    assert "<code>README.md</code>" in client.get("/").text
 
 
 def test_run_page_shows_only_running_or_newest_job(monkeypatch):

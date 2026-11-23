@@ -352,7 +352,9 @@ def page(request: Request, name: str, uc: str | None = None, status: int = 200, 
     )
     response = templates.TemplateResponse(request, name, ctx, status_code=status)
     if uc and uc in ctx["usecases"]:
-        response.set_cookie(LAST_UC_COOKIE, uc, max_age=60 * 60 * 24 * 365, samesite="lax")  # `/` opens it next time
+        response.set_cookie(
+            LAST_UC_COOKIE, uc, max_age=60 * 60 * 24 * 365, samesite="lax"
+        )  # the header uses it next time
     return response
 
 
@@ -373,12 +375,9 @@ def load_cases_safe(uc: str) -> tuple[list[dict], str | None]:
 
 
 @app.get("/")
-def index(request: Request):
-    """The use case you used last (a cookie), else the first one."""
-    ucs = usecases()
-    last = request.cookies.get(LAST_UC_COOKIE)
-    uc = last if last in ucs else (ucs[0] if ucs else None)
-    return RedirectResponse(f"/uc/{uc}/cases" if uc else "/docs", status_code=302)
+def index():
+    """The start page is the Overview (README.md) on the Guide."""
+    return RedirectResponse("/docs?name=README.md", status_code=302)
 
 
 def same_page(back: str, to: str) -> str:
