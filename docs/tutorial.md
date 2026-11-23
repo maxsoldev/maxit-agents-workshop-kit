@@ -16,7 +16,7 @@ its own service (the design block).
 
 You need `make serve` running and the kit UI open: http://localhost:5700 → **marketing**.
 
-## Level 1. Read a failure (about 8 min)
+## Level 1. Read a failure (about 6 min)
 
 **What you do**
 
@@ -25,34 +25,53 @@ You need `make serve` running and the kit UI open: http://localhost:5700 → **m
    `ENGINE=n8n`).
 2. When it ends, click **Open results →**. Open a red case (✗): click its row.
 3. Read it from top to bottom: the **checks** (✓ and ✗, each with a reason), the **Output** next to the
-   **Expected**, and the **Input**. Also the **Tool calls** (all engines: what the agent looked up, with the
-   results). Claude and Python: also the **Engine log**; with Langfuse on, the **Langfuse trace** link. n8n:
-   the **n8n execution ↗** link opens exactly this case's run in n8n: double-click a node to see its input and
-   output.
+   **Expected**, the **Input** and the **Tool calls** (what the agent looked up, with the results).
 
 **What you see**
 
-- A score such as `7/10 cases passed`, and one "first failing reason" per red case.
-- `m14` is red on all engines. Its first failing reason: ``route_to` is missing in the result``. In the
-  terminal: ``✗ m14 ... equals route_to: `route_to` is missing in the result``.
-- `m01` and `m12` are often red too (always on Python, mostly on n8n, now and then on Claude):
-  ``contains reply: does not have Direktorenkonferenz`` (`m01`) and ``contains reply: does not have webinar``
-  (`m12`). Open the **Tool calls**: `contacts_lookup` found the note ("Met at Direktorenkonferenz", "Joined
-  bloxberg webinar 2026"), and the agent often writes it in `reasons`, but the reply does not use it
-  (`data/contact_rules.md`: "Read the notes before you draft ... and use them"). That is a real mistake of the
-  agent, and one prompt line fixes it.
+- A score such as `6/10 cases passed`, and one "first failing reason" per red case.
+- `m12` (Sophie Martin asks for a case study) is red on Python and n8n: the judge on the reply says it does not
+  refer to the earlier contact. Open the **Tool calls**: `contacts_lookup` found her note ("Joined bloxberg
+  webinar 2026"), but the reply does not use it. `m01` has the same mistake (note "Met at
+  Direktorenkonferenz"). Claude often uses the note already: then look at another red case.
+- `m14` is red on all engines: ``equals route_to: `route_to` is missing in the result``. That is level 3.
 
 **What it teaches**
 
 For each red case ask: **is the agent wrong, or is the case wrong?** A case can be wrong too (a bad expected
-value, a check that is too strict). Only the business people can decide what is right. Write down one case
-where the agent is wrong, and why.
+value, a check that is too strict). Only the business people can decide what is right.
 
-## Level 2. Fix it with one change (about 10 min)
+## Level 2. Fix it with one prompt line (about 7 min)
+
+The scaffold reads the contact sheet, but its prompt does not say what to do with a note.
+
+**What you do**
+
+1. Add **one line** to the prompt of your engine, under step 4 (`4. Write a reply draft ...`):
+
+   ```text
+      If the sender's contact row has a note (a meeting, an event), refer to it in one short sentence.
+   ```
+
+   n8n: node **Decide and draft** → Chat Messages → **Message**; then **Publish** (top right) and
+   `make n8n-export UC=marketing`. n8n agent example: the Agent node → Options → System Message.
+2. Run again, run name `note`. On the Results page, check **Compare with**: it shows your `scaffold` run.
+
+**What you see**
+
+- `m12` is ▲ better: the reply now says something like "we are glad you joined our webinar". `m01` often too
+  (it can stay red on another part of its rubric).
+- Another case can get **▼ worse** (a judge flip). That is the next thing to look at, not a reason to stop.
+
+**What it teaches**
+
+The loop: **one change, then run again, then compare**. The same line could also go into
+`data/reply_guidelines.md`: then it is the owner's rule, and all engines get it at once.
+
+## Level 3. A new field: schema + prompt (about 8 min)
 
 `m14` (Hoffmann writes again: her certificate is still not verified) checks a field `route_to`: who must handle
-the email. Here it is the technical team (`tech_team`, see `data/routing.md`). The scaffold has no such field.
-This gap is on purpose (`usecases/marketing/BRIEF.md`).
+the email (here `tech_team`, see `data/routing.md`). The scaffold has no such field, on purpose.
 
 **What you do**
 
@@ -78,30 +97,21 @@ This gap is on purpose (`usecases/marketing/BRIEF.md`).
       When we reply ourselves, write "route_to": "". Never leave the field out.
    ```
 
-   All 3 engines get the schema with each case and must answer in its shape, so the line is enough.
-   n8n: the schema needs no edit in n8n (the model node **Draft model** reads it from the case). Open the node
-   **Decide and draft**, Chat Messages → **Message**, and put the line after step 5 (`5. Write reasons: ...`).
-   Close the node, click **Publish** (top right; the Run page of the kit warns while an edit is not
-   published), and run `make n8n-export UC=marketing`. Junk emails do not reach this node: the code node
-   **Result: no reply** fills `route_to` with `""` by itself.
-3. Run again, run name `route`. On the Results page, check **Compare with**: it shows your `scaffold` run (pick
-   it if not).
+   All 3 engines get the schema with each case, so the schema needs no edit in n8n. n8n: put the line after
+   step 5 in **Decide and draft**, then **Publish** and `make n8n-export UC=marketing`.
+3. Run again, run name `route`. Compare with `note`.
 
 **What you see**
 
-- `m14` no longer fails on "missing": open it, the check `equals route_to` is ✓ (`got tech_team`).
-- If the other checks of `m14` pass too, Compare shows **▲ better** for `m14`. It can stay red on another check,
-  often the judge on the reply. That is a real mistake in the reply, not in `route_to`.
-- A case can also get **▼ worse**: for example, the judge gives the reply 3 this time. That is the next thing
-  to look at, not a reason to stop.
-- With Langfuse on: the same compare in Langfuse. Click **Open this experiment in Langfuse** on the results page.
+- `m14`: the check `equals route_to` is ✓ (`got tech_team`). If its judge on the reply passes too, `m14` is
+  **▲ better**.
 
 **What it teaches**
 
-The loop: **one change, then run again, then compare**. The schema says *what* comes out; the prompt says
-*how*. A change in one place often needs the other. Change one thing at a time, so you know what helped.
+The schema says *what* comes out; the prompt says *how*. A new field needs both. Change one thing at a time, so
+you know what helped.
 
-## Level 3. Run it twice (about 5 min)
+## Level 4. Run it twice (about 4 min)
 
 **What you do**
 
@@ -109,21 +119,20 @@ Run again with **no change**, run name `route-2`. Compare `route-2` with `route`
 
 **What you see**
 
-Some cases can flip: green before, red now, or the other way. In our runs `m12` flipped on n8n and Claude
-(the reply used the webinar note one time and not the next), `m01` on Claude, and `m23` once on n8n (its
-`judge` on the reply gave 3, then 4). Python gave the same result twice. Nothing changed: the model is not the
+Some cases can flip: green before, red now, or the other way. In our runs `m06` flipped on Python (the judge on
+`reasons`), `m01` on Claude (once the reply claimed "only a hash is sent") and `m15` on n8n. Nothing changed: the model is not the
 same each time.
 
 **What it teaches**
 
-**Trust a result only when it is the same twice.** If one change makes 1 case better, run again before you
-keep it. A case that flips is a sign: the instruction is not clear, or the check is too strict.
+**Trust a result only when it is the same twice.** A case that flips is a sign: the instruction is not clear,
+or the check is too strict.
 
-## Level 4. A failure becomes a case (about 7 min)
+## Level 5. A failure becomes a case (about 5 min)
 
 **What you do**
 
-1. Pick one mistake you saw in levels 1 to 3, for example a wrong `category`, a wrong `route_to`, or a reply
+1. Pick one mistake you saw in levels 1 to 4, for example a wrong `category`, a wrong `route_to`, or a reply
    that misses a fact.
 2. Open **Cases → + Add case**, or **Copy** on a case with the same input (for example **Copy** on `m23`, the
    membership request). Fill in: an id (for example `m30`), a title that names the mistake, `Today`, the input
@@ -143,7 +152,7 @@ The cases are the part of the work that stays when the prompt and the model chan
 
 ## After the tutorial: keep or undo?
 
-**Keep everything** (the `route_to` field, the prompt line, your new case). Commit it on your laptop:
+**Keep everything** (the 2 prompt lines, the `route_to` field, your new case). Commit it on your laptop:
 `git add -A usecases/marketing && git commit -m "tutorial"`. If your team works in one fork, one person pushes
 the tutorial commit; the others undo their copy (`git checkout -- usecases/marketing`) and `git pull`.
 
