@@ -16,13 +16,19 @@ def runs_dir() -> Path:
 
 
 def new_run_id(uc: str, engine: str, now: datetime) -> str:
-    """`<YYYYmmdd-HHMMSS>-<uc>-<engine>`; adds `-2`, `-3`, ... if that file is there already."""
+    """`<YYYYmmdd-HHMMSS>-<uc>-<engine>`; adds `-2`, `-3`, ... if that file is there already.
+    The file is created here (mode "x"), so two evals that start in the same second get different ids."""
     base = f"{now:%Y%m%d-%H%M%S}-{uc}-{engine}"
-    run_id, n = base, 1
-    while (runs_dir() / f"{run_id}.json").exists():
-        n += 1
-        run_id = f"{base}-{n}"
-    return run_id
+    runs_dir().mkdir(parents=True, exist_ok=True)
+    n = 1
+    while True:
+        run_id = base if n == 1 else f"{base}-{n}"
+        try:
+            with open(runs_dir() / f"{run_id}.json", "x", encoding="utf-8") as fh:
+                fh.write("{}")
+            return run_id
+        except FileExistsError:
+            n += 1
 
 
 def save_run(run: dict) -> Path:
@@ -47,6 +53,8 @@ def list_runs(usecase: str | None = None) -> list[dict]:
         try:
             run = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
+            continue
+        if not run.get("run_id"):  # a run that is just starting (new_run_id placeholder)
             continue
         if usecase is None or run.get("usecase") == usecase:
             row = {k: run.get(k) for k in SUMMARY_KEYS}
