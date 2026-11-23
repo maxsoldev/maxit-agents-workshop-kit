@@ -25,16 +25,21 @@ You need `make serve` running and the kit UI open: http://localhost:5700 → **m
    `ENGINE=n8n`).
 2. When it ends, click **Open results →**. Open a red case (✗): click its row.
 3. Read it from top to bottom: the **checks** (✓ and ✗, each with a reason), the **Output** next to the
-   **Expected**, and the **Input**. Claude and Python: also the **Tool calls** and the **Engine log** (and the
-   **Langfuse trace** link, if Langfuse is on). n8n: the tool calls are in the **n8n execution ↗** link.
+   **Expected**, and the **Input**. Also the **Tool calls** (all engines: what the agent looked up, with the
+   results). Claude and Python: also the **Engine log**; with Langfuse on, the **Langfuse trace** link. n8n:
+   the **n8n execution ↗** link opens the run in n8n.
 
 **What you see**
 
-- A score such as `5/8 cases passed`, and one "first failing reason" per red case.
+- A score such as `7/10 cases passed`, and one "first failing reason" per red case.
 - `m14` is red on all engines. Its first failing reason: ``route_to` is missing in the result``. In the
   terminal: ``✗ m14 ... equals route_to: `route_to` is missing in the result``.
-- Other red cases fail on a real mistake, for example ``contains reply: does not have Datenschutz`` (`m07`), or a
-  judge score below 4 (``judge reply: score 3/5 (min 4): ...`` on `m20` or `m23`).
+- `m01` and `m12` are often red too (always on Python, mostly on n8n, now and then on Claude):
+  ``contains reply: does not have Direktorenkonferenz`` (`m01`) and ``contains reply: does not have webinar``
+  (`m12`). Open the **Tool calls**: `contacts_lookup` found the note ("Met at Direktorenkonferenz", "Joined
+  bloxberg webinar 2026"), and the agent often writes it in `reasons`, but the reply does not use it
+  (`data/contact_rules.md`: "Read the notes before you draft ... and use them"). That is a real mistake of the
+  agent, and one prompt line fixes it.
 
 **What it teaches**
 
@@ -100,8 +105,10 @@ Run again with **no change**, run name `route-2`. Compare `route-2` with `route`
 
 **What you see**
 
-Some cases flip: green before, red now, or the other way. On all engines `m14` and `m23` flip often: their
-`judge` check on the reply gives 3 one time and 4 the next. On Python `m06` and `m07` flip too. Nothing changed: the model is not the same each time.
+Some cases can flip: green before, red now, or the other way. In our runs `m12` flipped on n8n and Claude
+(the reply used the webinar note one time and not the next), `m01` on Claude, and `m23` once on n8n (its
+`judge` on the reply gave 3, then 4). Python gave the same result twice. Nothing changed: the model is not the
+same each time.
 
 **What it teaches**
 
