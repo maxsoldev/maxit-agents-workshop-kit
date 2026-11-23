@@ -5,82 +5,49 @@ then measure every change.**
 
 ## The steps
 
-1. **Write the cases.** Each case is one input, the expected answer, and the checks (`cases.jsonl`).
-   Start with 5: 2 easy ones, 2 tricky ones, 1 that must never go wrong (a safety case). If you changed
-   `output.schema.json`, the starter cases check old fields: change them to the new fields, or delete them.
-2. **Run the eval** on the scaffold. It fails. Good: now you see the gap. **A high first score means your
-   cases are too easy: add harder ones** (follow-ups, deadlines, facts the agent must look up, safety).
-3. **Read the failures.** Open each failed case: the output, the reason of each check, the trace.
-   Ask: is the agent wrong, or is the case wrong?
-4. **Change one thing.** The prompt, one rule, one tool, the model, the schema. Only one.
-5. **Run the eval again.** Compare with the last run (Results → Compare). Better: keep it and commit.
-   Worse: undo it. Same: think again. n8n: your change lives in n8n, not in git. Run `make n8n-export`
-   (it writes `usecases/<uc>/n8n/workflow.json` and `agent.json` with the placeholders back), then commit them.
-6. **Every new failure becomes a case.** When you see a mistake (in a trace, in a demo, in real use), write a
-   case for it before you fix it. Then the fix stays fixed.
-
-## In Langfuse
-
-Langfuse has the same loop with other words. Your **cases** are a **dataset** (Datasets → `marketing`, one item
-per case). Each eval **run** is an **experiment** (a dataset run) on that dataset. Each **check** is a **score**
-(1 or 0) on the case trace, plus `passed`. To compare two runs: Experiments → tick both → **Compare** (or the
-link **Open this experiment in Langfuse** on the results page). It shows the scores per case, side by side.
-`cases.jsonl` stays the source: each eval writes the changed cases to the dataset.
-
-## In n8n: Evaluations
-
-n8n has its own evaluations ([overview](https://docs.n8n.io/advanced-ai/evaluations/overview/)). The dataset
-is a Data table or a Google Sheet (one row per case). An **Evaluation Trigger** sends each row through the
-workflow, and the **Evaluation** node writes the outputs back to the row (**Set Outputs**).
-- **Light evaluations** ([docs](https://docs.n8n.io/advanced-ai/evaluations/light-evaluations/)): you
-  compare the outputs with the expected ones by eye. Self-hosted, they need a Registered Community licence (free).
-- **Metric-based evaluations**
-  ([docs](https://docs.n8n.io/advanced-ai/evaluations/metric-based-evaluations/)): **Set Metrics** gives
-  scores (correctness, categorization, tools used, your own), shown per run on the Evaluations tab.
-  Self-hosted, they need Enterprise; Registered Community allows them for one workflow only.
-
-The kit uses its own runner, because it runs the **same cases on all 3 engines** (n8n, Claude, Python), with
-the same checks, and puts each run in Langfuse as an experiment, so you can compare engines and runs side by
-side. n8n's evaluations see only n8n. They are a good choice after the day for a service that runs only in n8n:
-the team then keeps its cases and scores next to the workflow.
+1. **Write the cases** (`cases.jsonl`): an input, the expected answer, the checks. Start with 5: 2 easy, 2
+   tricky, 1 that must never go wrong (safety). Changed `output.schema.json`? Change or delete the starter cases.
+2. **Run the eval** on the scaffold. It fails: good. **A high first score means your cases are too easy: add
+   harder ones** (follow-ups, deadlines, facts to look up, safety).
+3. **Read the failures:** the output, the reason of each check, the trace. Is the agent wrong, or the case?
+4. **Change one thing:** the prompt, one rule, one tool, the model, the schema. Only one.
+5. **Run the eval again** and compare (Results → Compare). Better: keep it and commit. Worse: undo it.
+   n8n: your change lives in n8n. Run `make n8n-export`, then commit.
+6. **Every new failure becomes a case.** Write the case before you fix it. Then the fix stays fixed.
 
 ## Rules that save time
 
-- **One change at a time.** With two changes you do not know which one helped. A new output field is one
-  change, also if it touches several files: the field in `output.schema.json`, plus one line about it in the
-  prompt of each engine you use (`claude/CLAUDE.md`, the n8n system message, `python/agent.py`). The n8n
-  model node of the last AI step (**Draft model**, **Tasks model**) needs no edit: it reads the schema from the case.
-- **Read the trace, not only the score.** The trace shows which tools the agent called, what it read and
-  where it went wrong. Claude: Langfuse (the `tool:<name>` spans have the input and output; the results page
-  lists the same tool calls, for all engines). n8n: Langfuse too (one span per node: Triage, Junk?, Find
-  sender, ...), and Executions in n8n for all detail (the results page links to each one). Python: the `tool ...`
-  lines it logs on stderr (the results page shows them under **Engine log**).
-  To look at one case closely: `make run-case UC=marketing ENGINE=python CASE=m14` (or `uv run kit run-case
-  marketing python m14`) prints the engine input, the output, the tool calls, the log and the checks.
+- **One change at a time.** A new output field is one change: the field in `output.schema.json` plus one line
+  in the prompt of each engine you use (`claude/CLAUDE.md`, the n8n prompt, `python/agent.py`).
+- **Read the trace, not only the score.** The results page lists the tool calls for all engines. More detail:
+  Langfuse (link on the results page), for n8n also **n8n execution ↗**, for Python the **Engine log**.
+- **Look at one case closely:** `make run-case UC=marketing ENGINE=python CASE=m14` prints the input, output,
+  tool calls, log and checks.
 - **Try a tool by hand** before you blame the agent: `uv run kit tool` lists the tools;
   `uv run kit tool trains_search "from_place=München Hbf" "to_place=Berlin Hbf" date=2026-12-08 arrive_by=10:00`
   prints what the agent gets.
-- **Do not fit the cases.** A rule like "if the sender is Lara Venn, say unverified" makes the case pass and
-  the agent worse. Write rules that hold for the next email too.
-- **Run it twice** before you trust a small change. Models are not fully deterministic. This is true for the
-  `judge` too (the kit asks for temperature 0, but many models do not allow it): a judge check can pass on one
-  run and fail on the next with no change. Trust a judge result only when it is the same twice.
-- **A flaky case is a finding.** Run the first eval twice. A case that passes once and fails once, with no
-  change, often means the agent skips a step on some runs (for example it does not read `routing` every time).
-  Look at the tool calls of both runs. Then make that step explicit in the prompt ("Step 1: call
-  `rules_get` for `routing`"), and run twice again.
-- **How to read a trace (Langfuse, for everyone):** open the case trace from the results page. Read the
-  `tool:<name>` lines from top to bottom: each one is one thing the agent looked up (`tool:rules_get` with
-  `"name": "priorities"` = "it read your priorities"), with what it got back. Skip the technical lines
-  (`claude_code.llm_request` = one model call, `ToolSearch`, `blocked_on_user`): they are not your rules.
-  An n8n trace also has one line per node, in the order they ran (`Triage`, `Junk?`, `Look up the sender in the contact sheet`, ...); open
-  the model line under an AI node (`Draft model`) to see the prompt it got and what it answered.
-- **Keep 3 to 5 cases aside.** After many loops, your cases get easy: the agent is tuned to them. Mark a few
-  new cases as **holdout** (tick in the case form, or `"holdout": true`). The eval skips them; run them at the
-  end (`make eval ... HOLDOUT=1`, or the tick on the Run page) to see if the agent works on cases it never saw.
-- **Read the score per field** (results page, "Per field", e.g. `equals action 8/15`): it shows which part of
-  the result is weak.
+- **Do not fit the cases.** "If the sender is Lara Venn, say unverified" makes the case pass and the agent
+  worse. Write rules that hold for the next email too.
+- **Run it twice** before you trust a small change, also for `judge` checks. Trust a result only when it is the
+  same twice.
+- **A flaky case is a finding.** It often means the agent skips a step on some runs. Compare the tool calls of
+  both runs, make that step explicit in the prompt ("Step 1: call `rules_get` for `routing`"), run twice again.
+- **Keep 3 to 5 cases aside** as **holdout** (tick in the case form). The eval skips them; run them at the end
+  (the tick on the Run page, or `make eval ... HOLDOUT=1`).
+- **Read the score per field** (results page, "Per field"): it shows the weak part of the result.
 - **Fix the case** when the case is wrong. Ask the owner what is right; do not change it to make it pass.
+
+## How to read a trace (Langfuse)
+
+Open the case trace from the results page. Read the `tool:<name>` lines from top to bottom: each one is one
+thing the agent looked up, with what it got back (`tool:rules_get` with `"name": "priorities"` = "it read your
+priorities"). Skip the technical lines (`claude_code.llm_request`, `ToolSearch`, `blocked_on_user`).
+An n8n trace has one line per node, in run order; open the model line under an AI node to see its prompt and
+answer.
+
+In Langfuse your **cases** are a **dataset**, each eval run is an **experiment**, each check is a **score**.
+To compare runs: Experiments → tick both → **Compare** (or **Open this experiment in Langfuse** on the results
+page).
 
 ## Which check when
 
@@ -95,40 +62,27 @@ the team then keeps its cases and scores next to the workflow.
 | `any` | "there is an item where ...", in any order | a task with `kind` `trip` whose `event` contains "Riga" |
 | `judge` | quality you cannot check with a word: tone, "asks for details, no call" | rubric in one or two sentences |
 
-The **schema** check always runs first: the result must match `output.schema.json`. A check on a field that is
-not in the schema fails with "missing": add the field to the schema. The runner sends the schema to every engine
-(`output_schema` in the engine input): the Claude agent, `agent.py` and the n8n model node of the last AI step read it from
-there. Say in the prompt what the new field means, if its name and description are not enough.
-
-Prefer simple checks: they are fast, free and never wrong. Use `judge` for quality only, and write the rubric
-like an instruction to a colleague: what must be in it, what must not.
-
-**Tone and form → `judge`, not `contains`.** `contains` is a plain substring test. "The reply uses the Sie
-form" is not the same as "the reply has the word Sie": a polite German reply can pass on one run and fail on
-the next. Use `contains` only for a fact that must be there word for word (a date, a number, a name).
-The same for `not_contains`: a word check can hit a correct text. `not_contains "Termin"` also fails on
-"we will check our dates and send you a Terminvorschlag later", and `not_contains "call"` fails on "we do
-not offer a call". For a must-not-say rule with a condition ("no meeting offer", "no promise before the head
-approves"), use a `judge` with that rule as the rubric.
-A judge that cannot run (no key, API error) is **skipped**: the case passes or fails on its other checks.
-
-**What the judge sees:** the rubric, the case input, the field, and the agent's tool calls with their results
-(all 3 engines; n8n through its execution data). So a fact the agent looked up (a contact note, a rule, an
-event date) is not "invented". When a fact is not in a tool result, write the allowed facts into the
-rubric ("The contact sheet says we declined NodeHost Pro in March 2026").
+- The **schema** check runs first. A check on a field that is not in the schema fails with "missing": add the
+  field to the schema.
+- Prefer simple checks: fast, free, never wrong. Use `judge` for quality; write the rubric like an instruction
+  to a colleague.
+- **Tone, form and "must not say" rules → `judge`.** `contains` is a plain substring test: use it only for a
+  fact that must be there word for word (a date, a number, a name). `not_contains "call"` also fails on "we do
+  not offer a call".
+- **The judge sees** the rubric, the case input, the field and the agent's tool calls with their results. A
+  fact the agent looked up is not "invented". A fact that is in no tool result: write it into the rubric.
+- A judge that cannot run (no key, API error) is **skipped**: the case passes or fails on its other checks.
 
 ## How business people write cases (in the UI)
 
 Open http://localhost:5700 → your use case → **Cases** → **Add case**.
 
-1. **Title:** what the situation is, in a few words ("Unknown fund wants a call").
-2. **Input:** pick an email (`data/emails/...`) or one chat message (`mattermost: ...`) and click **Add to
-   input**, or paste a message into **Or paste a message**. The form writes the JSON for you and sets
-   **Today** from the date of the email or message.
-3. **Expected:** what a good colleague would answer, field by field (category, route, date, ...).
-4. **Checks:** for each important point, one check. "Must never" points become `not_contains` or a `judge`.
-   The field is a path into the result: `tasks.0.kind` = the kind of the first task (`tasks.1` = the second).
-   "Some task is a trip to Riga" = an `any` check on `tasks`. The case list shows every check in words.
+1. **Title:** the situation in a few words ("Unknown fund wants a call").
+2. **Input:** pick an email or a chat message and click **Add to input**, or paste a message. **Today** is set
+   from its date.
+3. **Expected:** what a good colleague would answer, field by field.
+4. **Checks:** one check for each important point. "Must never" points become `not_contains` or a `judge`.
+   The field is a path into the result: `tasks.0.kind` = the kind of the first task. "Some task is a trip to
+   Riga" = an `any` check on `tasks`.
 
-Then save. The case goes into `cases.jsonl`, so git shows the change. A developer never has to write the
-expected answer: the person who does the job today knows it best.
+Then save. The case goes into `cases.jsonl`. The person who does the job today knows the expected answer best.
