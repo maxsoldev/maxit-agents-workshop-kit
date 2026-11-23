@@ -4,7 +4,8 @@ from __future__ import annotations
 import json
 import os
 import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -32,8 +33,11 @@ class FakeN8n(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
             return
+        FakeN8n.last = body
         inp = body["input"]
-        answer = [{"category": inp.get("want", "zzz"), "reply": inp.get("note", "hi"), "tags": ["z"]}]
+        if inp.get("mode") == "sleep":
+            time.sleep(3)
+        answer =[{"category": inp.get("want", "zzz"), "reply": inp.get("note", "hi"), "tags": ["z"]}]
         data = json.dumps(answer).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -47,7 +51,7 @@ class FakeN8n(BaseHTTPRequestHandler):
 
 @pytest.fixture
 def n8n(monkeypatch):
-    server = HTTPServer(("127.0.0.1", 0), FakeN8n)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), FakeN8n)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     monkeypatch.setenv("N8N_URL", f"http://127.0.0.1:{server.server_port}")
     yield server
@@ -63,6 +67,22 @@ def test_load_cases_and_resolve_files():
     inp = cases.engine_input("fake", cs[0])
     assert inp["case_id"] == "f01" and inp["today"] == "2026-11-04"
     assert inp["input"]["note"].startswith("Thanks") and inp["input"]["note_file"] == "data/note.txt"
+
+
+def test_eml_files_are_decoded(tmp_path, monkeypatch):
+    (tmp_path / "x" / "data").mkdir(parents=True)
+    qp = ("From: Anna <a@x.example>\nDate: Tue, 03 Nov 2026 11:22:00 +0100\nSubject: =?utf-8?q?Gr=C3=BC=C3=9Fe?=\n"
+          "Content-Type: text/plain; charset=utf-8\nContent-Transfer-Encoding: quoted-printable\n\nVielen Dank f=C3=BCr Ihre Mail.\n")
+    html = ("From: B <b@x.example>\nSubject: Only HTML\nContent-Type: text/html; charset=utf-8\n\n"
+            "<html><style>p {color: red}</style><body><p>Hello <b>team</b></p><p>Second line</p></body></html>\n")
+    (tmp_path / "x" / "data" / "qp.eml").write_text(qp)
+    (tmp_path / "x" / "data" / "html.eml").write_text(html)
+    monkeypatch.setattr(config, "USECASES_DIR", tmp_path)
+    out = cases.resolve_input("x", {"email_file": "data/qp.eml", "email_2_file": "data/html.eml"})
+    assert out["email"].startswith("From: Anna <a@x.example>\nDate: Tue, 03 Nov 2026")
+    assert "Subject: Grüße" in out["email"] and "Vielen Dank für Ihre Mail." in out["email"]
+    assert "f=C3=BCr" in out["email_raw"]
+    assert "Hello team\nSecond line" in out["email_2"] and "color" not in out["email_2"]
 
 
 def test_bad_line_has_line_number(tmp_path, monkeypatch):
@@ -109,11 +129,36 @@ def test_checks_reasons():
     assert not run({"type": "judge", "field": "reply", "rubric": "x", "min": 6})["passed"]
 
 
-def test_judge_without_key_fails_clearly(monkeypatch):
-    monkeypatch.undo()  # real judge.score
-    monkeypatch.setenv("OPENAI_API_KEY", "")
+def test_count_and_any_checks():
+    out = {"tasks": [{"kind": "trip", "event": "E-Science-Tage, Heidelberg", "who": {"name": "Jonas"}},
+                     {"kind": "Leave", "event": "Holiday", "who": {"name": "Elena"}}], "reply": "x"}
+    run = lambda c: checks.run_check(c, out, {}, {})  # noqa: E731
+    assert run({"type": "count", "field": "tasks", "equals": 2})["reason"] == "2 items"
+    assert run({"type": "count", "field": "tasks", "min": 1, "max": 2})["passed"]
+    bad = run({"type": "count", "field": "tasks", "max": 1})
+    assert not bad["passed"] and bad["reason"] == "2 items, expected max 1"
+    assert not run({"type": "count", "field": "reply", "min": 1})["passed"]
+    assert run({"type": "any", "field": "tasks", "where": {"kind": "leave"}})["reason"].startswith("item 1")
+    assert run({"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "heidelberg"}})["passed"]
+    assert run({"type": "any", "field": "tasks", "where": {"who.name": "elena"}})["passed"]
+    miss = run({"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "Riga"}})
+    assert not miss["passed"] and "no item of 2" in miss["reason"]
+    assert cases.validate_case({"id": "a", "checks": [{"type": "count", "field": "tasks", "min": 1},
+                                                      {"type": "any", "field": "tasks", "where": {"k": "v"}}]}) == []
+    errors = cases.validate_case({"id": "a", "checks": [{"type": "count", "field": "t"},
+                                                        {"type": "any", "field": "t", "where": "trip"}]})
+    assert len(errors) == 2
+
+
+def test_judge_without_key_is_skipped(monkeypatch, capsys):
+    monkeypatch.setattr(judge, "score", lambda *a: (_ for _ in ()).throw(RuntimeError("no OPENAI_API_KEY")))
     r = checks.run_check({"type": "judge", "field": "r", "rubric": "x"}, {"r": "hi"}, {}, {})
-    assert not r["passed"] and "OPENAI_API_KEY" in r["reason"]
+    assert r["passed"] is None and r["skipped"] and "OPENAI_API_KEY" in r["reason"]
+    run = runner.run_eval("fake", "python", case_ids=["f01"])  # f01 has a judge check
+    assert run["cases"][0]["passed"] and run["summary"]["skipped"] == {"judge": 1}
+    assert "judge" not in run["summary"]["by_check"]
+    assert cli.main("fake", "python", ["f01"], "") == 0
+    assert "1 judge skipped" in capsys.readouterr().out
 
 
 def test_schema_check():
@@ -121,6 +166,19 @@ def test_schema_check():
     assert checks.schema_check({"category": "a", "reply": ""}, schema)["passed"]
     bad = checks.schema_check({"category": "zzz", "reply": ""}, schema)
     assert not bad["passed"] and bad["field"] == "category"
+
+
+def test_read_claude_stream():
+    lines = [{"type": "system", "subtype": "init"},
+             {"type": "assistant", "message": {"content": [
+                 {"type": "tool_use", "id": "t0", "name": "ToolSearch", "input": {"query": "x"}},
+                 {"type": "tool_use", "id": "t1", "name": "mcp__kit__rules_get", "input": {"name": "routing"}}]}},
+             {"type": "user", "message": {"content": [
+                 {"type": "tool_result", "tool_use_id": "t1", "content": [{"type": "text", "text": "# Routing"}]}]}},
+             {"type": "result", "result": "{}", "num_turns": 2}]
+    result, calls = engines.read_stream("\n".join(json.dumps(x) for x in lines) + "\nnot json\n")
+    assert result["num_turns"] == 2
+    assert calls == [{"name": "rules_get", "input": {"name": "routing"}, "output": "# Routing"}]
 
 
 def test_parse_json_text():
@@ -158,6 +216,7 @@ def test_claude_run_with_fake_cli():
 def test_n8n_run(n8n):
     run = runner.run_eval("fake", "n8n", case_ids=["f01", "f02"])
     assert run["cases"][0]["output"]["tags"] == ["z"]
+    assert FakeN8n.last["output_schema"]["type"] == "object"  # every engine gets the result shape
     assert run["cases"][0]["checks"][4]["type"] == "in" and not run["cases"][0]["checks"][4]["passed"]
 
 
@@ -167,6 +226,22 @@ def test_n8n_errors_say_what_to_do(n8n, monkeypatch):
     monkeypatch.setenv("N8N_URL", "http://127.0.0.1:9")
     out, err, _ = engines.call_n8n("fake", {"case_id": "x", "input": {}})
     assert "cannot reach n8n" in err
+
+
+def test_n8n_that_sleeps_fails_in_time(n8n, monkeypatch):
+    monkeypatch.setitem(engines.TIMEOUTS, "n8n", 1)
+    t0 = time.time()
+    res = runner.run_case("fake", "n8n", {"id": "s", "input": {"mode": "sleep"}}, {}, "r", "r")
+    assert time.time() - t0 < 2.5 and "did not answer in 1 s" in res["error"] and res["seconds"] >= 1
+
+
+def test_hard_deadline_when_the_engine_hangs(monkeypatch):
+    monkeypatch.setitem(engines.TIMEOUTS, "python", 1)
+    monkeypatch.setattr(engines, "GRACE_S", 0.5)
+    monkeypatch.setattr(engines, "call", lambda *a, **k: time.sleep(5))
+    t0 = time.time()
+    res = runner.run_case("fake", "python", {"id": "h", "input": {}}, {}, "r", "r")
+    assert time.time() - t0 < 2.5 and "hard deadline" in res["error"] and not res["passed"]
 
 
 def test_compare():

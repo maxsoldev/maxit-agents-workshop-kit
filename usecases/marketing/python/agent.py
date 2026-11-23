@@ -17,7 +17,8 @@ from openai import OpenAI
 
 MODEL = os.environ.get("KIT_MODEL", "gpt-5-mini")
 TOOLS_URL = os.environ.get("KIT_TOOLS_URL", "http://localhost:5701/mcp")
-SCHEMA = json.loads((Path(__file__).resolve().parent.parent / "output.schema.json").read_text())
+# The runner sends the result shape as case["output_schema"]; the file is the fallback for runs by hand.
+SCHEMA_FILE = Path(__file__).resolve().parent.parent / "output.schema.json"
 MAX_STEPS = 10  # model turns before we give up
 
 PROMPT = """You help the marketing team of bloxberg with the info inbox.
@@ -57,6 +58,7 @@ async def call_tool(client: Client, name: str, args: dict) -> str:
 
 async def run(case: dict, client: Client | None) -> dict:
     llm = OpenAI()  # reads OPENAI_API_KEY
+    schema = case.get("output_schema") or json.loads(SCHEMA_FILE.read_text())
     tools = [to_openai_tool(t) for t in (await client.list_tools()).tools] if client else []
     messages = [{"role": "system", "content": PROMPT},
                 {"role": "user", "content": f"Today is {case.get('today')}.\n\n"
@@ -65,7 +67,7 @@ async def run(case: dict, client: Client | None) -> dict:
         answer = llm.chat.completions.create(
             model=MODEL, messages=messages, tools=tools or None,
             response_format={"type": "json_schema",
-                             "json_schema": {"name": "result", "schema": SCHEMA, "strict": False}},
+                             "json_schema": {"name": "result", "schema": schema, "strict": False}},
         ).choices[0].message
         if not answer.tool_calls:  # no more tool calls: this is the result
             return json.loads(answer.content)

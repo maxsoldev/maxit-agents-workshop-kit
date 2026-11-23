@@ -5,6 +5,10 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import subprocess
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -33,37 +37,57 @@ def _load_schema(uc: str) -> dict:
     return schema
 
 
+def _keep_awake():
+    """macOS: stop idle sleep while the eval runs (`caffeinate -i`). A sleeping computer stops
+    every engine, and the run looks hung. Returns the process, or None on other systems."""
+    if sys.platform != "darwin" or not shutil.which("caffeinate"):
+        return None
+    try:
+        return subprocess.Popen(["caffeinate", "-i", "-w", str(os.getpid())])
+    except OSError:
+        return None
+
+
 def run_case(uc: str, engine: str, case: dict, schema: dict, run_id: str, run_name: str) -> dict:
     """Run one case and check it. Never raises: a crash is a failed case with `error`."""
-    t0 = time.monotonic()
+    t0 = time.time()  # wall clock: on macOS, monotonic time stops while the computer sleeps
     res = {"id": case["id"], "title": case.get("title", ""), "passed": False, "seconds": 0.0, "error": None,
            "input": case.get("input", {}), "expected": case.get("expected", {}), "output": None, "checks": [],
            "trace_url": None, "n8n_execution_url": None, "meta": {}}
     try:
         inp = engine_input(uc, case)
         res["input"] = inp["input"]
+        inp["output_schema"] = schema  # every engine sees the result shape (contracts §4)
         with tracing.case_trace(uc, engine, run_id, run_name, case["id"], inp) as trace:
             res["trace_url"] = trace.url
-            output, error, meta = engines.call(uc, engine, inp, trace.env(engine))
+            output, error, meta = engines.call_with_deadline(uc, engine, inp, trace.env(engine))
             res.update(output=output, error=error, meta=meta)
+            res["n8n_execution_url"] = meta.pop("execution_url", None)
+            trace.tool_calls(meta.get("tool_calls") or [])
             res["checks"] = checks.run_checks(case, output, schema, inp["input"])
-            res["passed"] = error is None and all(c["passed"] for c in res["checks"])
+            res["passed"] = error is None and all(c["passed"] is not False for c in res["checks"])  # skipped ok
             trace.finish(output, error, res["checks"], res["passed"])
     except Exception as e:
         res["error"] = f"{type(e).__name__}: {e}"
         res["passed"] = False
-    res["seconds"] = round(time.monotonic() - t0, 1)
+    res["seconds"] = round(time.time() - t0, 1)
     return res
 
 
 def summarize(case_results: list[dict]) -> dict:
+    """Counts per check type; skipped checks (a judge that could not run) are counted apart."""
     by_check: dict[str, list[int]] = {}
+    skipped: dict[str, int] = {}
     for r in case_results:
         for c in r["checks"]:
+            if c.get("skipped"):
+                skipped[c["type"]] = skipped.get(c["type"], 0) + 1
+                continue
             counts = by_check.setdefault(c["type"], [0, 0])
-            counts[0] += c["passed"]
+            counts[0] += c["passed"] is True
             counts[1] += 1
-    return {"cases": len(case_results), "passed": sum(r["passed"] for r in case_results), "by_check": by_check}
+    return {"cases": len(case_results), "passed": sum(r["passed"] for r in case_results), "by_check": by_check,
+            "skipped": skipped}
 
 
 def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=None) -> dict:
@@ -97,9 +121,17 @@ def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=No
         progress({"case_id": case["id"], "status": "done", "passed": res["passed"]})
         return res
 
-    with ThreadPoolExecutor(max_workers=2 if engine == "claude" else 4) as pool:
-        run["cases"] = list(pool.map(one, cases))
-    tracing.flush()
+    awake = _keep_awake()
+    try:
+        with ThreadPoolExecutor(max_workers=2 if engine == "claude" else 4) as pool:
+            run["cases"] = list(pool.map(one, cases))
+        try:
+            engines.with_deadline(tracing.flush, 30)  # a slow Langfuse must not hold the run
+        except engines.Deadline:
+            pass
+    finally:
+        if awake:
+            awake.terminate()
     run["summary"] = summarize(run["cases"])
     run["ended_at"] = _now()
     save_run(run)
@@ -109,7 +141,7 @@ def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=No
 def _check_count(case: dict | None) -> tuple[int, int]:
     if not case:
         return 0, 0
-    return sum(c["passed"] for c in case["checks"]), len(case["checks"])
+    return sum(c["passed"] is True for c in case["checks"]), len(case["checks"])
 
 
 def compare(run_id_a: str, run_id_b: str) -> dict:

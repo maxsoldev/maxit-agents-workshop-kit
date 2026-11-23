@@ -197,11 +197,14 @@ def start_background(timeout: float = 10.0) -> threading.Thread | None:
     port = config.settings().tools_port
     if _answers(port):
         return None
-    t = threading.Thread(target=_server("warning").run, name="kit-tools", daemon=True)
+    server = _server("warning")
+    t = threading.Thread(target=server.run, name="kit-tools", daemon=True)
     t.start()
     end = time.monotonic() + timeout
     while time.monotonic() < end:
-        if _answers(port):
+        if server.started:  # our server listens (not another process on the same port)
             return t
+        if not t.is_alive():  # bind failed: someone else took the port in the meantime
+            raise RuntimeError(f"port {port} is taken by another process")
         time.sleep(0.1)
     raise RuntimeError(f"tools server did not start on port {port}")

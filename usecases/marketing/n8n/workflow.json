@@ -94,7 +94,7 @@
       ],
       "parameters": {
         "schemaType": "manual",
-        "inputSchema": "{\n  \"title\": \"Marketing inbox: result for one email\",\n  \"type\": \"object\",\n  \"required\": [\n    \"category\",\n    \"flags\",\n    \"reply\",\n    \"reasons\"\n  ],\n  \"additionalProperties\": false,\n  \"properties\": {\n    \"category\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"institute_request\",\n        \"membership\",\n        \"partnership\",\n        \"event_invitation\",\n        \"press\",\n        \"service_offer\",\n        \"unverified_outreach\",\n        \"newsletter\",\n        \"spam\"\n      ],\n      \"description\": \"Exactly one category, see data/categories.md.\"\n    },\n    \"flags\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\",\n        \"enum\": [\n          \"phishing\",\n          \"injection\",\n          \"unverified\",\n          \"off_target\"\n        ]\n      },\n      \"description\": \"Zero or more warning flags, see data/categories.md.\"\n    },\n    \"reply\": {\n      \"type\": \"string\",\n      \"description\": \"A reply draft for a human to check. Empty string when we do not reply.\"\n    },\n    \"reasons\": {\n      \"type\": \"string\",\n      \"description\": \"Short explanation of the decision, for the reviewer.\"\n    }\n  }\n}"
+        "inputSchema": "={{ JSON.stringify($('Case in').item.json.body.output_schema) }}"
       }
     },
     {
@@ -157,7 +157,7 @@
         "color": 2,
         "width": 320,
         "height": 230,
-        "content": "## 3 Result out\n**Result shape** forces the JSON into the schema.\nIf you change `output.schema.json`, paste the new schema into **Result shape** too."
+        "content": "## 3 Result out\n**Result shape** forces the JSON into the schema.\nIt reads the schema from the case (`body.output_schema`, sent by the runner from `output.schema.json`), so a schema change needs no edit here."
       }
     }
   ],
@@ -221,6 +221,6 @@
   "settings": {
     "executionOrder": "v1",
     "saveDataSuccessExecution": "all",
-    "executionTimeout": 120
+    "executionTimeout": 110
   }
 }

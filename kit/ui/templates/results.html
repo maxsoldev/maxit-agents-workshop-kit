@@ -12,13 +12,16 @@
     {% for t, pair in (s.by_check or {}).items() %}
     <span class="chip t-{{ t }} {{ 'ok' if pair[0] == pair[1] else 'ko' }}">{{ t }} {{ pair[0] }}/{{ pair[1] }}</span>
     {% endfor %}
+    {% for t, n in (s.skipped or {}).items() %}
+    <span class="chip muted" title="the check could not run (for example: no key); it does not count">{{ n }} {{ t }} skipped</span>
+    {% endfor %}
   </div>
   <form method="get" class="compare">
     <label>Compare with
       <select name="vs" onchange="this.form.submit()">
         <option value="none" {{ 'selected' if not other }}>— no compare —</option>
         {% for r in others %}
-        <option value="{{ r.run_id }}" {{ 'selected' if r.run_id == vs }}>{{ r.engine }} · {{ r.name or r.run_id }} · {{ r.started_at|when }} ·{{ (r.summary or {}).passed }}/{{ (r.summary or {}).cases }}</option>
+        <option value="{{ r.run_id }}" {{ 'selected' if r.run_id == vs }}>{{ r.engine }} · {{ r.name or r.run_id }} · {{ r.started_at|when }} · {{ (r.summary or {}).passed }}/{{ (r.summary or {}).cases }}{{ ' · other cases' if r.other_cases }}</option>
         {% endfor %}
       </select></label>
     {% if other %}
@@ -44,7 +47,7 @@
       {% if c.error %}<div class="alert"><b>Error:</b> {{ c.error }}</div>{% endif %}
       <table class="checks-res">
         {% for k in c.checks or [] %}
-        <tr class="{{ 'pass' if k.passed else 'fail' }}"><td class="mark">{{ '✓' if k.passed else '✗' }}</td>
+        <tr class="{{ 'skip muted' if k.skipped else ('pass' if k.passed else 'fail') }}"><td class="mark">{{ '–' if k.skipped else ('✓' if k.passed else '✗') }}</td>
           <td><b>{{ k.type }}</b> <code>{{ k.field }}</code></td><td>{{ k.reason }}</td></tr>
         {% endfor %}
       </table>
@@ -52,6 +55,13 @@
         {% if c.trace_url and langfuse_link %}<a href="{{ c.trace_url }}" target="_blank">Langfuse trace ↗</a>{% endif %}
         {% if c.n8n_execution_url %}<a href="{{ c.n8n_execution_url }}" target="_blank">n8n execution ↗</a>{% endif %}
       </div>
+      {% if (c.meta or {}).tool_calls %}
+      <details class="tool-calls"><summary>Tool calls ({{ c.meta.tool_calls|length }})</summary>
+        {% for t in c.meta.tool_calls %}
+        <div><b>{{ t.name }}</b> <code>{{ t.input|compact }}</code><pre>{{ (t.output or '')[:1500] }}</pre></div>
+        {% endfor %}
+      </details>
+      {% endif %}
       <div class="cols3">
         <div><h3>Input</h3><pre>{{ c.input|pretty }}</pre>{% with previews = c._files %}{% include "_previews.html" %}{% endwith %}</div>
         <div><h3>Expected</h3><pre>{{ c.expected|pretty }}</pre></div>

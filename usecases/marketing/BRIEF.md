@@ -54,7 +54,8 @@ No tool sends anything. To add a tool, add a function in `kit/tools.py`.
 
 Read **one email** → return `{"category", "flags", "reply", "reasons"}` (`output.schema.json`). The reply can
 be empty. The same small job runs on n8n, Claude Code and Python, so the first eval is fair. The 5 starter cases
-in `cases.jsonl` show some gaps.
+in `cases.jsonl` show some gaps. One gap is on purpose: case `m14` checks `route_to`, a field the scaffold
+schema does not have yet. It fails with "missing" until you add the field (schema and prompt).
 
 ## Ideas for your service
 

@@ -11,6 +11,9 @@ import re
 import shutil
 import signal
 import subprocess
+import threading
+import time
+import uuid
 
 import httpx
 
@@ -18,7 +21,45 @@ from kit import config
 from kit.config import settings
 
 TIMEOUTS = {"n8n": 120, "claude": 300, "python": 300}
+GRACE_S = 10  # the hard deadline of a case = engine timeout + this
 CLAUDE_PROMPT = "Process this case. Answer with only the result JSON.\n\n"
+
+
+class Deadline(Exception):
+    """`with_deadline` stopped waiting."""
+
+
+def with_deadline(fn, seconds: float):
+    """Return fn(), but wait at most `seconds` (wall clock); else raise Deadline.
+
+    fn runs in a daemon thread: if it hangs, the thread stays, but the case goes on.
+    """
+    box: dict = {}
+
+    def work():
+        try:
+            box["value"] = fn()
+        except BaseException as e:
+            box["error"] = e
+
+    t = threading.Thread(target=work, daemon=True)
+    t.start()
+    t.join(seconds)
+    if t.is_alive():
+        raise Deadline(f"no answer in {seconds:.0f} s")
+    if "error" in box:
+        raise box["error"]
+    return box["value"]
+
+
+def call_with_deadline(uc: str, engine: str, engine_input: dict, extra_env: dict | None = None):
+    """Like `call`, but never waits longer than the engine timeout + GRACE_S.
+    The subprocess engines also kill their own process group at the timeout."""
+    limit = TIMEOUTS.get(engine, 120)
+    try:
+        return with_deadline(lambda: call(uc, engine, engine_input, extra_env), limit + GRACE_S)
+    except Deadline:
+        return None, f"{engine} did not finish in {limit} s (hard deadline): the runner stopped waiting", {}
 
 
 def call(uc: str, engine: str, engine_input: dict, extra_env: dict | None = None):
@@ -68,8 +109,15 @@ def _run(cmd: list[str], cwd, stdin: str, env: dict, timeout: int):
         out, err = p.communicate(stdin, timeout=timeout)
         return p.returncode, out, err
     except subprocess.TimeoutExpired:
-        os.killpg(p.pid, signal.SIGKILL)
-        out, err = p.communicate()
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        try:  # a child outside the group can keep the pipes open: do not wait for it forever
+            out, err = p.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            out, err = "", ""
         return None, out, err
 
 
@@ -78,11 +126,49 @@ def _tail(text: str, lines: int = 5) -> str:
 
 
 def call_n8n(uc: str, engine_input: dict):
+    """POST the case to the webhook. meta["execution_url"] links to the n8n execution (if found)."""
+    call_id = uuid.uuid4().hex
+    output, error, meta = _post_n8n(uc, engine_input, call_id)
+    if meta.get("status"):  # n8n answered, so there is an execution
+        try:
+            meta["execution_url"] = n8n_execution_url(uc, call_id)
+        except (httpx.HTTPError, ValueError, KeyError, TypeError):
+            meta["execution_url"] = None  # a link is nice to have; never fail the case for it
+    return output, error, meta
+
+
+def n8n_execution_url(uc: str, call_id: str) -> str | None:
+    """Find our execution: the newest ones of the workflow, matched by our `x-kit-call` header.
+    Falls back to the workflow's Executions list. Needs N8N_API_KEY."""
+    s = settings()
+    if not s.n8n_api_key:
+        return None
+    api = httpx.Client(base_url=f"{s.n8n_url}/api/v1", headers={"X-N8N-API-KEY": s.n8n_api_key}, timeout=10)
+    wid = None
+    for w in api.get("/workflows", params={"active": "true", "limit": 100}).json().get("data", []):
+        if any(n.get("type") == "n8n-nodes-base.webhook" and n.get("parameters", {}).get("path") == uc
+               for n in w.get("nodes", [])):
+            wid = w["id"]
+    if not wid:
+        return None
+    for attempt in range(3):  # n8n saves the execution just after it answers
+        data = api.get("/executions", params={"workflowId": wid, "limit": 10, "includeData": "true"}).json()
+        for e in data.get("data", []):
+            if call_id in json.dumps((e.get("data") or {}).get("resultData", {}).get("runData", {}).get("Case in", [])):
+                return f"{s.n8n_url}/workflow/{wid}/executions/{e['id']}"
+        time.sleep(1)
+    return f"{s.n8n_url}/workflow/{wid}/executions"
+
+
+def _post_n8n(uc: str, engine_input: dict, call_id: str):
     s = settings()
     url = f"{s.n8n_url}/webhook/{uc}"
     meta = {"url": url}
     try:
-        r = httpx.post(url, json=engine_input, timeout=TIMEOUTS["n8n"])
+        # n8n sends nothing until the workflow ends, so the read timeout is the total time.
+        # call_with_deadline adds a hard wall-clock limit on top.
+        r = httpx.post(url, json=engine_input, headers={"x-kit-call": call_id},
+                       timeout=httpx.Timeout(TIMEOUTS["n8n"], connect=10))
     except httpx.ConnectError:
         return None, f"cannot reach n8n at {s.n8n_url}: is it running? run `make up` (or check N8N_URL in .env)", meta
     except httpx.TimeoutException:
@@ -101,6 +187,33 @@ def call_n8n(uc: str, engine_input: dict):
     return output, error, meta
 
 
+def read_stream(out: str, limit: int = 4000):
+    """Read `claude -p --output-format stream-json` lines. Return (the final result event or None,
+    tool calls [{"name", "input", "output"}]). Tool outputs are cut to `limit` characters."""
+    result, calls, by_id = None, [], {}
+    for line in out.splitlines():
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(ev, dict):
+            continue
+        if ev.get("type") == "result":
+            result = ev
+        content = (ev.get("message") or {}).get("content") if ev.get("type") in ("assistant", "user") else None
+        for c in content if isinstance(content, list) else []:
+            if c.get("type") == "tool_use" and c.get("name") != "ToolSearch":
+                by_id[c.get("id")] = {"name": c.get("name", "").removeprefix("mcp__kit__"), "input": c.get("input"),
+                                      "output": None}
+                calls.append(by_id[c.get("id")])
+            elif c.get("type") == "tool_result" and c.get("tool_use_id") in by_id:
+                parts = c.get("content")
+                text = parts if isinstance(parts, str) else "\n".join(
+                    p.get("text", "") for p in parts or [] if isinstance(p, dict))
+                by_id[c["tool_use_id"]]["output"] = text[:limit]
+    return result, calls
+
+
 def call_claude(uc: str, engine_input: dict, extra_env: dict):
     folder = config.USECASES_DIR / uc / "claude"
     if not shutil.which("claude"):
@@ -108,19 +221,19 @@ def call_claude(uc: str, engine_input: dict, extra_env: dict):
     if not (folder / ".mcp.json").exists():
         return None, f"usecases/{uc}/claude/.mcp.json not found: the Claude agent folder needs it", {}
     prompt = CLAUDE_PROMPT + json.dumps(engine_input, ensure_ascii=False)
-    cmd = ["claude", "-p", prompt, "--output-format", "json",
+    cmd = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose",
            "--mcp-config", ".mcp.json", "--strict-mcp-config",
            "--permission-mode", "dontAsk", "--allowedTools", "mcp__kit",
            "--setting-sources", "project", "--no-session-persistence"]
     code, out, err = _run(cmd, folder, "", engine_env(extra_env), TIMEOUTS["claude"])
     if code is None:
         return None, f"Claude did not finish in {TIMEOUTS['claude']} s: make the task smaller or check the tools", {}
-    try:
-        data = json.loads(out)
-    except ValueError:
+    data, tool_calls = read_stream(out)
+    if data is None:
         return None, f"claude exit {code}, no JSON answer: {_tail(err or out)} (is Claude logged in? run `claude`)", {}
     meta = {"cost_usd": data.get("total_cost_usd"), "turns": data.get("num_turns"),
-            "duration_ms": data.get("duration_ms"), "models": list(data.get("modelUsage", {}))}
+            "duration_ms": data.get("duration_ms"), "models": list(data.get("modelUsage", {})),
+            "tool_calls": tool_calls}
     text = data.get("result") or ""
     if data.get("is_error") or code != 0:
         return None, f"Claude failed ({data.get('subtype', f'exit {code}')}): {text[:300] or _tail(err)}", meta

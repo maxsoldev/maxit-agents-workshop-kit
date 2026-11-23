@@ -3,6 +3,8 @@ import json
 import sys
 import types
 
+import httpx
+
 from kit import setup
 from kit.setup import compose_profiles, fill_placeholders, read_env, same_workflow, set_env_key, workflow_body
 
@@ -25,6 +27,7 @@ def test_check_with_a_fake_runner(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(setup, "usecases", lambda: ["demo"])
     monkeypatch.setattr(setup, "_port_open", lambda port: True)
     monkeypatch.setenv("N8N_API_KEY", "x")
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
     assert setup.check() == 1
     out = capsys.readouterr().out
     assert calls == [("demo", "n8n", ["d1"]), ("demo", "python", ["d1"])]
@@ -78,3 +81,21 @@ def test_workflow_body_and_same_workflow():
     assert same_workflow(stored, body)
     changed = {**body, "nodes": [{**body["nodes"][0], "parameters": {"path": "other"}}]}
     assert not same_workflow(changed, body)
+
+
+def test_model_key_check_names_the_error(monkeypatch):
+    seen = []
+
+    def get(url, headers, timeout):
+        seen.append(url)
+        if headers["Authorization"] == "Bearer good":
+            return httpx.Response(200, json={"data": []})
+        return httpx.Response(401, json={"error": {"message": "Incorrect API key provided: sk-ba***ey."}})
+
+    monkeypatch.setattr(setup.httpx, "get", get)
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://gw:4000/v1")
+    monkeypatch.setenv("OPENAI_API_KEY", "good")
+    assert setup.model_key_works()[0] and seen == ["http://gw:4000/v1/models"]
+    monkeypatch.setenv("OPENAI_API_KEY", "bad")
+    works, text = setup.model_key_works()
+    assert not works and "401" in text and "Incorrect API key" in text

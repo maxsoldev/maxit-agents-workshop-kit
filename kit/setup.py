@@ -121,6 +121,24 @@ def _run(cmd: list[str]) -> tuple[bool, str]:
 
 # ---------- step 1: host checks ----------
 
+def model_key_works() -> tuple[bool, str]:
+    """One cheap call: GET {base}/models (OpenAI or the gateway). Returns (works, short text)."""
+    s = settings()
+    base = s.openai_base_url or "https://api.openai.com/v1"
+    try:
+        r = httpx.get(f"{base}/models", headers={"Authorization": f"Bearer {s.openai_api_key}"}, timeout=15)
+    except httpx.HTTPError as e:
+        return False, f"cannot reach {base} ({type(e).__name__})"
+    if r.status_code == 200:
+        return True, f"{base} answers"
+    try:
+        err = r.json().get("error", r.text)
+        msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+    except ValueError:
+        msg = r.text
+    return False, f"{base} answered {r.status_code}: {' '.join(msg.split())[:200].rstrip('. ')}"
+
+
 def check_host() -> bool:
     print("Host")
     good = True
@@ -130,7 +148,12 @@ def check_host() -> bool:
         fail(".env is missing. Run: cp .env.example .env  (then set OPENAI_API_KEY)")
         return False
     if settings().openai_api_key:
-        ok("OPENAI_API_KEY is set")
+        works, text = model_key_works()
+        if works:
+            ok(f"OPENAI_API_KEY works ({text})")
+        else:
+            fail(f"OPENAI_API_KEY does not work: {text}. Fix the key (or OPENAI_BASE_URL) in .env, then run make setup again")
+            good = False
     else:
         fail("OPENAI_API_KEY is empty. Put your key in .env, then run make setup again")
         good = False
@@ -252,7 +275,8 @@ def setup_n8n() -> bool:
         ok("API key created and written to .env (N8N_API_KEY)")
 
     cred_id = setup_credential(n8n)
-    if not cred_id:
+    if not cred_id:  # import anyway, so you can look at the workflows; activate them later
+        import_workflows(n8n, "")
         return False
     return import_workflows(n8n, cred_id)
 
@@ -266,7 +290,7 @@ def setup_credential(n8n: N8n) -> str:
     """The OpenAI credential, made from OPENAI_API_KEY. Kept if it exists; its key is updated if it changed."""
     s = settings()
     if not s.openai_api_key:
-        fail("no OpenAI credential: OPENAI_API_KEY is empty")
+        warn("no OpenAI credential yet: OPENAI_API_KEY is empty")
         return ""
     data = {"apiKey": s.openai_api_key, "url": s.openai_base_url_docker, "header": False}
     fingerprint = key_fingerprint(s.openai_api_key + "|" + data["url"])
@@ -337,6 +361,20 @@ def import_workflows(n8n: N8n, cred_id: str) -> bool:
             good = False
             continue
         old = by_name.get(body["name"])
+        if not cred_id:  # no model key yet: import without the credential, do not activate
+            if old is not None:
+                warn(f"{body['name']}: kept as it is in n8n. Activate after the key is set: make setup")
+                continue
+            for node in body["nodes"]:
+                node.pop("credentials", None)
+            r = n8n.api("POST", "/workflows", body)
+            if r.status_code >= 300:
+                fail(f"{rel}: import failed ({r.status_code}): {r.text[:200]}")
+                good = False
+            else:
+                warn(f"{body['name']}: imported, not active (no OpenAI credential). Activate after the key "
+                     "is set: put OPENAI_API_KEY in .env, then make setup")
+            continue
         if old is None:
             r = n8n.api("POST", "/workflows", body)
             if r.status_code >= 300:
@@ -463,14 +501,18 @@ def check() -> int:
         print("SKIP  the runner (kit/runner) is not there yet: nothing to check.")
         return 0
     s = settings()
-    if not _port_open(s.tools_port):
+    if _port_open(s.tools_port):
+        print(f"Using the tools server that already runs on :{s.tools_port}.")
+    else:
+        from kit import tools
         try:
-            from kit import tools
             tools.start_background()
-            wait_for(lambda: _port_open(s.tools_port), 15)
-            print(f"Started the tools server on :{s.tools_port} for this check.")
-        except ImportError:
-            print(f"WARN  the tools server is not on :{s.tools_port}; tool calls will fail. Run make serve")
+            print(f"Started the tools server on :{s.tools_port} for this check (it stops when the check ends).")
+        except RuntimeError:
+            if _port_open(s.tools_port):  # another process (make serve) took the port a moment ago
+                print(f"Using the tools server that already runs on :{s.tools_port}.")
+            else:
+                print(f"WARN  the tools server did not start on :{s.tools_port}; tool calls will fail. Run make serve")
     bad = 0
     for uc in usecases():
         lines = (USECASES_DIR / uc / "cases.jsonl").read_text().splitlines()
@@ -487,6 +529,11 @@ def check() -> int:
                 print(f"FAIL  {label}: n8n is not set up. Next: make up, make setup")
                 bad += 1
                 continue
+            if engine == "n8n" and not s.openai_api_key and s.n8n_mode == "local":
+                print(f"FAIL  {label}: no OPENAI_API_KEY, so the workflow is not active. "
+                      "Next: put the key in .env, then make setup")
+                bad += 1
+                continue
             try:
                 run = run_eval(uc, engine, case_ids=[first], name="check")
                 case = run["cases"][0]
@@ -499,7 +546,7 @@ def check() -> int:
                 continue
             reason = case.get("error") or "; ".join(
                 f"{c['type']} {c.get('field', '')}: {c.get('reason', '')}" for c in case.get("checks", [])
-                if not c.get("passed"))
+                if c.get("passed") is False)
             if case.get("error"):
                 bad += 1
                 print(f"FAIL  {label}: {reason}. Next: {NEXT_STEP[engine]}")

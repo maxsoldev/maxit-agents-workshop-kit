@@ -94,7 +94,7 @@
       ],
       "parameters": {
         "schemaType": "manual",
-        "inputSchema": "{\n  \"title\": \"Travel office: tasks from one email or message\",\n  \"type\": \"object\",\n  \"required\": [\n    \"tasks\",\n    \"reasons\"\n  ],\n  \"additionalProperties\": false,\n  \"properties\": {\n    \"tasks\": {\n      \"type\": \"array\",\n      \"description\": \"The tasks in this email or message. The most important task first.\",\n      \"items\": {\n        \"type\": \"object\",\n        \"required\": [\n          \"kind\",\n          \"person\",\n          \"event\",\n          \"date\",\n          \"status\"\n        ],\n        \"additionalProperties\": false,\n        \"properties\": {\n          \"kind\": {\n            \"type\": \"string\",\n            \"enum\": [\n              \"trip\",\n              \"leave\",\n              \"estimate\",\n              \"reminder\",\n              \"open_question\"\n            ]\n          },\n          \"person\": {\n            \"type\": \"string\",\n            \"description\": \"Full name of the team member.\"\n          },\n          \"event\": {\n            \"type\": \"string\",\n            \"description\": \"Event name and place, or what the task is about.\"\n          },\n          \"date\": {\n            \"type\": \"string\",\n            \"description\": \"Start date as YYYY-MM-DD, or empty if unknown.\"\n          },\n          \"status\": {\n            \"type\": \"string\",\n            \"enum\": [\n              \"open\",\n              \"needs_info\",\n              \"waiting_for_request\",\n              \"ready_to_book\",\n              \"cancelled\",\n              \"done\"\n            ]\n          }\n        }\n      }\n    },\n    \"reasons\": {\n      \"type\": \"string\",\n      \"description\": \"Short explanation of the decision, for the reviewer.\"\n    }\n  }\n}"
+        "inputSchema": "={{ JSON.stringify($('Case in').item.json.body.output_schema) }}"
       }
     },
     {
@@ -157,7 +157,7 @@
         "color": 2,
         "width": 320,
         "height": 230,
-        "content": "## 3 Result out\n**Result shape** forces the JSON into the schema.\nIf you change `output.schema.json`, paste the new schema into **Result shape** too."
+        "content": "## 3 Result out\n**Result shape** forces the JSON into the schema.\nIt reads the schema from the case (`body.output_schema`, sent by the runner from `output.schema.json`), so a schema change needs no edit here."
       }
     }
   ],
@@ -221,6 +221,6 @@
   "settings": {
     "executionOrder": "v1",
     "saveDataSuccessExecution": "all",
-    "executionTimeout": 120
+    "executionTimeout": 110
   }
 }

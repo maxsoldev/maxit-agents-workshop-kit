@@ -73,6 +73,28 @@ def test_forms_render(client):
     assert "File not found" in client.get("/uc/demo/file?path=../../etc/passwd").text
 
 
+def test_previews_show_every_file(client):
+    inp = json.dumps({"email_file": "data/emails/06.eml", "email_2_file": "data/emails/06.eml"})
+    text = client.post("/uc/demo/previews", data={"input": inp}).text
+    assert text.count("Managed validator") == 2 and "email_2_file" in text
+    assert "email_2_file" in client.get("/uc/demo/cases/new").text  # the hint about numbered keys
+
+
+def test_count_and_any_from_the_form(client):
+    data = form(check_type=["count", "count", "any", "any"], check_field=["tasks"] * 4,
+                check_arg=["2", '{"min": 1, "max": 3}', '{"kind": "trip"}',
+                           '{"where": {"kind": "trip"}, "contains": {"event": "Riga"}}'],
+                check_min=[""] * 4)
+    assert client.post("/uc/demo/cases/save", data=data, follow_redirects=False).status_code == 303
+    assert cases_file()[1]["checks"] == [
+        {"type": "count", "field": "tasks", "equals": 2},
+        {"type": "count", "field": "tasks", "min": 1, "max": 3},
+        {"type": "any", "field": "tasks", "where": {"kind": "trip"}},
+        {"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "Riga"}}]
+    page = client.get("/uc/demo/cases/m07/edit").text
+    assert 'value="2"' in page and "Riga" in page
+
+
 def test_add_edit_delete_round_trip(client):
     r = client.post("/uc/demo/cases/save", data=form(), follow_redirects=False)
     assert r.status_code == 303
@@ -116,6 +138,30 @@ def test_run_results_runs(client):
     page = client.get(f"/runs/{run_id}")
     assert page.status_code == 200 and "Service offer" in page.text
     assert client.get("/runs/nope").status_code == 404
+
+
+def test_check_runs_hidden_and_compare_default(client):
+    config.RUNS_DIR.mkdir(parents=True, exist_ok=True)
+
+    def save(run_id, engine, name, ids):
+        run = {"run_id": run_id, "name": name, "usecase": "demo", "engine": engine, "started_at": run_id,
+               "summary": {"cases": len(ids), "passed": 0, "by_check": {}},
+               "cases": [{"id": i, "title": i, "passed": False, "checks": [], "input": {}, "expected": {},
+                          "output": {}} for i in ids]}
+        (config.RUNS_DIR / f"{run_id}.json").write_text(json.dumps(run))
+
+    save("20261124-100000-demo-n8n", "n8n", "base", ["m06", "m07"])
+    save("20261124-100500-demo-python", "python", "py", ["m06", "m07"])
+    save("20261124-101000-demo-n8n", "n8n", "check", ["m06"])
+    save("20261124-101500-demo-n8n", "n8n", "small", ["m06"])
+    save("20261124-102000-demo-n8n", "n8n", "now", ["m06", "m07"])
+    runs = client.get("/uc/demo/runs").text
+    assert ">check<" not in runs and "1 <code>make check</code> run(s) hidden" in runs
+    assert ">check<" in client.get("/uc/demo/runs?checks=1").text
+    page = client.get("/runs/20261124-102000-demo-n8n").text
+    assert 'value="20261124-101500-demo-n8n" selected' in page  # previous n8n run, not the check run
+    assert "small · " in page and "other cases" in page and "20261124-101000-demo-n8n" not in page
+    assert page.index("small") < page.index("py ·")  # the same engine first
 
 
 def test_compare_marks_changes(client):

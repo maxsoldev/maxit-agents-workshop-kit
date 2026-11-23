@@ -1,7 +1,11 @@
 """Eval cases: load, check, save `usecases/<uc>/cases.jsonl` (contracts §3)."""
 from __future__ import annotations
 
+import email
+import email.policy
 import json
+import re
+from html.parser import HTMLParser
 from pathlib import Path
 
 from kit import config
@@ -12,6 +16,8 @@ CHECK_TYPES = {
     "contains": ["value"],
     "not_contains": ["value"],
     "judge": ["rubric"],
+    "count": [],  # needs one of equals / min / max (checked below)
+    "any": [],    # needs where and/or contains (checked below)
 }
 
 
@@ -61,6 +67,18 @@ def validate_case(case) -> list[str]:
                 errors.append(f"check {i} ({kind}): `{key}` is missing")
         if kind == "in" and not isinstance(check.get("values", []), list):
             errors.append(f"check {i} (in): `values` must be a list")
+        if kind == "count":
+            limits = [k for k in ("equals", "min", "max") if k in check]
+            if not limits:
+                errors.append(f"check {i} (count): give `equals`, `min` or `max`")
+            elif not all(isinstance(check[k], int) and not isinstance(check[k], bool) for k in limits):
+                errors.append(f"check {i} (count): `equals`, `min` and `max` must be whole numbers")
+        if kind == "any":
+            parts = [k for k in ("where", "contains") if k in check]
+            if not parts:
+                errors.append(f"check {i} (any): give `where` and/or `contains`, e.g. {{\"where\": {{\"kind\": \"trip\"}}}}")
+            elif not all(isinstance(check[k], dict) and check[k] for k in parts):
+                errors.append(f"check {i} (any): `where` and `contains` must be JSON objects like {{\"key\": \"value\"}}")
     return errors
 
 
@@ -101,15 +119,60 @@ def save_cases(uc: str, cases: list[dict]) -> None:
     cases_path(uc).write_text(text, encoding="utf-8")
 
 
+class _HtmlText(HTMLParser):
+    """Collect the visible text of an HTML body (no scripts, no styles)."""
+
+    def __init__(self):
+        super().__init__()
+        self.parts, self.skip = [], 0
+
+    def handle_starttag(self, tag, attrs):
+        self.skip += tag in ("script", "style")
+        if tag in ("br", "p", "div", "tr", "li", "h1", "h2", "h3"):
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag):
+        self.skip -= tag in ("script", "style") and self.skip > 0
+
+    def handle_data(self, data):
+        if not self.skip:
+            self.parts.append(data)
+
+
+def html_to_text(html: str) -> str:
+    p = _HtmlText()
+    p.feed(html)
+    lines = [" ".join(line.split()) for line in "".join(p.parts).splitlines()]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+
+
+def eml_text(raw: bytes) -> str:
+    """An .eml file as readable text: From, To, Date, Subject, then the plain body (HTML-only: as text)."""
+    msg = email.message_from_bytes(raw, policy=email.policy.default)
+    head = "\n".join(f"{h}: {msg[h]}" for h in ("From", "To", "Date", "Subject") if msg[h])
+    body = msg.get_body(preferencelist=("plain", "html"))
+    text = ""
+    if body is not None:
+        text = body.get_content()
+        if body.get_content_type() == "text/html":
+            text = html_to_text(text)
+    return f"{head}\n\n{text.strip()}\n"
+
+
 def resolve_input(uc: str, inp: dict) -> dict:
-    """Copy of `inp` where each `<name>_file` key also gets `<name>` = the file text."""
+    """Copy of `inp` where each `<name>_file` key also gets `<name>` = the file text.
+    An .eml file gets `<name>` = readable text (eml_text) and `<name>_raw` = the raw file."""
     out = dict(inp)
     for key, rel in inp.items():
         if key.endswith("_file") and isinstance(rel, str):
             path = usecase_dir(uc) / rel
             if not path.is_file():
                 raise CaseError(f"input `{key}`: file {rel} not found in usecases/{uc}/")
-            out[key[: -len("_file")]] = path.read_text(encoding="utf-8", errors="replace")
+            name = key[: -len("_file")]
+            out[name] = path.read_text(encoding="utf-8", errors="replace")
+            if path.suffix.lower() == ".eml":
+                out[f"{name}_raw"] = out[name]
+                out[name] = eml_text(path.read_bytes())
     return out
 
 

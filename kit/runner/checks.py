@@ -1,4 +1,4 @@
-"""The schema check and the 5 check types (contracts §3). Each returns {"type", "field", "passed", "reason"}."""
+"""The schema check and the check types (contracts §3). Each returns {"type", "field", "passed", "reason"}."""
 from __future__ import annotations
 
 import json
@@ -6,8 +6,10 @@ import json
 import jsonschema
 
 from kit.runner import judge
+from kit.runner.engines import with_deadline
 
 MISSING = object()
+JUDGE_DEADLINE_S = 120  # hard limit for one judge check (the client: 45 s timeout, 1 retry)
 
 
 def get_field(obj, path: str):
@@ -27,7 +29,8 @@ def short(value, limit: int = 60) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
-def result(kind: str, field: str, passed: bool, reason: str) -> dict:
+def result(kind: str, field: str, passed: bool | None, reason: str) -> dict:
+    """passed None (with "skipped": True) = the check could not run; it does not count."""
     return {"type": kind, "field": field, "passed": passed, "reason": reason}
 
 
@@ -48,6 +51,24 @@ def _contains(got, value) -> bool:
     if isinstance(got, list):
         return value in got
     return False
+
+
+def _text(value) -> str:
+    return (value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)).strip().lower()
+
+
+def _item_matches(item, where: dict, contains: dict) -> bool:
+    """`any` check: every `where` key equals its value, every `contains` key has its value as a substring.
+    Keys can be dotted paths; values are compared as text, case-insensitive."""
+    for key, want in where.items():
+        got = get_field(item, key)
+        if got is MISSING or _text(got) != _text(want):
+            return False
+    for key, want in contains.items():
+        got = get_field(item, key)
+        if got is MISSING or _text(want) not in _text(got):
+            return False
+    return True
 
 
 def run_check(check: dict, output, expected: dict, case_input: dict) -> dict:
@@ -75,12 +96,28 @@ def run_check(check: dict, output, expected: dict, case_input: dict) -> dict:
         ok = found if kind == "contains" else not found
         verb = "has" if found else "does not have"
         return result(kind, field, ok, f"{verb} {short(value)}")
+    if kind == "count":
+        if not isinstance(got, list):
+            return result(kind, field, False, f"`{field}` is not a list: {short(got)}")
+        n, want = len(got), check.get("equals")
+        ok = (want is None or n == want) and n >= check.get("min", n) and n <= check.get("max", n)
+        limits = ", ".join(f"{k} {check[k]}" for k in ("equals", "min", "max") if k in check)
+        return result(kind, field, ok, f"{n} items" + ("" if ok else f", expected {limits}"))
+    if kind == "any":
+        if not isinstance(got, list):
+            return result(kind, field, False, f"`{field}` is not a list: {short(got)}")
+        where, contains = check.get("where") or {}, check.get("contains") or {}
+        hits = [i for i, item in enumerate(got) if _item_matches(item, where, contains)]
+        want = short({**where, **{k: f"~{v}" for k, v in contains.items()}})
+        if hits:
+            return result(kind, field, True, f"item {hits[0]} matches {want}")
+        return result(kind, field, False, f"no item of {len(got)} matches {want}")
     if kind == "judge":
         minimum = check.get("min", 4)
         try:
-            score, reason = judge.score(got, check.get("rubric", ""), case_input)
-        except Exception as e:  # the judge must not stop the run
-            return result(kind, field, False, f"judge failed: {e}")
+            score, reason = with_deadline(lambda: judge.score(got, check.get("rubric", ""), case_input), JUDGE_DEADLINE_S)
+        except Exception as e:  # no key, API error, timeout: the judge did not run, so it neither passes nor fails
+            return {**result(kind, field, None, f"judge skipped: {e}"), "skipped": True}
         return result(kind, field, score >= minimum, f"score {score}/5 (min {minimum}): {reason}")
     return result(kind, field, False, f"unknown check type {kind!r}")
 

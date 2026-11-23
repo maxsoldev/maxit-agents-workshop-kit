@@ -5,6 +5,10 @@
   <h1>Runs <span class="muted">· {{ uc }} · {{ runs|length }}</span></h1>
   <a class="btn primary" href="/uc/{{ uc }}/run">Run eval</a>
 </div>
+{% if hidden %}
+<p class="muted small">{% if show_checks %}With the {{ hidden }} <code>make check</code> runs. <a href="/uc/{{ uc }}/runs">Hide checks</a>
+  {% else %}{{ hidden }} <code>make check</code> run(s) hidden. <a href="/uc/{{ uc }}/runs?checks=1">Show checks</a>{% endif %}</p>
+{% endif %}
 {% if not runs %}<p class="muted">No runs yet.</p>{% else %}
 <table class="runs">
   <thead><tr><th>Score</th><th>Engine</th><th>Name</th><th>Started</th><th>Run id</th></tr></thead>

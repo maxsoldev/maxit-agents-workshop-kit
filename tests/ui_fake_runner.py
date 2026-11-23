@@ -44,7 +44,7 @@ def validate_case(case):
     if not isinstance(case.get("input"), dict):
         errors.append("input: must be a JSON object")
     for i, c in enumerate(case.get("checks", []), 1):
-        if c.get("type") not in ("equals", "in", "contains", "not_contains", "judge"):
+        if c.get("type") not in ("equals", "in", "contains", "not_contains", "count", "any", "judge"):
             errors.append(f"check {i}: unknown type {c.get('type')!r}")
         if not c.get("field"):
             errors.append(f"check {i}: field is required")
@@ -104,7 +104,8 @@ def load_run(run_id):
 def list_runs(usecase=None):
     runs = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(config.RUNS_DIR.glob("*.json"), reverse=True)] \
         if config.RUNS_DIR.exists() else []
-    return [{k: r.get(k) for k in ("run_id", "name", "usecase", "engine", "started_at", "ended_at", "summary")}
+    return [{**{k: r.get(k) for k in ("run_id", "name", "usecase", "engine", "started_at", "ended_at", "summary")},
+             "case_ids": sorted(c["id"] for c in r.get("cases", []))}
             for r in runs if usecase in (None, r.get("usecase"))]
 
 

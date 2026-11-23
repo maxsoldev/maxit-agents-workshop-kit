@@ -17,14 +17,16 @@
     <div>
       <label>Input (JSON) <textarea name="input" id="input" rows="8" spellcheck="false">{{ raw.input }}</textarea></label>
       <div class="picker">
-        <select name="path" id="file-pick" hx-get="/uc/{{ uc }}/file" hx-target="#preview" hx-trigger="change">
+        <select name="path" id="file-pick" hx-get="/uc/{{ uc }}/file" hx-target="#pick-preview" hx-trigger="change">
           <option value="">Pick a file from data/ …</option>
           {% for f in files %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
         </select>
         <button type="button" class="btn" onclick="addFile()">Add to input</button>
       </div>
       <p class="muted small">A key that ends in <code>_file</code> is a path in the use case folder.
-        The runner adds the file text for the agent (for example <code>email_file</code> → <code>email</code>).</p>
+        The runner adds the file text for the agent (for example <code>email_file</code> → <code>email</code>).
+        A second email becomes <code>email_2_file</code> (→ <code>email_2</code>), and so on.</p>
+      <div id="pick-preview"></div>
     </div>
     <div>
       <label>Expected (JSON) <textarea name="expected" rows="8" spellcheck="false">{{ raw.expected }}</textarea></label>
@@ -32,12 +34,16 @@
     </div>
   </div>
 
+  <h2>Files in the input</h2>
   <div id="preview">{% include "_previews.html" %}</div>
 
   <h2>Checks</h2>
   <p class="muted small"><b>field</b> is a dotted path into the result (<code>reply</code>, <code>options.0.price</code>).
     The text box is: <b>equals</b> value (empty = use expected), <b>in</b> values (<code>a, b</code> or a JSON list),
-    <b>contains / not_contains</b> value, <b>judge</b> rubric. min is for judge (default 4).</p>
+    <b>contains / not_contains</b> value, <b>count</b> the number of items in a list (<code>2</code>, or
+    <code>{"min": 1, "max": 3}</code>), <b>any</b> one item of a list matches (<code>{"kind": "trip"}</code>, or
+    <code>{"where": {"kind": "trip"}, "contains": {"event": "Riga"}}</code>; text, any case), <b>judge</b> rubric.
+    min is for judge (default 4).</p>
   <table class="checks" id="checks">
     <thead><tr><th>type</th><th>field</th><th>value / values / rubric</th><th>min</th><th></th></tr></thead>
     <tbody>
@@ -64,9 +70,15 @@ function addFile() {
   const box = document.getElementById("input");
   let obj = {};
   try { obj = JSON.parse(box.value || "{}"); } catch (e) { alert("Input is not valid JSON. Fix it first."); return; }
+  // A second file of the same kind gets a number: email_file, email_2_file, email_3_file, ...
   const name = path.startsWith("data/emails/") ? "email" : path.split("/").pop().replace(/\.[^.]*$/, "").replace(/\W+/g, "_");
-  obj[name + "_file"] = path;
+  if (Object.values(obj).includes(path)) return;  // already in the input
+  let key = name + "_file";
+  for (let n = 2; key in obj; n++) key = name + "_" + n + "_file";
+  obj[key] = path;
   box.value = JSON.stringify(obj, null, 2);
+  document.getElementById("pick-preview").innerHTML = "";
+  htmx.ajax("POST", "/uc/{{ uc }}/previews", {target: "#preview", values: {input: box.value}});
 }
 </script>
 {% endblock %}

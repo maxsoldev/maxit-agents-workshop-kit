@@ -8,12 +8,12 @@
       <div><b>From:</b> {{ p.email.from }}</div>
       <div><b>Date:</b> {{ p.email.date }}</div>
       <div><b>Subject:</b> {{ p.email.subject }}</div>
-      <div class="muted small"><code>{{ p.path }}</code></div>
+      <div class="muted small"><code>{{ p.key }}</code> · <code>{{ p.path }}</code></div>
     </div>
     <pre class="mail-body">{{ p.email.body }}</pre>
   </div>
   {% else %}
-  <div class="muted small"><code>{{ p.path }}</code></div>
+  <div class="muted small"><code>{{ p.key }}</code> · <code>{{ p.path }}</code></div>
   <pre class="mail-body">{{ p.text }}</pre>
   {% endif %}
 </div>

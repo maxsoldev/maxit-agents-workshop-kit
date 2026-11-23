@@ -20,7 +20,7 @@ from fastapi.templating import Jinja2Templates
 from kit import config
 
 HERE = Path(__file__).resolve().parent
-CHECK_TYPES = ("equals", "in", "contains", "not_contains", "judge")
+CHECK_TYPES = ("equals", "in", "contains", "not_contains", "count", "any", "judge")
 
 app = FastAPI(title="MaxIT agent kit", docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
@@ -94,6 +94,10 @@ def check_label(c: dict) -> str:
         return f"{f} in {json.dumps(c.get('values'), ensure_ascii=False)}"
     if t == "judge":
         return f"judge {f} (≥{c.get('min', 4)})"
+    if t == "count":
+        return f"count {f} " + " ".join(f"{k} {c[k]}" for k in ("equals", "min", "max") if k in c)
+    if t == "any":
+        return f"any {f} {json.dumps({k: c[k] for k in ('where', 'contains') if k in c}, ensure_ascii=False)}"
     if "value" in c:
         return f"{t} {f} {json.dumps(c['value'], ensure_ascii=False)}"
     return f"{t} {f}"
@@ -172,6 +176,11 @@ def check_arg(c: dict) -> str:
         return c.get("rubric", "")
     if c.get("type") == "in":
         return json.dumps(c.get("values", []), ensure_ascii=False)
+    if c.get("type") == "count":
+        limits = {k: c[k] for k in ("equals", "min", "max") if k in c}
+        return str(limits["equals"]) if list(limits) == ["equals"] else json.dumps(limits)
+    if c.get("type") == "any":
+        return json.dumps({k: c[k] for k in ("where", "contains") if k in c}, ensure_ascii=False)
     if "value" not in c:
         return ""
     return c["value"] if isinstance(c["value"], str) else json.dumps(c["value"], ensure_ascii=False)
@@ -196,6 +205,20 @@ def parse_check(t: str, field: str, arg: str, min_: str) -> dict:
             c["value"] = arg
     elif t in ("contains", "not_contains"):
         c["value"] = arg
+    elif t in ("count", "any"):
+        # count: `2` (equals) or {"min": 1, "max": 3}; any: {"where": {...}, "contains": {...}} or just {key: value}
+        try:
+            data = json.loads(arg) if arg else {}
+        except json.JSONDecodeError:
+            data = arg  # validate_case reports it
+        if t == "count":
+            c.update({"equals": data} if isinstance(data, int) else data if isinstance(data, dict) else {"equals": data})
+        elif isinstance(data, dict) and not ({"where", "contains"} & set(data)):
+            c["where"] = data
+        elif isinstance(data, dict):
+            c.update({k: v for k, v in data.items() if k in ("where", "contains")})
+        else:
+            c["where"] = data
     return c
 
 
@@ -250,6 +273,18 @@ def case_delete(uc: str, case_id: str):
 def file_preview(request: Request, uc: str, path: str = ""):
     """htmx partial: the preview of one data file (the email text for .eml files)."""
     previews = file_previews(uc, {"x_file": path}) if path else []
+    return templates.TemplateResponse(request, "_previews.html", {"previews": previews})
+
+
+@app.post("/uc/{uc}/previews", response_class=HTMLResponse)
+async def input_previews(request: Request, uc: str):
+    """htmx partial: the previews of all `*_file` keys in the input JSON of the form."""
+    f = await request.form()
+    try:
+        data = json.loads(str(f.get("input", "")) or "{}")
+    except json.JSONDecodeError:
+        data = {}
+    previews = file_previews(uc, data if isinstance(data, dict) else {})
     return templates.TemplateResponse(request, "_previews.html", {"previews": previews})
 
 
@@ -318,10 +353,18 @@ def run_progress(request: Request, uc: str):
 
 # ---------- runs and results ----------
 
+CHECK_RUN = "check"  # the name `make check` gives its runs
+
+
 @app.get("/uc/{uc}/runs", response_class=HTMLResponse)
-def runs_page(request: Request, uc: str):
+def runs_page(request: Request, uc: str, checks: int = 0):
+    """All runs; the `make check` runs only with ?checks=1."""
     uc_dir(uc)
-    return page(request, "runs.html", uc, runs=runner().list_runs(uc))
+    runs = runner().list_runs(uc)
+    hidden = sum(1 for r in runs if r.get("name") == CHECK_RUN)
+    if not checks:
+        runs = [r for r in runs if r.get("name") != CHECK_RUN]
+    return page(request, "runs.html", uc, runs=runs, hidden=hidden, show_checks=bool(checks))
 
 
 def compare_cases(run: dict, other: dict | None) -> dict:
@@ -347,7 +390,12 @@ def results_page(request: Request, run_id: str, vs: str = ""):
     except (FileNotFoundError, KeyError):
         raise HTTPException(404, f"No run '{run_id}'")
     uc = run.get("usecase")
-    others = [r for r in runner().list_runs(uc) if r.get("run_id") != run_id]
+    # Compare list: no `make check` runs; the same engine first; mark runs with other cases.
+    ids = sorted(c.get("id", "") for c in run.get("cases", []))
+    others = [r for r in runner().list_runs(uc) if r.get("run_id") != run_id and r.get("name") != CHECK_RUN]
+    others.sort(key=lambda r: r.get("engine") != run.get("engine"))  # stable: newest first in each group
+    for r in others:
+        r["other_cases"] = r.get("case_ids") is not None and r.get("case_ids") != ids
     if not vs:  # default: the previous run of the same engine
         older = [r for r in others if r.get("engine") == run.get("engine") and r.get("run_id", "") < run_id]
         vs = older[0]["run_id"] if older else ""
@@ -355,7 +403,8 @@ def results_page(request: Request, run_id: str, vs: str = ""):
     changes = compare_cases(run, other)
     counts = {k: sum(1 for v in changes.values() if v == k) for k in ("better", "worse", "same", "new")}
     for c in run.get("cases", []):
-        c["_first_fail"] = next((ch.get("reason") for ch in c.get("checks", []) if not ch.get("passed")), c.get("error"))
+        c["_first_fail"] = c.get("error") or next(
+            (ch.get("reason") for ch in c.get("checks", []) if ch.get("passed") is False), None)
         c["_files"] = file_previews(uc, c.get("input")) if uc in usecases() else []
     return page(request, "results.html", uc if uc in usecases() else None, run=run, others=others, vs=vs,
                 other=other, changes=changes, counts=counts)
@@ -382,16 +431,26 @@ def docs_page(request: Request, name: str = ""):
 
 def serve() -> int:
     """`kit serve`: start the tools MCP server (if part B is there), then the UI."""
+    import socket
+
     import uvicorn
 
+    from kit import tools
+
+    s = config.settings()
+    for port, what in ((s.ui_port, "UI"), (s.tools_port, "tools server")):
+        with socket.socket() as sock:
+            sock.settimeout(1)
+            if sock.connect_ex(("127.0.0.1", port)) == 0:
+                print(f"ERROR: port {port} ({what}) is taken. Is another `make serve`, `make check` or `kit tools` "
+                      f"running? Stop it, then run make serve again.")
+                return 1
     try:
-        from kit import tools
         tools.start_background()
-    except (ImportError, AttributeError):
-        print("warning: kit.tools.start_background not found; the tools MCP server is not started")
     except Exception as e:
-        print(f"warning: the tools MCP server did not start: {e}")
-    port = config.settings().ui_port
+        print(f"ERROR: the tools MCP server did not start: {e}. Stop the other process, then run make serve again.")
+        return 1
+    port = s.ui_port
     print(f"Kit UI: http://localhost:{port}")
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
     return 0
