@@ -5,8 +5,7 @@ from __future__ import annotations
 import sys
 import threading
 
-from kit.runner import CaseError, run_eval
-from kit.runner.engines import n8n_unpublished
+from kit.runner import CaseError, n8n_unpublished, run_eval
 
 
 def _label(check: dict) -> str:

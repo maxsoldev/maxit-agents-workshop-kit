@@ -555,6 +555,7 @@ def default_engine(uc: str) -> str:
 def run_page(request: Request, uc: str, engine: str = "", error: str = ""):
     cases, load_error = load_cases_safe(uc)
     jobs = {e: JOBS[(uc, e)] for e in config.ENGINES if (uc, e) in JOBS}
+    run_engines = config.settings().engines
     return page(
         request,
         "run.html",
@@ -563,7 +564,8 @@ def run_page(request: Request, uc: str, engine: str = "", error: str = ""):
         error=error or load_error,
         jobs=jobs,
         engine=engine or default_engine(uc),
-        run_engines=config.settings().engines,
+        run_engines=run_engines,
+        n8n_warning=runner().n8n_unpublished(uc) if "n8n" in run_engines else None,
     )
 
 

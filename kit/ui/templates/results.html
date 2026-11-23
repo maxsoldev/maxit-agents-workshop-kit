@@ -5,6 +5,7 @@
 <div class="head">
   <h1>{{ run.name or run.run_id }} <span class="muted">· {{ run.engine }} · {{ run.started_at|when }}</span></h1>
 </div>
+{% if run.warning %}<div class="banner">This run: {{ run.warning }}</div>{% endif %}
 <div class="summary">
   <div class="score {{ 'all' if s.passed == s.cases else ('none' if not s.passed else '') }}">
     <span class="big">{{ s.passed }}/{{ s.cases }}</span><span class="muted">cases passed</span></div>

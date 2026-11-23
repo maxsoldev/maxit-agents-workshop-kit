@@ -3,6 +3,7 @@
 {% block main %}
 <h1>Run eval <span class="muted">· {{ uc }}</span></h1>
 {% if error %}<div class="alert">{{ error }}</div>{% endif %}
+{% if n8n_warning %}<div class="banner">{{ n8n_warning }}</div>{% endif %}
 <div id="progress">{% include "_progress.html" %}</div>
 <form method="post" action="/uc/{{ uc }}/run" class="run-form">
   <div class="row3">

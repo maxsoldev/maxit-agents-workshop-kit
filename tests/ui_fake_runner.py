@@ -113,6 +113,8 @@ def run_eval(usecase, engine, case_ids=None, name=None, on_progress=None, holdou
         "summary": {"cases": len(results), "passed": sum(r["passed"] for r in results), "by_check": by_check},
         "cases": results,
     }
+    if engine == "n8n" and UNPUBLISHED:
+        run["warning"] = UNPUBLISHED
     config.RUNS_DIR.mkdir(parents=True, exist_ok=True)
     (config.RUNS_DIR / f"{run_id}.json").write_text(json.dumps(run, ensure_ascii=False, indent=2), encoding="utf-8")
     return run
@@ -146,9 +148,17 @@ def compare(a, b):
     return {}
 
 
+UNPUBLISHED: str | None = None  # what n8n_unpublished returns; a test sets it
+
+
+def n8n_unpublished(uc):
+    return UNPUBLISHED
+
+
 def install():
     mod = types.ModuleType("kit.runner")
-    for name in ("load_cases", "save_cases", "validate_case", "run_eval", "load_run", "list_runs", "compare"):
+    names = ("load_cases", "save_cases", "validate_case", "run_eval", "load_run", "list_runs", "compare")
+    for name in (*names, "n8n_unpublished"):
         setattr(mod, name, globals()[name])
     sys.modules["kit.runner"] = mod
     return mod

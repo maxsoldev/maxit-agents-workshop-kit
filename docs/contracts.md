@@ -98,7 +98,11 @@ run = run_eval(usecase, engine, case_ids=None, name=None, on_progress=None, hold
 list_runs(usecase=None) -> list[dict]   # newest first; summary fields and the sorted `case_ids`
 load_run(run_id) -> dict
 compare(run_id_a, run_id_b) -> dict     # per case: better / worse / same
+n8n_unpublished(usecase) -> str | None  # a warning if the n8n workflow has edits that are not published
 ```
+
+The n8n webhook runs the published workflow version, not the editor draft. `make eval`, `make n8n-export`, the
+UI Run page and the results page of an n8n run show `n8n_unpublished`; an n8n run file keeps it as `warning`.
 
 `make check` names its runs `check`: the UI hides them in the Runs list (link "Show checks") and in Compare.
 Compare defaults to the last older run of the same engine with the same case ids (else the last one that ran

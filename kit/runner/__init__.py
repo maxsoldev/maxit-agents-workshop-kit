@@ -1,6 +1,6 @@
 """Eval runner: run the cases of a use case on one engine, check the results, save a run file.
 
-from kit.runner import run_eval, list_runs, load_run, compare
+from kit.runner import run_eval, list_runs, load_run, compare, n8n_unpublished
 """
 
 from __future__ import annotations
@@ -18,9 +18,20 @@ from datetime import datetime
 from kit import config
 from kit.runner import checks, engines, tracing
 from kit.runner.cases import CaseError, engine_input, load_cases, save_cases, usecase_dir, validate_case
+from kit.runner.engines import n8n_unpublished
 from kit.runner.store import list_runs, load_run, new_run_id, save_run
 
-__all__ = ["run_eval", "list_runs", "load_run", "compare", "load_cases", "save_cases", "validate_case", "CaseError"]
+__all__ = [
+    "run_eval",
+    "list_runs",
+    "load_run",
+    "compare",
+    "load_cases",
+    "save_cases",
+    "validate_case",
+    "CaseError",
+    "n8n_unpublished",
+]
 
 
 def _now() -> str:
@@ -158,6 +169,8 @@ def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=No
         "summary": summarize([]),
         "cases": [],
     }
+    if engine == "n8n" and (warning := n8n_unpublished(usecase)):
+        run["warning"] = warning  # the run used the published workflow, not the latest edits
     save_run(run)  # reserves the run id; ended_at = None means "still running"
 
     def one(case):

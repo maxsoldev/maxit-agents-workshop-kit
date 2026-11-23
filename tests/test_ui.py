@@ -176,6 +176,22 @@ def test_run_results_runs(client):
     assert client.get("/runs/nope").status_code == 404
 
 
+def test_n8n_unpublished_warning(client, monkeypatch):
+    """Run page and the results page of an n8n run say: click Publish in n8n."""
+    monkeypatch.setenv("KIT_ENGINES", "n8n,python")
+    assert "not published" not in client.get("/uc/demo/run").text
+    warning = "n8n: 'Demo' has changes that are not published. ...: click Publish in the n8n editor."
+    monkeypatch.setattr(ui_fake_runner, "UNPUBLISHED", warning)
+    assert "click Publish in the n8n editor" in client.get("/uc/demo/run").text
+    client.post("/uc/demo/run", data={"engine": "n8n"})
+    for _ in range(50):
+        if "Open results" in client.get("/uc/demo/run/progress").text:
+            break
+        time.sleep(0.05)
+    run_id = ui_fake_runner.list_runs("demo")[0]["run_id"]
+    assert "This run: n8n: &#39;Demo&#39; has changes that are not published" in client.get(f"/runs/{run_id}").text
+
+
 def test_check_runs_hidden_and_compare_default(client):
     config.RUNS_DIR.mkdir(parents=True, exist_ok=True)
 
