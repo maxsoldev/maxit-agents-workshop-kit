@@ -618,6 +618,17 @@ def check() -> int:
 
 # ---------- kit n8n-export ----------
 
+def same_order(new, old):
+    """`new` with its keys in the order of `old` (nodes matched by name), so git diff shows only real changes."""
+    if isinstance(new, dict) and isinstance(old, dict):
+        keys = [k for k in old if k in new] + [k for k in new if k not in old]
+        return {k: same_order(new[k], old.get(k)) for k in keys}
+    if isinstance(new, list) and isinstance(old, list):
+        by_name = {o.get("name"): o for o in old if isinstance(o, dict)}
+        return [same_order(n, by_name.get(n.get("name")) if isinstance(n, dict) else None) for n in new]
+    return new
+
+
 def n8n_export(only_uc: str = "") -> int:
     """Save the workflows from n8n to usecases/<uc>/n8n/workflow.json, with the placeholders back
     ({{OPENAI_CREDENTIAL_ID}}, {{KIT_TOOLS_URL}}, {{KIT_MODEL}}), so the file works on every laptop."""
@@ -633,9 +644,10 @@ def n8n_export(only_uc: str = "") -> int:
     for uc in ucs:
         path = USECASES_DIR / uc / "n8n" / "workflow.json"
         try:
-            name = json.loads(path.read_text())["name"]
+            old = json.loads(path.read_text())
+            name = old["name"]
         except (OSError, ValueError, KeyError):
-            name = ""
+            old, name = {}, ""
         # The workflow with the same name, else the active one on the webhook path <uc>.
         hit = next((w for w in flows if w["name"] == name), None) or next(
             (w for w in flows if w.get("active") and uc in webhook_paths(w)), None)
@@ -645,6 +657,7 @@ def n8n_export(only_uc: str = "") -> int:
             continue
         full = n8n.api("GET", f"/workflows/{hit['id']}").json()
         wf = placeholders_back(workflow_body(full), s.n8n_openai_credential_id, s.tools_url_docker, s.model)
+        wf = same_order(wf, old)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(wf, indent=2, ensure_ascii=False) + "\n")
         remember_import(full["name"], full)  # n8n and the file are the same now
