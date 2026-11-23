@@ -748,7 +748,7 @@ wheels = [
 ]
 
 [[package]]
-name = "maxit-agent-kit"
+name = "maxit-agents-workshop-kit"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

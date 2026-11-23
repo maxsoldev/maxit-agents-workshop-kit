@@ -97,7 +97,7 @@ def fake_get(fail_hosts=()):
 
     def get(url, params=None, headers=None, timeout=None):
         calls.append(url)
-        assert headers["User-Agent"].startswith("maxit-agent-kit")
+        assert headers["User-Agent"].startswith("maxit-agents-workshop-kit")
         if any(h in url for h in fail_hosts):
             raise httpx.ConnectTimeout("timeout")
         body = [{"id": "S1", "name": params["text"]}] if "geocode" in url else PLAN

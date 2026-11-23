@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
-USER_AGENT = "maxit-agent-kit/0.1 (MaxIT agents workshop; +https://transitous.org/api/)"
+USER_AGENT = "maxit-agents-workshop-kit/0.1 (MaxIT agents workshop; +https://transitous.org/api/)"
 TIMEOUT = 10.0
 TZ = ZoneInfo("Europe/Berlin")
 MAX_CONNECTIONS = 5

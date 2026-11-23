@@ -45,8 +45,8 @@ n8n, the Python agent and the `judge` checks use it.
 Fork this repo on GitHub (one fork per team is fine), then clone it:
 
 ```bash
-git clone <your fork URL> maxit-agent-kit
-cd maxit-agent-kit
+git clone <your fork URL> maxit-agents-workshop-kit
+cd maxit-agents-workshop-kit
 ```
 
 - **Check:** `ls usecases` shows `marketing` and `travel`.

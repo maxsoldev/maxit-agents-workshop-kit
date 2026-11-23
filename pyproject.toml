@@ -1,5 +1,5 @@
 [project]
-name = "maxit-agent-kit"
+name = "maxit-agents-workshop-kit"
 version = "0.1.0"
 description = "MaxIT agents workshop kit: build an agent with eval-driven development"
 requires-python = ">=3.12"
