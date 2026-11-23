@@ -1,6 +1,6 @@
 # Events, business travel and office requests
 
-> Your team owns this file. Rewrite it in the design block (11:30). Keep it short.
+> Your team owns this file. Rewrite it in the design block (12:00). Keep it short.
 
 ## The problem
 

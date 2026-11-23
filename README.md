@@ -7,6 +7,7 @@ eval loop. It does not give you the answer: **your team picks the service**, wri
 makes the score go up.
 
 - First time? Read **[SETUP.md](SETUP.md)**, part "Before the day".
+- Setup done? Play the loop once: **[docs/tutorial.md](docs/tutorial.md)** (30 min).
 - The day: **[docs/day-plan.md](docs/day-plan.md)**. The method: **[docs/the-loop.md](docs/the-loop.md)**.
 
 ## The idea of the day
