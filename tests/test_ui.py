@@ -172,7 +172,9 @@ def test_run_results_runs(client):
     run_id = ui_fake_runner.list_runs("demo")[0]["run_id"]
     page = client.get(f"/runs/{run_id}")
     assert page.status_code == 200 and "Service offer" in page.text
-    assert 'href="/uc/demo/cases/m06/edit"' in page.text  # the case title opens its edit page
+    # the row (also the title) opens the details; the edit page is one link inside them
+    assert page.text.count('href="/uc/demo/cases/m06/edit"') == 1
+    assert '<a href="/uc/demo/cases/m06/edit">Edit this case</a>' in page.text
     assert client.get("/runs/nope").status_code == 404
 
 

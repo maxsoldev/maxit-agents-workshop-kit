@@ -42,7 +42,7 @@
   <details class="res {{ 'pass' if c.passed else 'fail' }} {{ 'chg-' ~ ch if ch }}" id="c-{{ c.id }}">
     <summary>
       <span class="mark">{{ '✓' if c.passed else '✗' }}</span>
-      <span>{% if uc %}<a href="/uc/{{ uc }}/cases/{{ c.id }}/edit" title="Edit this case"><code>{{ c.id }}</code> {{ c.title }}</a>{% else %}<code>{{ c.id }}</code> {{ c.title }}{% endif %}</span>
+      <span><code>{{ c.id }}</code> {{ c.title }}</span>{# a click anywhere on the row opens the details; Edit is inside #}
       <span class="muted">{{ '%.1f'|format(c.seconds or 0) }} s</span>
       <span class="reason">{{ c._first_fail or '' }}</span>
       <span>{% if ch %}<span class="badge {{ ch }}">{{ {'better': '▲ better', 'worse': '▼ worse', 'same': 'same', 'new': 'new case'}[ch] }}</span>{% endif %}
@@ -62,6 +62,7 @@
         {% endfor %}
       </table>
       <div class="links">
+        {% if uc %}<a href="/uc/{{ uc }}/cases/{{ c.id }}/edit">Edit this case</a>{% endif %}
         {% if c.trace_url and langfuse_link %}<a href="{{ c.trace_url }}" target="_blank">Langfuse trace ↗</a>{% endif %}
         {% if c.n8n_execution_url %}<a href="{{ c.n8n_execution_url }}" target="_blank">n8n execution ↗</a>{% endif %}
       </div>
