@@ -51,7 +51,7 @@ label input, label textarea, label select { margin-top: 0.2rem; font-weight: nor
 .row3 .grow { flex: 1; }
 .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .cols3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
-.cols3 > div { min-width: 0; }
+.cols3 > div, .cols > div { min-width: 0; }
 .picker { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
 .picker select { flex: 1; }
 .picker .btn { white-space: nowrap; }
@@ -148,6 +148,8 @@ details.res[open] > summary { border-bottom: 1px dashed var(--line); }
 .badge.better { background: var(--pass); color: #fff; }
 .badge.worse { background: var(--fail); color: #fff; }
 .badge.same, .badge.new { color: var(--muted); border: 1px solid var(--line); }
+.banner { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); border-radius: 6px;
+  padding: 0.5rem 0.8rem; margin-bottom: 1rem; }
 .badge.changed { background: var(--warn-bg); color: var(--warn); }
 table.checks-res td { padding: 0.3rem 0.5rem; }
 table.checks-res .mark { width: 2rem; font-weight: 700; text-align: center; }

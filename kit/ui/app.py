@@ -356,8 +356,14 @@ async def case_save(request: Request, uc: str):
         try:
             case[key] = json.loads(raw[key] or "{}")
         except json.JSONDecodeError as e:
-            errors.append(f"{key}: not valid JSON ({e.msg}, line {e.lineno})")
+            errors.append(f"{key.capitalize()} is not valid JSON (line {e.lineno}, column {e.colno}). Put double "
+                          f'quotes " around names and texts, e.g. {{"category": "spam"}}, and a comma between two '
+                          f"items. (Detail: {e.msg})")
             case[key] = {}
+    if not case["title"]:
+        errors.append("Title is empty: give the case a short name, e.g. \"Unknown fund wants a call\"")
+    if raw["input"].strip() in ("", "{}"):
+        errors.append("Input is empty: pick an email or a message and click Add to input, or paste a message")
     case["checks"] = [parse_check(str(t), str(fl), str(a), str(m)) for t, fl, a, m in
                       zip(f.getlist("check_type"), f.getlist("check_field"), f.getlist("check_arg"), f.getlist("check_min"))
                       if str(t) and (str(fl).strip() or str(a).strip())]

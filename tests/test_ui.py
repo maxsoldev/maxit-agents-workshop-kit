@@ -59,6 +59,13 @@ def test_root_redirects(client):
     assert r.headers["location"] == "/uc/demo/cases"
 
 
+def test_no_key_banner(client, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+    assert "judge checks are skipped" in client.get("/uc/demo/cases").text
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    assert "judge checks are skipped" not in client.get("/uc/demo/cases").text
+
+
 def test_cases_page_shows_email(client):
     r = client.get("/uc/demo/cases")
     assert r.status_code == 200
@@ -115,9 +122,11 @@ def test_add_edit_delete_round_trip(client):
 def test_validation_errors_show(client):
     r = client.post("/uc/demo/cases/save", data=form(title="", input="{bad json"))
     assert r.status_code == 422
-    assert "Not saved" in r.text and "input: not valid JSON" in r.text
-    r = client.post("/uc/demo/cases/save", data=form(title=""))
-    assert "title: required" in r.text
+    assert "Not saved" in r.text and "Input is not valid JSON" in r.text and "double" in r.text
+    r = client.post("/uc/demo/cases/save", data=form(title="", today="2026-11-17"))
+    assert "Title is empty" in r.text and 'value="2026-11-17"' in r.text  # the form keeps what you typed
+    r = client.post("/uc/demo/cases/save", data=form(input="{}"))
+    assert "Input is empty" in r.text
     r = client.post("/uc/demo/cases/save", data=form(id="m06"))
     assert "is used by another case" in r.text
     assert len(cases_file()) == 1

@@ -25,6 +25,8 @@ def get_field(obj, path: str):
 
 
 def short(value, limit: int = 60) -> str:
+    if value == "":
+        return '"" (empty)'  # else an empty value is invisible in "got X, expected Y"
     text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
