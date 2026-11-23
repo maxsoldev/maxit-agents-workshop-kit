@@ -44,7 +44,25 @@ def schema_check(output, schema: dict) -> dict:
     if error is None:
         return result("schema", "", True, "matches output.schema.json")
     where = ".".join(str(p) for p in error.absolute_path) or "result"
-    return result("schema", where, False, f"{where}: {error.message}")
+    return result("schema", where, False, schema_words(error, where))
+
+
+def schema_words(error, where: str) -> str:
+    """A schema error in plain words: extra field, missing field, wrong value. Else the jsonschema text."""
+    prefix = "" if where == "result" else f"{where}."
+    if error.validator == "additionalProperties" and isinstance(error.instance, dict):
+        extra = [k for k in error.instance if k not in (error.schema.get("properties") or {})]
+        names = ", ".join(f"`{prefix}{k}`" for k in extra)
+        return (f"the agent added a field that is not in the schema: {names}. Tell the agent to use only the "
+                f"fields of output_schema, or add the field to output.schema.json")
+    if error.validator == "required" and isinstance(error.instance, dict):
+        missing = [k for k in error.validator_value if k not in error.instance]
+        return f"the field {', '.join(f'`{prefix}{k}`' for k in missing)} is missing"
+    if error.validator == "enum":
+        return f"`{where}` must be one of {short(error.validator_value, 200)}, got {short(error.instance)}"
+    if error.validator == "type":
+        return f"`{where}` must be of type {error.validator_value}, got {short(error.instance)}"
+    return f"{where}: {error.message}"
 
 
 def _contains(got, value) -> bool:

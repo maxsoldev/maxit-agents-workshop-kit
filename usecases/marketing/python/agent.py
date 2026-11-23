@@ -80,7 +80,7 @@ async def run(case: dict, client: Client | None) -> dict:
             messages.append({"role": "tool", "tool_call_id": call.id, "content": text})
     else:
         log(f"still calling tools after {MAX_STEPS} steps: asking for the result now")
-    messages.append({"role": "user", "content": "Now return only the result JSON."})
+    messages.append({"role": "user", "content": "Now return only the result JSON, with only the fields of the schema."})
     final = llm.chat.completions.create(
         model=MODEL, messages=messages,
         response_format={"type": "json_schema", "json_schema": {"name": "result", "schema": schema, "strict": False}},

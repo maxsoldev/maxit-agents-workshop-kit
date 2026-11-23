@@ -43,4 +43,5 @@ Answer with **only the result JSON**, no other text:
 ```
 
 The result **must match `output_schema`** in the case JSON (a JSON Schema; the runner copies it from
-`output.schema.json`). It wins over the example above: use all its required fields and no others.
+`output.schema.json`). It wins over the example above: use all its required fields, and **only the fields of
+output_schema**. Do not add other fields (notes go in `reasons`): an extra field fails the schema check.

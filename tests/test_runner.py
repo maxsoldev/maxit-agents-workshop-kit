@@ -184,6 +184,21 @@ def test_schema_check():
     assert not bad["passed"] and bad["field"] == "category"
 
 
+def test_schema_errors_in_words():
+    schema = {"type": "object", "required": ["kind", "tasks"], "additionalProperties": False,
+              "properties": {"kind": {"enum": ["a", "b"]}, "n": {"type": "integer"},
+                             "tasks": {"type": "array", "items": {"type": "object", "additionalProperties": False,
+                                                                  "properties": {"x": {}}}}}}
+    reason = lambda out: checks.schema_check(out, schema)["reason"]  # noqa: E731
+    assert reason({"kind": "a", "tasks": [], "draft_to_note": 1}) == (
+        "the agent added a field that is not in the schema: `draft_to_note`. Tell the agent to use only the "
+        "fields of output_schema, or add the field to output.schema.json")
+    assert reason({"kind": "a"}) == "the field `tasks` is missing"
+    assert reason({"kind": "c", "tasks": []}).startswith('`kind` must be one of ["a", "b"]')
+    assert reason({"kind": "a", "tasks": [], "n": "1"}).startswith("`n` must be of type integer")
+    assert "`tasks.0.y`" in reason({"kind": "a", "tasks": [{"y": 1}]})
+
+
 def test_read_claude_stream():
     lines = [{"type": "system", "subtype": "init"},
              {"type": "assistant", "message": {"content": [
