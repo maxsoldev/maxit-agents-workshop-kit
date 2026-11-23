@@ -114,20 +114,20 @@ def workflow_body(wf: dict) -> dict:
 
 
 def workflow_hash(wf: dict) -> str:
-    """Hash of what a workflow does: nodes (name, type, version, parameters, credential id) and links.
+    """Hash of what a workflow does: nodes (name, type, version, parameters, credential types) and links.
     Node positions do not count."""
     nodes = []
     for n in wf.get("nodes", []):
         d = {k: n.get(k) for k in ("name", "type", "typeVersion", "parameters")}
-        # n8n stores its own credential name; only the id matters.
-        d["credentials"] = {t: (c or {}).get("id") for t, c in (n.get("credentials") or {}).items()}
+        # Only the credential type counts: the id is per n8n (setup finds the kit's credential by name).
+        d["credentials"] = sorted(n.get("credentials") or {})
         nodes.append(json.dumps(d, sort_keys=True))
     text = json.dumps([sorted(nodes), wf.get("connections", {})], sort_keys=True)
     return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
 def same_workflow(a: dict, b: dict) -> bool:
-    """True if two workflows have the same nodes (name, type, version, parameters, credentials) and links."""
+    """True if two workflows have the same nodes (name, type, version, parameters, credential types) and links."""
     return workflow_hash(a) == workflow_hash(b)
 
 
@@ -140,7 +140,7 @@ def files_hash(path: Path) -> str | None:
     """workflow_hash of a workflow file, as n8n would get it. None if it cannot be read."""
     s = settings()
     try:
-        return workflow_hash(load_workflow(path, s.n8n_openai_credential_id, s.tools_url_docker))
+        return workflow_hash(load_workflow(path, "", s.tools_url_docker))  # the credential id does not count
     except (OSError, ValueError, KeyError):
         return None
 
@@ -170,26 +170,21 @@ def sync_state(files: str | None, n8n: str, last: str | None) -> str:
     return "files" if n8n == last else "both"
 
 
-def sync_advice(state: str, uc: str, rel, name: str) -> str:
-    """What to run for a sync state (contracts §5). Never overwrites by itself."""
-    files = f"{rel}"
+def sync_advice(state: str, uc: str, rel) -> str:
+    """What to run for a sync state (contracts §5). Never overwrites by itself; FORCE first copies the
+    side it overwrites to runs/n8n-backup/."""
     if state == "files":
-        return f"{files} changed since the last sync; n8n still has the old '{name}'. Run: make n8n-push UC={uc}"
+        return f"{rel} changed, n8n has the old workflow. Fix: make n8n-push UC={uc}"
     if state == "n8n":
-        return f"'{name}' has edits in n8n that are not in {rel}. Save them: make n8n-pull UC={uc}"
-    keep = (
-        f"Keep the n8n version: make n8n-pull UC={uc} FORCE=1 (your files go to runs/n8n-backup/ first). "
-        f"Keep the files: make n8n-push UC={uc} FORCE=1 (the n8n copy goes to runs/n8n-backup/ first)."
-    )
-    if state == "both":
-        return f"'{name}' changed in n8n and {files} changed too, since the last sync. Nothing was overwritten. {keep}"
-    return f"'{name}' in n8n is not the same as {files}, and this laptop has no record of a sync. {keep}"
+        return f"n8n has edits that are not in {rel}. Fix: make n8n-pull UC={uc}"
+    what = f"n8n and {rel} both changed" if state == "both" else f"n8n is not the same as {rel}"
+    return f"{what}. Keep the files: make n8n-push UC={uc} FORCE=1. Keep n8n: make n8n-pull UC={uc} FORCE=1"
 
 
-def draft_advice(uc: str, name: str) -> str:
+def draft_advice(uc: str) -> str:
     return (
-        f"n8n: '{name}' has edits that are not published. The eval runs the published version: "
-        f"Publish in n8n, or run make n8n-push UC={uc} to discard them."
+        "n8n has edits that are not published; the eval runs the published one. "
+        f"Fix: Publish in n8n, or make n8n-push UC={uc}"
     )
 
 
@@ -439,53 +434,35 @@ def setup_n8n(force: bool = False) -> bool:
     return import_workflows(n8n, cred_id, force)
 
 
-def key_fingerprint(key: str) -> str:
-    """Short hash of a key. n8n does not show a stored key, so .env keeps this to see if the key changed."""
-    return hashlib.sha256(key.encode()).hexdigest()[:12]
+def find_credential(n8n: N8n) -> str:
+    """The id of the kit's OpenAI credential in n8n (by name), else ""."""
+    r = n8n.api("GET", "/credentials")
+    found = r.json().get("data", []) if r.status_code == 200 else []
+    return next((c["id"] for c in found if c.get("name") == OPENAI_CRED_NAME and c.get("type") == "openAiApi"), "")
 
 
 def setup_credential(n8n: N8n) -> str:
-    """The OpenAI credential, made from OPENAI_API_KEY. Kept if it exists; its key is updated if it changed."""
+    """The OpenAI credential, made from OPENAI_API_KEY: updated if it exists, else created. Returns its id."""
     s = settings()
     if not s.openai_api_key:
         warn("no OpenAI credential yet: OPENAI_API_KEY is empty")
         return ""
-    data = {"apiKey": s.openai_api_key, "url": s.openai_base_url_docker, "header": False}
-    fingerprint = key_fingerprint(s.openai_api_key + "|" + data["url"])
-    cred_id = s.n8n_openai_credential_id
-    if cred_id and n8n.api("GET", f"/credentials/{cred_id}").status_code == 200:
-        if read_env(ENV_FILE).get("N8N_OPENAI_KEY_FINGERPRINT") == fingerprint:
-            ok(f"credential '{OPENAI_CRED_NAME}' exists")
-            return cred_id
-    else:  # a new .env on an n8n that has the kit already (a second clone, or .env made again)
-        cred_id = kit_credential_in_use(n8n)
-    if cred_id:
-        r = n8n.api("PATCH", f"/credentials/{cred_id}", {"name": OPENAI_CRED_NAME, "type": "openAiApi", "data": data})
+    body = {
+        "name": OPENAI_CRED_NAME,
+        "type": "openAiApi",
+        "data": {"apiKey": s.openai_api_key, "url": s.openai_base_url_docker, "header": False},
+    }
+    if cred_id := find_credential(n8n):
+        r = n8n.api("PATCH", f"/credentials/{cred_id}", body)
         if r.status_code < 300:
-            set_env_key(ENV_FILE, "N8N_OPENAI_CREDENTIAL_ID", cred_id)
-            set_env_key(ENV_FILE, "N8N_OPENAI_KEY_FINGERPRINT", fingerprint)
-            ok(f"credential '{OPENAI_CRED_NAME}' updated with the key from .env")
+            ok(f"credential '{OPENAI_CRED_NAME}' set from OPENAI_API_KEY")
             return cred_id
-    r = n8n.api("POST", "/credentials", {"name": OPENAI_CRED_NAME, "type": "openAiApi", "data": data})
+    r = n8n.api("POST", "/credentials", body)
     if r.status_code >= 300:
         fail(f"could not create the OpenAI credential ({r.status_code}): {r.text[:200]}")
         return ""
-    cred_id = r.json()["id"]
-    set_env_key(ENV_FILE, "N8N_OPENAI_CREDENTIAL_ID", cred_id)
-    set_env_key(ENV_FILE, "N8N_OPENAI_KEY_FINGERPRINT", fingerprint)
-    ok(f"credential '{OPENAI_CRED_NAME}' created (N8N_OPENAI_CREDENTIAL_ID in .env)")
-    return cred_id
-
-
-def kit_credential_in_use(n8n: N8n) -> str:
-    """The id of the kit's OpenAI credential that a workflow in n8n uses, else "".
-    With it, a new .env keeps the workflows the same as the files (the credential id is in the hash)."""
-    for w in n8n.workflows():
-        for node in w.get("nodes") or []:
-            for c in (node.get("credentials") or {}).values():
-                if (c or {}).get("name") == OPENAI_CRED_NAME and c.get("id"):
-                    return c["id"]
-    return ""
+    ok(f"credential '{OPENAI_CRED_NAME}' created from OPENAI_API_KEY")
+    return r.json()["id"]
 
 
 def webhook_paths(wf: dict) -> set[str]:
@@ -605,7 +582,7 @@ def import_workflows(n8n: N8n, cred_id: str, force: bool = False, only_uc: str =
                 remember_import(body["name"], body)
             elif sync in ("n8n", "both", "unknown") and not force:
                 # the published n8n copy changed since the last sync (an edit in the editor): keep it
-                warn(f"{body['name']}: kept the n8n version. {sync_advice(sync, uc_name, rel, body['name'])}")
+                warn(f"{body['name']}: kept the n8n version. {sync_advice(sync, uc_name, rel)}")
                 KEPT.append(body["name"])
                 if full.get("active"):
                     continue
@@ -828,10 +805,6 @@ def check() -> int:
     unused = [e for e in ("n8n", "claude", "python") if e not in s.engines]
     if unused:
         print(f"{SKIP}{', '.join(unused)}: not in KIT_ENGINES")
-    n8n_warning = getattr(sys.modules["kit.runner"], "n8n_warning", lambda uc: None)
-    for uc in usecases() if "n8n" in s.engines else []:  # e.g. after git pull: the kit has a newer workflow
-        if warning := n8n_warning(uc):
-            print(f"WARN     {uc}/n8n: {warning}")
     # One row per use case × engine, in print order: (uc, engine, first case id, a line known before any run).
     rows = []
     for uc in usecases():
@@ -878,9 +851,13 @@ def _check_before_run(uc: str, engine: str, first: str, s) -> str | None:
 
 def _check_run(run_eval, uc: str, engine: str, first: str) -> str:
     """Run the first case of `uc` on `engine` (a thread of check); return its OK / FAIL line."""
+    from kit.runner.cases import CaseError  # here: kit.runner imports setup
+
     label = f"{uc}/{engine} ({first})"
     try:
         case = run_eval(uc, engine, case_ids=[first], name="check")["cases"][0]
+    except (SyncError, CaseError) as e:  # the message says the fix
+        return f"{ERROR}{label}: {e}"
     except Exception as e:  # the check must go on to the next engine
         return f"{ERROR}{label}: {type(e).__name__}: {e}. Next: {next_step(engine, str(e), uc, first)}"
     if case.get("error"):
@@ -926,7 +903,10 @@ def save_workflow_files(path: Path, wf: dict) -> list[Path]:
     except (OSError, ValueError):
         old = {}
     body = json.loads(json.dumps(workflow_body(wf)))
-    body = same_order(placeholders_back(body, s.n8n_openai_credential_id, s.tools_url_docker, s.model), old)
+    for node in body["nodes"]:  # whatever id this n8n has: the file keeps the placeholder
+        if "openAiApi" in (node.get("credentials") or {}):
+            node["credentials"]["openAiApi"] = {"id": "{{OPENAI_CREDENTIAL_ID}}", "name": OPENAI_CRED_NAME}
+    body = same_order(placeholders_back(body, "", s.tools_url_docker, s.model), old)
     return [path] if _write_if_changed(path, json.dumps(body, indent=2, ensure_ascii=False) + "\n") else []
 
 
@@ -974,7 +954,7 @@ def pull_one(uc: str, path: Path, full: dict, force: bool = False) -> tuple[bool
     exists = path.exists()
     state = sync_state(files_hash(path), workflow_hash(pub), imported_hashes().get(full["name"])) if exists else "n8n"
     if state in ("files", "both", "unknown") and not force:
-        return False, sync_advice(state, uc, rel, full["name"])
+        return False, sync_advice(state, uc, rel)
     if state == "same" and not force:  # what the workflow does is the same: keep the files as they are
         remember_import(full["name"], pub)
         return True, f"{rel} already has it"
@@ -1005,7 +985,7 @@ def n8n_pull(only_uc: str = "", force: bool = False) -> int:
         print(f"{'OK  ' if done else 'STOP'}  {uc}: '{full['name']}': {text}")
         bad += not done
         if has_draft(full):
-            print(f"WARN  {uc}: {draft_advice(uc, full['name'])}")
+            print(f"WARN  {uc}: {draft_advice(uc)}")
     return 1 if bad else 0
 
 
@@ -1014,9 +994,9 @@ def n8n_push(only_uc: str = "", force: bool = False) -> int:
     n8n = n8n_client()
     if not n8n:
         return 1
-    cred = settings().n8n_openai_credential_id
+    cred = find_credential(n8n)
     if not cred:
-        print("FAIL  no N8N_OPENAI_CREDENTIAL_ID in .env. Run make setup first")
+        print(f"FAIL  no '{OPENAI_CRED_NAME}' credential in n8n. Run make setup first")
         return 1
     print(f"n8n ({settings().n8n_url})")
     KEPT.clear()
@@ -1041,15 +1021,19 @@ def n8n_status(uc: str) -> dict | None:
     return {"state": state, "draft": has_draft(full), "name": full["name"], "path": path, "full": full}
 
 
+class SyncError(ValueError):
+    """n8n and the workflow files are not in sync. The message says what to run."""
+
+
 def sync_before_eval(uc: str) -> str | None:
     """Before an n8n eval: if only n8n changed since the last sync, save it to the files and say so.
-    If the files changed (alone or both), raise ValueError with what to run: the eval would not run them."""
+    If the files changed (alone or both), raise SyncError with what to run: the eval would not run them."""
     st = n8n_status(uc)
     if not st or st["state"] == "same":
         return None
     if st["state"] != "n8n":
         rel = st["path"].relative_to(ROOT) if st["path"].is_relative_to(ROOT) else st["path"]
-        raise ValueError(sync_advice(st["state"], uc, rel, st["name"]))
+        raise SyncError(sync_advice(st["state"], uc, rel))
     done, text = pull_one(uc, st["path"], st["full"])
     return f"n8n changes {text}" if done else text
 

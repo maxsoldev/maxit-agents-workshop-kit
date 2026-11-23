@@ -113,24 +113,25 @@ Claude Code. The sync is for the graph only: an AI node's prompt (its first chat
 `={{ $('Read the rules').item.json.text }}`, the business rules file read at run time, so a rules edit needs no sync.
 The node's `text` (what it gets: the email, the case) is n8n wiring, in `workflow.json`.
 - `make n8n-push [UC=] [FORCE=1]` (and `make setup`): files → n8n. Fills `{{KIT_MODEL}}`,
-  `{{KIT_TOOLS_URL}}`, `{{OPENAI_CREDENTIAL_ID}}`, updates by name, publishes. Unpublished editor edits are
+  `{{KIT_TOOLS_URL}}`, `{{OPENAI_CREDENTIAL_ID}}` (the id of the n8n credential named `Kit OpenAI`, found by
+  name; `make setup` makes or updates it from `OPENAI_API_KEY`), updates by name, publishes. Unpublished editor edits are
   discarded (old copy to `runs/n8n-backup/`). It deletes the old examples of earlier kits, the workflows named
   exactly `Kit: <uc> agent` or `Kit: <uc> agent (example)` (a copy goes to `runs/n8n-backup/deleted-*.json`
   first); it never deletes other workflows.
 - `make n8n-pull [UC=] [FORCE=1]` (`make n8n-export` = the same): n8n → files, the **published** version
   (`activeVersion`), placeholders back, keys in the order of the old file: no change = the same bytes.
 - **Conflict guard.** `runs/n8n-imported.json` keeps, per workflow name, `workflow_hash` of the last sync (push,
-  pull, setup). The state is `same`, `n8n` (only n8n changed), `files` (only the files changed, e.g. a new node
+  pull, setup). The hash counts the credential type of a node, not its id (the id is per n8n). The state is `same`, `n8n` (only n8n changed), `files` (only the files changed, e.g. a new node
   or `git pull`), `both`, or `unknown` (they differ and there is no record). Push without `FORCE` keeps
   n8n in `n8n`/`both`/`unknown`; pull without `FORCE` stops in `files`/`both`/`unknown`. Each says which side
   changed and what to run; `FORCE=1` copies the overwritten side to `runs/n8n-backup/` first.
 - **Before each n8n eval** (`run_eval`: CLI and UI): `n8n` → pull, the run file gets
   `n8n_sync` ("n8n changes saved to … (not committed)"; the results page shows it); `files`, `both`, `unknown` →
-  the run does not start (CaseError with the advice). The schema must be OpenAI-strict (every property in
+  the run does not start (`SyncError` with the advice: one line with `Fix:` or the two `FORCE=1` commands). The schema must be OpenAI-strict (every property in
   `required`, `additionalProperties: false` in each object), because the model nodes send it as strict
   json_schema: else the run does not start ("n8n needs a strict output.schema.json: …").
 - `n8n_warning` (shown by `make eval`, `make check`, the UI Evals page; kept in the run file as `warning`): the
-  sync advice, and "has edits that are not published: Publish in n8n, or run make n8n-push to discard them".
+  sync advice, and "n8n has edits that are not published …. Fix: Publish in n8n, or make n8n-push UC=<uc>".
 
 `make setup` first tests the key with one `GET {base}/models` (OpenAI or `OPENAI_BASE_URL`). Without a key it
 still imports the workflows, inactive and without the credential; the next run with a key activates them.

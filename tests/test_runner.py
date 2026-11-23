@@ -436,7 +436,7 @@ def test_n8n_sync_before_eval_and_warning(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="make n8n-push UC=demo"):
         setup.sync_before_eval("demo")
     n8n["full"] = {**wf("=v4 from the editor"), "id": "w1", "active": True}  # and n8n changed too
-    with pytest.raises(ValueError, match="Nothing was overwritten") as e:
+    with pytest.raises(setup.SyncError, match="both changed") as e:
         setup.sync_before_eval("demo")
     assert "make n8n-pull UC=demo FORCE=1" in str(e.value) and "make n8n-push UC=demo FORCE=1" in str(e.value)
     assert "v3 in the file" in path.read_text()  # not overwritten
@@ -448,7 +448,7 @@ def test_n8n_sync_before_eval_and_warning(tmp_path, monkeypatch):
     draft = {**wf("=draft"), "id": "w1", "active": True, "versionId": "b", "activeVersionId": "a"}
     n8n["full"] = {**draft, "activeVersion": {"nodes": n8n["full"]["nodes"], "connections": {}}}
     assert setup.sync_before_eval("demo") is None
-    assert "Publish in n8n, or run make n8n-push UC=demo" in engines.n8n_warning("demo")
+    assert "Fix: Publish in n8n, or make n8n-push UC=demo" in engines.n8n_warning("demo")
 
 
 def test_n8n_tool_calls_from_http_nodes():

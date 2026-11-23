@@ -38,10 +38,7 @@ def test_check_with_a_fake_runner(tmp_path, monkeypatch, capsys):
         }
         return {"cases": [case]}
 
-    def n8n_warning(uc):
-        return "n8n has an older 'Kit: demo workflow' than the kit: run `make setup`."
-
-    monkeypatch.setitem(sys.modules, "kit.runner", types.SimpleNamespace(run_eval=run_eval, n8n_warning=n8n_warning))
+    monkeypatch.setitem(sys.modules, "kit.runner", types.SimpleNamespace(run_eval=run_eval))
     monkeypatch.setattr(setup, "USECASES_DIR", tmp_path)
     monkeypatch.setattr(setup, "usecases", lambda: ["demo"])
     monkeypatch.setattr(setup, "_port_open", lambda port: True)
@@ -52,12 +49,11 @@ def test_check_with_a_fake_runner(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert sorted(calls) == [("demo", "n8n", ["d1"]), ("demo", "python", ["d1"])]
     lines = out.splitlines()
-    assert lines[1] == "WARN     demo/n8n: n8n has an older 'Kit: demo workflow' than the kit: run `make setup`."
-    assert lines[2] == "Running 2 checks in parallel (one case each; this can take a few minutes) ..."
-    assert lines[3].startswith("ERROR    demo/n8n (d1): HTTP 404. Next: ")  # fixed order: n8n, claude, python
-    assert lines[4].startswith("SKIP     demo/claude (d1)")
+    assert lines[1] == "Running 2 checks in parallel (one case each; this can take a few minutes) ..."
+    assert lines[2].startswith("ERROR    demo/n8n (d1): HTTP 404. Next: ")  # fixed order: n8n, claude, python
+    assert lines[3].startswith("SKIP     demo/claude (d1)")
     # a wrong answer is not an error; a skipped judge does not count
-    assert lines[5] == "ANSWERS  demo/python (d1): 1/2 checks pass. equals who: got Ann, expected Bob"
+    assert lines[4] == "ANSWERS  demo/python (d1): 1/2 checks pass. equals who: got Ann, expected Bob"
     assert lines[-1] == "1 engine(s) do not answer (ERROR lines). Fix them, then run make check again."
 
 
@@ -367,23 +363,41 @@ def test_claude_engine_does_not_load_the_builder_files():
     assert set(out["skillOverrides"]) == builder and set(out["skillOverrides"].values()) <= {"off"}
 
 
-def test_credential_is_reused_from_the_kit_workflows(tmp_path, monkeypatch):
-    """A new .env (no N8N_OPENAI_CREDENTIAL_ID) on an n8n that has the kit workflows: setup takes their
-    credential, so the workflows stay the same as the files. No second credential."""
-    s = types.SimpleNamespace(
-        openai_api_key="sk-x", openai_base_url_docker="https://api.openai.com/v1", n8n_openai_credential_id=""
-    )
+def test_credential_is_found_by_name(monkeypatch):
+    """setup finds the kit's OpenAI credential in n8n by name and updates it; it makes one only if there is none.
+    No id in .env: a new .env, or a second clone on the same n8n, keeps the workflows in sync."""
+    s = types.SimpleNamespace(openai_api_key="sk-x", openai_base_url_docker="https://api.openai.com/v1")
     monkeypatch.setattr(setup, "settings", lambda: s)
-    monkeypatch.setattr(setup, "ENV_FILE", tmp_path / ".env")
-    cred = {"openAiApi": {"id": "old1", "name": setup.OPENAI_CRED_NAME}}
-    flows = [{"name": "Kit: x workflow", "nodes": [{"name": "Model", "credentials": cred}]}]
+    creds = [
+        {"id": "o1", "name": "Other", "type": "openAiApi"},
+        {"id": "k1", "name": setup.OPENAI_CRED_NAME, "type": "openAiApi"},
+    ]
     calls = []
 
     def api(method, path, body=None):
         calls.append((method, path))
-        return httpx.Response(200, json={"id": "new1"})
+        return httpx.Response(200, json={"data": creds} if method == "GET" else {"id": "new1"})
 
-    fake = types.SimpleNamespace(workflows=lambda: flows, api=api)
-    assert setup.setup_credential(fake) == "old1"
-    assert ("PATCH", "/credentials/old1") in calls and ("POST", "/credentials") not in calls
-    assert setup.read_env(tmp_path / ".env")["N8N_OPENAI_CREDENTIAL_ID"] == "old1"
+    fake = types.SimpleNamespace(api=api)
+    assert setup.setup_credential(fake) == "k1"
+    assert ("PATCH", "/credentials/k1") in calls and ("POST", "/credentials") not in calls
+    creds.pop()
+    assert setup.setup_credential(fake) == "new1"  # none with the kit name: create it
+
+
+def test_sync_error_line_is_short(tmp_path, monkeypatch):
+    def run_eval(*a, **k):
+        raise setup.SyncError(setup.sync_advice("unknown", "demo", "usecases/demo/n8n/workflow.json"))
+
+    line = setup._check_run(run_eval, "demo", "n8n", "d1")
+    assert line == (
+        "ERROR    demo/n8n (d1): n8n is not the same as usecases/demo/n8n/workflow.json. "
+        "Keep the files: make n8n-push UC=demo FORCE=1. Keep n8n: make n8n-pull UC=demo FORCE=1"
+    )
+
+
+def test_workflow_hash_ignores_the_credential_id():
+    node = {"name": "Model", "type": "t", "parameters": {}}
+    a = {"nodes": [{**node, "credentials": {"openAiApi": {"id": "c1", "name": "Kit OpenAI"}}}]}
+    b = {"nodes": [{**node, "credentials": {"openAiApi": {"id": "c2", "name": "Kit OpenAI"}}}]}
+    assert same_workflow(a, b) and not same_workflow(a, {"nodes": [node]})

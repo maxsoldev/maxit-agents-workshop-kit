@@ -23,7 +23,7 @@ n8n itself keeps its own copy of the graph in its database. The kit syncs the tw
 | `make eval … ENGINE=n8n` | pulls first if only n8n changed ("n8n changes saved to …"), stops if the files changed and are not pushed |
 
 The **conflict guard** remembers the hash of the last sync (`runs/n8n-imported.json`). When both sides
-changed since then, push, pull and eval stop with `STOP` / "Nothing was overwritten" and name both
+changed since then, push, pull and eval stop with `STOP` / "both changed" and name both
 commands. Read which side has the edits you want, then run exactly one of them with `FORCE=1` (the other
 side goes to `runs/n8n-backup/` first). Ask the person when you cannot tell which edits matter.
 

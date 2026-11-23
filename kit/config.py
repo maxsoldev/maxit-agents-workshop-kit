@@ -52,7 +52,6 @@ class Settings:
     n8n_api_key: str  # written by `kit setup` for local; given by the trainer for hosted
     n8n_owner_email: str  # local: owner login that `kit setup` creates
     n8n_owner_password: str
-    n8n_openai_credential_id: str  # written by `kit setup`: the n8n credential made from OPENAI_API_KEY
     langfuse_mode: str  # local | hosted | off
     langfuse_host: str
     langfuse_public_key: str
@@ -114,7 +113,6 @@ def settings() -> Settings:
         n8n_api_key=_env("N8N_API_KEY"),
         n8n_owner_email=_env("N8N_OWNER_EMAIL", "kit@example.com"),
         n8n_owner_password=_env("N8N_OWNER_PASSWORD"),
-        n8n_openai_credential_id=_env("N8N_OPENAI_CREDENTIAL_ID"),
         langfuse_mode=lf_mode,
         langfuse_host=_env("LANGFUSE_HOST", "http://localhost:5703").rstrip("/"),
         langfuse_public_key=_env("LANGFUSE_PUBLIC_KEY"),

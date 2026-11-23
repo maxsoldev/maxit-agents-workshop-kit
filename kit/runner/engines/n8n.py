@@ -127,11 +127,11 @@ def warning(uc: str) -> str | None:
     rel = st["path"].relative_to(config.ROOT) if st["path"].is_relative_to(config.ROOT) else st["path"]
     found = []
     if st["state"] == "n8n":
-        found.append(f"'{st['name']}' has n8n edits that are not in {rel} yet: the eval saves them to the files.")
+        found.append(f"n8n has edits that are not in {rel} yet: the eval saves them to the files.")
     elif st["state"] != "same":
-        found.append(setup.sync_advice(st["state"], uc, rel, st["name"]))
+        found.append(setup.sync_advice(st["state"], uc, rel))
     if st["draft"]:
-        found.append(setup.draft_advice(uc, st["name"]))
+        found.append(setup.draft_advice(uc))
     return " ".join(found) or None
 
 
@@ -158,7 +158,7 @@ def strict_problem(node, where: str = "the result") -> str | None:
 
 def before_run(uc: str, schema: dict) -> dict:
     """Checks before an n8n eval; returns what goes into the run file (`n8n_sync`, `warning`).
-    Raises CaseError (schema not strict) or ValueError (the files changed: run make n8n-push)."""
+    Raises CaseError (schema not strict) or setup.SyncError (the files changed: run make n8n-push)."""
     from kit import setup  # n8n -> files if only n8n changed; stops if the files changed (contracts §5)
     from kit.runner.cases import CaseError
 
