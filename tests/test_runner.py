@@ -113,6 +113,27 @@ def test_checks_reasons():
     assert not run({"type": "judge", "field": "reply", "rubric": "x", "min": 6})["passed"]
 
 
+def test_count_and_any_checks():
+    out = {"tasks": [{"kind": "trip", "event": "E-Science-Tage, Heidelberg", "who": {"name": "Jonas"}},
+                     {"kind": "Leave", "event": "Holiday", "who": {"name": "Elena"}}], "reply": "x"}
+    run = lambda c: checks.run_check(c, out, {}, {})  # noqa: E731
+    assert run({"type": "count", "field": "tasks", "equals": 2})["reason"] == "2 items"
+    assert run({"type": "count", "field": "tasks", "min": 1, "max": 2})["passed"]
+    bad = run({"type": "count", "field": "tasks", "max": 1})
+    assert not bad["passed"] and bad["reason"] == "2 items, expected max 1"
+    assert not run({"type": "count", "field": "reply", "min": 1})["passed"]
+    assert run({"type": "any", "field": "tasks", "where": {"kind": "leave"}})["reason"].startswith("item 1")
+    assert run({"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "heidelberg"}})["passed"]
+    assert run({"type": "any", "field": "tasks", "where": {"who.name": "elena"}})["passed"]
+    miss = run({"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "Riga"}})
+    assert not miss["passed"] and "no item of 2" in miss["reason"]
+    assert cases.validate_case({"id": "a", "checks": [{"type": "count", "field": "tasks", "min": 1},
+                                                      {"type": "any", "field": "tasks", "where": {"k": "v"}}]}) == []
+    errors = cases.validate_case({"id": "a", "checks": [{"type": "count", "field": "t"},
+                                                        {"type": "any", "field": "t", "where": "trip"}]})
+    assert len(errors) == 2
+
+
 def test_judge_without_key_fails_clearly(monkeypatch):
     monkeypatch.undo()  # real judge.score
     monkeypatch.setenv("OPENAI_API_KEY", "")

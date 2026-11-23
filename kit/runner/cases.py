@@ -12,6 +12,8 @@ CHECK_TYPES = {
     "contains": ["value"],
     "not_contains": ["value"],
     "judge": ["rubric"],
+    "count": [],  # needs one of equals / min / max (checked below)
+    "any": [],    # needs where and/or contains (checked below)
 }
 
 
@@ -61,6 +63,18 @@ def validate_case(case) -> list[str]:
                 errors.append(f"check {i} ({kind}): `{key}` is missing")
         if kind == "in" and not isinstance(check.get("values", []), list):
             errors.append(f"check {i} (in): `values` must be a list")
+        if kind == "count":
+            limits = [k for k in ("equals", "min", "max") if k in check]
+            if not limits:
+                errors.append(f"check {i} (count): give `equals`, `min` or `max`")
+            elif not all(isinstance(check[k], int) and not isinstance(check[k], bool) for k in limits):
+                errors.append(f"check {i} (count): `equals`, `min` and `max` must be whole numbers")
+        if kind == "any":
+            parts = [k for k in ("where", "contains") if k in check]
+            if not parts:
+                errors.append(f"check {i} (any): give `where` and/or `contains`, e.g. {{\"where\": {{\"kind\": \"trip\"}}}}")
+            elif not all(isinstance(check[k], dict) and check[k] for k in parts):
+                errors.append(f"check {i} (any): `where` and `contains` must be JSON objects like {{\"key\": \"value\"}}")
     return errors
 
 

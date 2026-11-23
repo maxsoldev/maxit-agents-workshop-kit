@@ -80,6 +80,21 @@ def test_previews_show_every_file(client):
     assert "email_2_file" in client.get("/uc/demo/cases/new").text  # the hint about numbered keys
 
 
+def test_count_and_any_from_the_form(client):
+    data = form(check_type=["count", "count", "any", "any"], check_field=["tasks"] * 4,
+                check_arg=["2", '{"min": 1, "max": 3}', '{"kind": "trip"}',
+                           '{"where": {"kind": "trip"}, "contains": {"event": "Riga"}}'],
+                check_min=[""] * 4)
+    assert client.post("/uc/demo/cases/save", data=data, follow_redirects=False).status_code == 303
+    assert cases_file()[1]["checks"] == [
+        {"type": "count", "field": "tasks", "equals": 2},
+        {"type": "count", "field": "tasks", "min": 1, "max": 3},
+        {"type": "any", "field": "tasks", "where": {"kind": "trip"}},
+        {"type": "any", "field": "tasks", "where": {"kind": "trip"}, "contains": {"event": "Riga"}}]
+    page = client.get("/uc/demo/cases/m07/edit").text
+    assert 'value="2"' in page and "Riga" in page
+
+
 def test_add_edit_delete_round_trip(client):
     r = client.post("/uc/demo/cases/save", data=form(), follow_redirects=False)
     assert r.status_code == 303

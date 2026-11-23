@@ -44,7 +44,7 @@ def validate_case(case):
     if not isinstance(case.get("input"), dict):
         errors.append("input: must be a JSON object")
     for i, c in enumerate(case.get("checks", []), 1):
-        if c.get("type") not in ("equals", "in", "contains", "not_contains", "judge"):
+        if c.get("type") not in ("equals", "in", "contains", "not_contains", "count", "any", "judge"):
             errors.append(f"check {i}: unknown type {c.get('type')!r}")
         if not c.get("field"):
             errors.append(f"check {i}: field is required")

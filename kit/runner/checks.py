@@ -1,4 +1,4 @@
-"""The schema check and the 5 check types (contracts §3). Each returns {"type", "field", "passed", "reason"}."""
+"""The schema check and the check types (contracts §3). Each returns {"type", "field", "passed", "reason"}."""
 from __future__ import annotations
 
 import json
@@ -52,6 +52,24 @@ def _contains(got, value) -> bool:
     return False
 
 
+def _text(value) -> str:
+    return (value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)).strip().lower()
+
+
+def _item_matches(item, where: dict, contains: dict) -> bool:
+    """`any` check: every `where` key equals its value, every `contains` key has its value as a substring.
+    Keys can be dotted paths; values are compared as text, case-insensitive."""
+    for key, want in where.items():
+        got = get_field(item, key)
+        if got is MISSING or _text(got) != _text(want):
+            return False
+    for key, want in contains.items():
+        got = get_field(item, key)
+        if got is MISSING or _text(want) not in _text(got):
+            return False
+    return True
+
+
 def run_check(check: dict, output, expected: dict, case_input: dict) -> dict:
     """Run one check on the output. Never raises: a problem is a failed check with a reason."""
     kind, field = check.get("type", "?"), check.get("field", "")
@@ -77,6 +95,22 @@ def run_check(check: dict, output, expected: dict, case_input: dict) -> dict:
         ok = found if kind == "contains" else not found
         verb = "has" if found else "does not have"
         return result(kind, field, ok, f"{verb} {short(value)}")
+    if kind == "count":
+        if not isinstance(got, list):
+            return result(kind, field, False, f"`{field}` is not a list: {short(got)}")
+        n, want = len(got), check.get("equals")
+        ok = (want is None or n == want) and n >= check.get("min", n) and n <= check.get("max", n)
+        limits = ", ".join(f"{k} {check[k]}" for k in ("equals", "min", "max") if k in check)
+        return result(kind, field, ok, f"{n} items" + ("" if ok else f", expected {limits}"))
+    if kind == "any":
+        if not isinstance(got, list):
+            return result(kind, field, False, f"`{field}` is not a list: {short(got)}")
+        where, contains = check.get("where") or {}, check.get("contains") or {}
+        hits = [i for i, item in enumerate(got) if _item_matches(item, where, contains)]
+        want = short({**where, **{k: f"~{v}" for k, v in contains.items()}})
+        if hits:
+            return result(kind, field, True, f"item {hits[0]} matches {want}")
+        return result(kind, field, False, f"no item of {len(got)} matches {want}")
     if kind == "judge":
         minimum = check.get("min", 4)
         try:

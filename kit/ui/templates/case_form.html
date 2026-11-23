@@ -40,7 +40,10 @@
   <h2>Checks</h2>
   <p class="muted small"><b>field</b> is a dotted path into the result (<code>reply</code>, <code>options.0.price</code>).
     The text box is: <b>equals</b> value (empty = use expected), <b>in</b> values (<code>a, b</code> or a JSON list),
-    <b>contains / not_contains</b> value, <b>judge</b> rubric. min is for judge (default 4).</p>
+    <b>contains / not_contains</b> value, <b>count</b> the number of items in a list (<code>2</code>, or
+    <code>{"min": 1, "max": 3}</code>), <b>any</b> one item of a list matches (<code>{"kind": "trip"}</code>, or
+    <code>{"where": {"kind": "trip"}, "contains": {"event": "Riga"}}</code>; text, any case), <b>judge</b> rubric.
+    min is for judge (default 4).</p>
   <table class="checks" id="checks">
     <thead><tr><th>type</th><th>field</th><th>value / values / rubric</th><th>min</th><th></th></tr></thead>
     <tbody>

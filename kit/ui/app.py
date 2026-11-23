@@ -20,7 +20,7 @@ from fastapi.templating import Jinja2Templates
 from kit import config
 
 HERE = Path(__file__).resolve().parent
-CHECK_TYPES = ("equals", "in", "contains", "not_contains", "judge")
+CHECK_TYPES = ("equals", "in", "contains", "not_contains", "count", "any", "judge")
 
 app = FastAPI(title="MaxIT agent kit", docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
@@ -94,6 +94,10 @@ def check_label(c: dict) -> str:
         return f"{f} in {json.dumps(c.get('values'), ensure_ascii=False)}"
     if t == "judge":
         return f"judge {f} (≥{c.get('min', 4)})"
+    if t == "count":
+        return f"count {f} " + " ".join(f"{k} {c[k]}" for k in ("equals", "min", "max") if k in c)
+    if t == "any":
+        return f"any {f} {json.dumps({k: c[k] for k in ('where', 'contains') if k in c}, ensure_ascii=False)}"
     if "value" in c:
         return f"{t} {f} {json.dumps(c['value'], ensure_ascii=False)}"
     return f"{t} {f}"
@@ -172,6 +176,11 @@ def check_arg(c: dict) -> str:
         return c.get("rubric", "")
     if c.get("type") == "in":
         return json.dumps(c.get("values", []), ensure_ascii=False)
+    if c.get("type") == "count":
+        limits = {k: c[k] for k in ("equals", "min", "max") if k in c}
+        return str(limits["equals"]) if list(limits) == ["equals"] else json.dumps(limits)
+    if c.get("type") == "any":
+        return json.dumps({k: c[k] for k in ("where", "contains") if k in c}, ensure_ascii=False)
     if "value" not in c:
         return ""
     return c["value"] if isinstance(c["value"], str) else json.dumps(c["value"], ensure_ascii=False)
@@ -196,6 +205,20 @@ def parse_check(t: str, field: str, arg: str, min_: str) -> dict:
             c["value"] = arg
     elif t in ("contains", "not_contains"):
         c["value"] = arg
+    elif t in ("count", "any"):
+        # count: `2` (equals) or {"min": 1, "max": 3}; any: {"where": {...}, "contains": {...}} or just {key: value}
+        try:
+            data = json.loads(arg) if arg else {}
+        except json.JSONDecodeError:
+            data = arg  # validate_case reports it
+        if t == "count":
+            c.update({"equals": data} if isinstance(data, int) else data if isinstance(data, dict) else {"equals": data})
+        elif isinstance(data, dict) and not ({"where", "contains"} & set(data)):
+            c["where"] = data
+        elif isinstance(data, dict):
+            c.update({k: v for k, v in data.items() if k in ("where", "contains")})
+        else:
+            c["where"] = data
     return c
 
 

@@ -35,6 +35,8 @@ then measure every change.**
 | `in` | a few right values | `category` is `partnership` or `press` |
 | `contains` | a word in a text, an item in a list | `flags` has `injection`; the reply names "28" |
 | `not_contains` | things that must never appear | no `@` in the reply (no leaked addresses) |
+| `count` | how many items a list has | `tasks` has exactly 1 item (no duplicates): `{"equals": 1}` |
+| `any` | "there is an item where ...", in any order | a task with `kind` `trip` whose `event` contains "Riga" |
 | `judge` | quality you cannot check with a word: tone, "asks for details, no call" | rubric in one or two sentences |
 
 The **schema** check always runs first: the result must match `output.schema.json`. A check on a field that is
