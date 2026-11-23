@@ -64,6 +64,30 @@ def main(
     return 0
 
 
+def compare_cli(run_a: str, run_b: str) -> int:
+    """`kit compare A B`: how run B changed against run A, per case (A = before, B = after)."""
+    from kit.runner import compare
+
+    try:
+        d = compare(
+            run_a.removeprefix("runs/").removesuffix(".json"), run_b.removeprefix("runs/").removesuffix(".json")
+        )
+    except (FileNotFoundError, KeyError, ValueError) as e:
+        print(f"Cannot compare: {e}", file=sys.stderr)
+        return 1
+    for side in ("a", "b"):
+        s = d[side]["summary"] or {}
+        print(f"{side.upper()}: {d[side]['run_id']} ({d[side]['engine']}) {s.get('passed')}/{s.get('cases')} passed")
+    if d["agent_changed"]:
+        print("workflow changed" if d["b"]["engine"] in ("n8n", "n8n-agent") else "agent files changed")
+    marks = {"better": "▲", "worse": "▼", "same": " ", "new": "+", "removed": "-"}
+    for r in d["cases"]:
+        note = "  (case changed)" if r["case_changed"] else ""
+        print(f"{marks[r['change']]} {r['id']:<8} {r['change']:<8} checks {r['a_checks']} -> {r['b_checks']}{note}")
+    print("  ".join(f"{k} {v}" for k, v in d["counts"].items()))
+    return 0
+
+
 def run_one(usecase: str, engine: str, case_id: str) -> int:
     """`kit run-case UC ENGINE CASE`: run one case and print what the engine got and gave, its log and the checks.
     No run file is written."""

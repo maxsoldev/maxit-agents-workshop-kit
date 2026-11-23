@@ -21,6 +21,7 @@ from pathlib import Path
 
 import httpx
 
+from kit import n8n_files
 from kit.config import ROOT, RUNS_DIR, USECASES_DIR, parse_engines, settings, usecases
 
 ENV_FILE = ROOT / ".env"
@@ -129,7 +130,70 @@ def same_workflow(a: dict, b: dict) -> bool:
     return workflow_hash(a) == workflow_hash(b)
 
 
-IMPORTED_FILE = RUNS_DIR / "n8n-imported.json"  # workflow name -> hash of what setup last put into n8n
+def load_workflow(path: Path, credential_id: str, tools_url: str) -> dict:
+    """A workflow file as n8n gets it: placeholders filled, prompts from n8n/prompts/*.md put in."""
+    wf = json.loads(fill_placeholders(path.read_text(encoding="utf-8"), credential_id, tools_url))
+    return n8n_files.fill_prompts(wf, path.parent / "prompts")
+
+
+def files_hash(path: Path) -> str | None:
+    """workflow_hash of a workflow file with its prompts, as n8n would get it. None if it cannot be read."""
+    s = settings()
+    try:
+        return workflow_hash(load_workflow(path, s.n8n_openai_credential_id, s.tools_url_docker))
+    except (OSError, ValueError, KeyError):
+        return None
+
+
+def published(full: dict) -> dict:
+    """The version the webhook runs. n8n 2.x keeps editor edits as a draft; `activeVersion` is the published one."""
+    av = full.get("activeVersion")
+    if full.get("active") and isinstance(av, dict) and av.get("nodes") is not None:
+        return {**full, "nodes": av["nodes"], "connections": av.get("connections") or {}}
+    return full
+
+
+def has_draft(full: dict) -> bool:
+    """True if n8n has editor edits that are not published."""
+    return bool(full.get("activeVersionId")) and workflow_hash(full) != workflow_hash(published(full))
+
+
+def sync_state(files: str | None, n8n: str, last: str | None) -> str:
+    """Which side changed since the last sync (push or pull): same, n8n, files, both,
+    or unknown (they differ and this laptop has no record of a sync)."""
+    if files == n8n:
+        return "same"
+    if last is None:
+        return "unknown"
+    if files == last:
+        return "n8n"
+    return "files" if n8n == last else "both"
+
+
+def sync_advice(state: str, uc: str, rel, name: str) -> str:
+    """What to run for a sync state (contracts §5). Never overwrites by itself."""
+    files = f"{rel} (or n8n/prompts/)"
+    if state == "files":
+        return f"{files} changed since the last sync; n8n still has the old '{name}'. Run: make n8n-push UC={uc}"
+    if state == "n8n":
+        return f"'{name}' has edits in n8n that are not in {rel}. Save them: make n8n-pull UC={uc}"
+    keep = (
+        f"Keep the n8n version: make n8n-pull UC={uc} FORCE=1 (your files go to runs/n8n-backup/ first). "
+        f"Keep the files: make n8n-push UC={uc} FORCE=1 (the n8n copy goes to runs/n8n-backup/ first)."
+    )
+    if state == "both":
+        return f"'{name}' changed in n8n and {files} changed too, since the last sync. Nothing was overwritten. {keep}"
+    return f"'{name}' in n8n is not the same as {files}, and this laptop has no record of a sync. {keep}"
+
+
+def draft_advice(uc: str, name: str) -> str:
+    return (
+        f"n8n: '{name}' has edits that are not published. The eval runs the published version: "
+        f"Publish in n8n, or run make n8n-push UC={uc} to discard them."
+    )
+
+
+IMPORTED_FILE = RUNS_DIR / "n8n-imported.json"  # workflow name -> hash of the last sync (push, pull or setup)
 
 
 def imported_hashes() -> dict:
@@ -430,21 +494,20 @@ def restart_n8n(n8n: N8n) -> bool:
     return False
 
 
-def import_workflows(n8n: N8n, cred_id: str, force: bool = False) -> bool:
-    """Create or update each usecases/*/n8n/*.json (workflow.json, agent.json) by name, then activate it.
-    If the n8n copy has edits (it differs from what setup put there last), keep it, unless `force`.
-    Before an update, the old n8n copy goes to runs/n8n-backup/."""
-    files = sorted(USECASES_DIR.glob("*/n8n/*.json"))
+def import_workflows(n8n: N8n, cred_id: str, force: bool = False, only_uc: str = "") -> bool:
+    """Push: create or update each usecases/*/n8n/*.json (workflow.json, agent.json, with the prompts from
+    n8n/prompts/) by name, then activate (publish) it. If the published n8n copy changed since the last sync,
+    keep it, unless `force`. Unpublished editor edits are discarded. The old n8n copy goes to runs/n8n-backup/."""
+    files = sorted(USECASES_DIR.glob(f"{only_uc or '*'}/n8n/*.json"))
     if not files:
-        warn("no usecases/*/n8n/workflow.json to import yet")
-        return True
+        warn(f"no usecases/{only_uc or '*'}/n8n/*.json to import")
+        return not only_uc
     good = True
     by_name = {w["name"]: w for w in n8n.workflows()}
     for f in files:
         rel = f.relative_to(ROOT)
         try:
-            wf = json.loads(fill_placeholders(f.read_text(), cred_id, settings().tools_url_docker))
-            body = workflow_body(wf)
+            body = workflow_body(load_workflow(f, cred_id, settings().tools_url_docker))
         except (ValueError, KeyError) as e:
             fail(f"{rel}: not a valid workflow ({e})")
             good = False
@@ -479,27 +542,14 @@ def import_workflows(n8n: N8n, cred_id: str, force: bool = False) -> bool:
             full = n8n.api("GET", f"/workflows/{wid}").json()
             uc_name = f.parent.parent.name
             pinned = bool(full.get("pinData"))
-            if same_workflow(full, body) and not pinned:
+            sync = sync_state(workflow_hash(body), workflow_hash(published(full)), imported_hashes().get(body["name"]))
+            draft = has_draft(full)
+            if sync == "same" and not pinned and not draft:
                 state = "unchanged"
                 remember_import(body["name"], body)
-            elif (
-                not same_workflow(full, body)
-                and not force
-                and imported_hashes().get(body["name"]) != workflow_hash(full)
-            ):
-                # n8n is not what setup put there last: someone edited it in the editor. Keep it.
-                newer = imported_hashes().get(body["name"]) not in (None, workflow_hash(body))
-                warn(
-                    f"{body['name']}: n8n has edits that are not in {rel}. Kept the n8n version.\n"
-                    + (
-                        f"        The kit has a newer {rel} (git pull). To use it: make setup FORCE=1\n"
-                        "        (your n8n version goes to runs/n8n-backup/ first)\n"
-                        if newer
-                        else ""
-                    )
-                    + f"        Save your edits to the file: make n8n-export UC={uc_name}  (then commit {rel})\n"
-                    f"        Or throw them away and load the file: make setup FORCE=1"
-                )
+            elif sync in ("n8n", "both", "unknown") and not force:
+                # the published n8n copy changed since the last sync (an edit in the editor): keep it
+                warn(f"{body['name']}: kept the n8n version. {sync_advice(sync, uc_name, rel, body['name'])}")
                 if full.get("active"):
                     continue
                 state = "kept (n8n edits)"
@@ -516,7 +566,13 @@ def import_workflows(n8n: N8n, cred_id: str, force: bool = False) -> bool:
                     good = False
                     continue
                 remember_import(body["name"], body)
-                what = "pinned data removed" if same_workflow(full, body) else "updated from the file"
+                what = (
+                    "updated from the files"
+                    if sync != "same"
+                    else "unpublished n8n edits discarded"
+                    if draft
+                    else "pinned data removed"
+                )
                 state = f"{what} (old copy: {backup.relative_to(ROOT)})"
             if full.get("active") and state == "unchanged":
                 ok(f"{body['name']}: {state}, active")
@@ -765,57 +821,182 @@ def n8n_hook(uc: str, path: Path) -> str:
     return uc if path.stem == "workflow" else f"{uc}-{path.stem}"
 
 
-def n8n_export(only_uc: str = "") -> int:
-    """Save the workflows from n8n to usecases/<uc>/n8n/*.json (workflow.json, agent.json), with the
-    placeholders back ({{OPENAI_CREDENTIAL_ID}}, {{KIT_TOOLS_URL}}, {{KIT_MODEL}}), so the file works on every
-    laptop."""
+def _write_if_changed(path: Path, text: str) -> bool:
+    if path.exists() and path.read_text(encoding="utf-8") == text:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return True
+
+
+def save_workflow_files(path: Path, wf: dict) -> list[Path]:
+    """Write an n8n workflow to `path` and its prompts to n8n/prompts/*.md, with the placeholders back
+    ({{PROMPT:...}}, {{OPENAI_CREDENTIAL_ID}}, {{KIT_TOOLS_URL}}, {{KIT_MODEL}}). Same content = same bytes.
+    Returns the files that changed."""
+    s = settings()
+    try:
+        old = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        old = {}
+    body, prompts = n8n_files.split_prompts(json.loads(json.dumps(workflow_body(wf))), path.stem)
+    body = same_order(placeholders_back(body, s.n8n_openai_credential_id, s.tools_url_docker, s.model), old)
+    changed = [path] if _write_if_changed(path, json.dumps(body, indent=2, ensure_ascii=False) + "\n") else []
+    for name, text in prompts.items():
+        p = path.parent / "prompts" / f"{name}.md"
+        if _write_if_changed(p, text + "\n"):
+            changed.append(p)
+    return changed
+
+
+def unused_prompts(folder: Path) -> list[Path]:
+    """Prompt files in n8n/prompts/ that no workflow file of the folder points to (a node was renamed)."""
+    used = set()
+    for f in folder.glob("*.json"):
+        try:
+            used |= n8n_files.placeholder_names(json.loads(f.read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            pass
+    return [p for p in sorted((folder / "prompts").glob("*.md")) if p.stem not in used]
+
+
+def backup_files(uc: str, path: Path) -> Path:
+    """Copy a workflow file and its prompt files to runs/n8n-backup/ (before a pull overwrites them)."""
+    dest = RUNS_DIR / "n8n-backup" / f"{uc}-{path.stem}-files-{datetime.now():%Y%m%d-%H%M%S}"
+    for p in [path, *sorted((path.parent / "prompts").glob("*.md"))]:
+        if p.exists():
+            (dest / p.relative_to(path.parent)).parent.mkdir(parents=True, exist_ok=True)
+            (dest / p.relative_to(path.parent)).write_bytes(p.read_bytes())
+    return dest
+
+
+def n8n_client() -> N8n | None:
+    """An n8n client with the key from .env, or None (and a FAIL line) if n8n or the key does not work."""
     s = settings()
     n8n = N8n(s.n8n_url)
     n8n.key = s.n8n_api_key
     if not n8n.ready() or not n8n.key_works(s.n8n_api_key):
         print(f"FAIL  n8n at {s.n8n_url} does not answer, or N8N_API_KEY does not work. Run make up and make setup")
-        return 1
+        return None
+    return n8n
+
+
+def find_workflow(flows: list[dict], uc: str, path: Path) -> tuple[str, dict | None]:
+    """(name in the file, the n8n workflow with that name, else the active one on the file's webhook path)."""
+    try:
+        name = json.loads(path.read_text(encoding="utf-8"))["name"]
+    except (OSError, ValueError, KeyError):
+        name = ""
+    hook = n8n_hook(uc, path)
+    hit = next((w for w in flows if w["name"] == name), None) or next(
+        (w for w in flows if w.get("active") and hook in webhook_paths(w)), None
+    )
+    return name, hit
+
+
+def workflow_files(only_uc: str = "") -> list[tuple[str, Path]]:
     ucs = [only_uc] if only_uc else [uc for uc in usecases() if (USECASES_DIR / uc / "n8n").is_dir()]
-    flows = n8n.workflows()
-    bad = 0
-    pairs = []  # (uc, file)
+    pairs = []
     for uc in ucs:
         folder = USECASES_DIR / uc / "n8n"
         pairs += [(uc, p) for p in sorted(folder.glob("*.json"))] or [(uc, folder / "workflow.json")]
-    for uc, path in pairs:
-        try:
-            old = json.loads(path.read_text())
-            name = old["name"]
-        except (OSError, ValueError, KeyError):
-            old, name = {}, ""
-        # The workflow with the same name, else the active one on the webhook path of this file.
-        hook = n8n_hook(uc, path)
-        hit = next((w for w in flows if w["name"] == name), None) or next(
-            (w for w in flows if w.get("active") and hook in webhook_paths(w)), None
-        )
+    return pairs
+
+
+def pull_one(uc: str, path: Path, full: dict, force: bool = False) -> tuple[bool, str]:
+    """Save the published version of `full` to the files. Returns (done, text). Stops (done False) if the files
+    changed since the last sync, unless `force` (then the files go to runs/n8n-backup/ first)."""
+    rel = path.relative_to(ROOT) if path.is_relative_to(ROOT) else path
+    pub = published(full)
+    exists = path.exists()
+    state = sync_state(files_hash(path), workflow_hash(pub), imported_hashes().get(full["name"])) if exists else "n8n"
+    if state in ("files", "both", "unknown") and not force:
+        return False, sync_advice(state, uc, rel, full["name"])
+    note = ""
+    if force and exists and state != "same":
+        note = f" Your files before: {backup_files(uc, path).relative_to(ROOT)}"
+    changed = save_workflow_files(path, pub)
+    remember_import(full["name"], pub)  # n8n and the files are the same now
+    names = ", ".join(str(p.relative_to(ROOT) if p.is_relative_to(ROOT) else p) for p in changed)
+    return True, (f"saved to {names} (not committed)" if changed else f"{rel} already has it") + note
+
+
+def n8n_pull(only_uc: str = "", force: bool = False) -> int:
+    """`make n8n-pull`: n8n -> files, for the published version of each workflow. Never overwrites file
+    edits made since the last sync, unless FORCE=1."""
+    n8n = n8n_client()
+    if not n8n:
+        return 1
+    flows, bad = n8n.workflows(), 0
+    for uc, path in workflow_files(only_uc):
+        name, hit = find_workflow(flows, uc, path)
         if hit is None:
-            print(f"FAIL  {uc}: no workflow '{name}' (or webhook path '{hook}') in n8n")
+            print(f"FAIL  {uc}: no workflow '{name}' (or webhook path '{n8n_hook(uc, path)}') in n8n")
             bad += 1
             continue
         full = n8n.api("GET", f"/workflows/{hit['id']}").json()
-        wf = placeholders_back(workflow_body(full), s.n8n_openai_credential_id, s.tools_url_docker, s.model)
-        wf = same_order(wf, old)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(wf, indent=2, ensure_ascii=False) + "\n")
-        remember_import(full["name"], full)  # n8n and the file are the same now
-        print(
-            f"OK    {uc}: '{full['name']}' from n8n -> {path.relative_to(ROOT)}. Look at it with git diff, "
-            "then commit it"
-        )
-        if full.get("activeVersionId") and full.get("versionId") != full["activeVersionId"]:
-            # n8n 2.x: editor edits are a draft; the webhook runs the published version
-            print(f"WARN  {uc}: the file has your latest edits, but they are not published. Click Publish in n8n")
+        done, text = pull_one(uc, path, full, force)
+        print(f"{'OK  ' if done else 'STOP'}  {uc}: '{full['name']}': {text}")
+        bad += not done
+        if has_draft(full):
+            print(f"WARN  {uc}: {draft_advice(uc, full['name'])}")
+    for uc in {uc for uc, _ in workflow_files(only_uc)}:
+        for p in unused_prompts(USECASES_DIR / uc / "n8n"):
+            print(f"WARN  {uc}: no node uses {p.relative_to(ROOT)} any more (a node was renamed?): delete it")
     return 1 if bad else 0
 
 
+def n8n_push(only_uc: str = "", force: bool = False) -> int:
+    """`make n8n-push`: files -> n8n (fill the placeholders and prompts, update, publish)."""
+    n8n = n8n_client()
+    if not n8n:
+        return 1
+    cred = settings().n8n_openai_credential_id
+    if not cred:
+        print("FAIL  no N8N_OPENAI_CREDENTIAL_ID in .env. Run make setup first")
+        return 1
+    print(f"n8n ({settings().n8n_url})")
+    return 0 if import_workflows(n8n, cred, force, only_uc) else 1
+
+
+def n8n_status(uc: str, engine: str = "n8n") -> dict | None:
+    """The sync state of the workflow of `uc` (n8n: workflow.json, n8n-agent: agent.json):
+    {state, draft, name, path, full}. None if there is no key, n8n does not answer, or no such workflow."""
+    s = settings()
+    path = USECASES_DIR / uc / "n8n" / ("agent.json" if engine == "n8n-agent" else "workflow.json")
+    if not s.n8n_api_key or not path.exists():
+        return None
+    n8n = N8n(s.n8n_url)
+    n8n.key = s.n8n_api_key
+    n8n.http.timeout = httpx.Timeout(10)
+    try:
+        _, hit = find_workflow(n8n.workflows(), uc, path)
+        if hit is None:
+            return None
+        full = n8n.api("GET", f"/workflows/{hit['id']}").json()
+    except (httpx.HTTPError, ValueError, KeyError):
+        return None
+    state = sync_state(files_hash(path), workflow_hash(published(full)), imported_hashes().get(full["name"]))
+    return {"state": state, "draft": has_draft(full), "name": full["name"], "path": path, "full": full}
+
+
+def sync_before_eval(uc: str, engine: str = "n8n") -> str | None:
+    """Before an n8n eval: if only n8n changed since the last sync, save it to the files and say so.
+    If the files changed (alone or both), raise ValueError with what to run: the eval would not run them."""
+    st = n8n_status(uc, engine)
+    if not st or st["state"] == "same":
+        return None
+    if st["state"] != "n8n":
+        rel = st["path"].relative_to(ROOT) if st["path"].is_relative_to(ROOT) else st["path"]
+        raise ValueError(sync_advice(st["state"], uc, rel, st["name"]))
+    done, text = pull_one(uc, st["path"], st["full"])
+    return f"n8n changes {text}" if done else text
+
+
 def main(cmd: str, force: bool = False, usecase: str = "") -> int:
-    if cmd == "n8n-export":
-        return n8n_export(usecase)
+    if cmd in ("n8n-pull", "n8n-export"):
+        return n8n_pull(usecase, force)
+    if cmd == "n8n-push":
+        return n8n_push(usecase, force)
     return setup(force) if cmd == "setup" else check()
 
 

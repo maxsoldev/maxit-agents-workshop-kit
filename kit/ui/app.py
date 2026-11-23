@@ -798,6 +798,7 @@ def results_page(request: Request, run_id: str, vs: str = ""):
         changes=changes,
         counts=counts,
         changed=changed,
+        agent_changed=bool(other) and getattr(runner(), "agent_changed", lambda a, b: False)(run, other),
     )
 
 

@@ -12,7 +12,7 @@ then measure every change.**
 3. **Read the failures:** the output, the reason of each check, the trace. Is the agent wrong, or the case?
 4. **Change one thing:** the prompt, one rule, one tool, the model, the schema. Only one.
 5. **Run the eval again** and compare (Results → Compare). Better: keep it and commit. Worse: undo it.
-   n8n: your change lives in n8n. Run `make n8n-export`, then commit.
+   n8n: the eval saves your n8n edits to `n8n/workflow.json` and `n8n/prompts/`: commit them.
 6. **Every new failure becomes a case.** Write the case before you fix it. Then the fix stays fixed.
 
 ## Rules that save time

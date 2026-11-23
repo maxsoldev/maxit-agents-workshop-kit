@@ -7,17 +7,19 @@ ENGINE ?= n8n
 CASES ?=
 NAME ?=
 
-.PHONY: help up down setup n8n-export check serve eval run-case logs reset test fmt lint
+.PHONY: help up down setup n8n-push n8n-pull n8n-export check serve eval run-case compare logs reset test fmt lint
 
 help:
 	@echo "make up       start n8n and/or Langfuse in Docker (as set in .env), wait until healthy"
-	@echo "make setup    first-time setup: n8n login, API key, OpenAI credential, workflows; Langfuse check"
-	@echo "              keeps your n8n edits; FORCE=1 loads workflow.json over them"
-	@echo "make n8n-export [UC=travel]  save your n8n editor changes to usecases/<uc>/n8n/workflow.json"
+	@echo "make setup    first-time setup: n8n login, API key, OpenAI credential, workflows (n8n-push); Langfuse check"
+	@echo "make n8n-push [UC=travel]  files -> n8n: usecases/<uc>/n8n/ (workflow.json, prompts/*.md), then publish"
+	@echo "make n8n-pull [UC=travel]  n8n -> files: your published n8n edits (n8n-export = the same)"
+	@echo "              both stop if the other side changed too; FORCE=1 overwrites it (backup in runs/n8n-backup/)"
 	@echo "make serve    kit UI on :5700 and tools server on :5701 (keep it running)"
 	@echo "make check    one case per use case and engine: ANSWERS (and the score) or ERROR (what to fix)"
 	@echo "make eval UC=marketing ENGINE=n8n [CASES=m01,m02] [NAME=try-1] [HOLDOUT=1]"
 	@echo "make run-case UC=marketing ENGINE=python CASE=m14   one case: input, output, log, checks"
+	@echo "make compare A=<run_id> B=<run_id>   how run B changed against run A, per case"
 	@echo "make test     run the kit tests"
 	@echo "make fmt      format the Python code (ruff: layout and import order)"
 	@echo "make lint     check format and code (ruff), change nothing"
@@ -47,9 +49,14 @@ down:
 setup: .env
 	uv run kit setup $(if $(FORCE),--force)
 
-# UC only if you give it (make n8n-export UC=travel); else all use cases.
-n8n-export: .env
-	uv run kit n8n-export $(if $(filter command line,$(origin UC)),$(UC))
+# UC only if you give it (make n8n-pull UC=travel); else all use cases. FORCE=1: overwrite the other side.
+N8N_ARGS = $(if $(filter command line,$(origin UC)),$(UC)) $(if $(FORCE),--force)
+
+n8n-push: .env
+	uv run kit n8n-push $(N8N_ARGS)
+
+n8n-pull n8n-export: .env
+	uv run kit n8n-pull $(N8N_ARGS)
 
 check: .env
 	uv run kit check
@@ -62,6 +69,9 @@ eval: .env
 
 run-case: .env
 	uv run kit run-case $(UC) $(ENGINE) $(CASE)
+
+compare:
+	uv run kit compare $(A) $(B)
 
 logs:
 	$(COMPOSE) --profile n8n --profile langfuse logs -f --tail 100

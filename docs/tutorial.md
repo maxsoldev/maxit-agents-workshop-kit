@@ -8,7 +8,7 @@ the place of the prompt is different:
 |---|---|---|
 | Python | `usecases/marketing/python/agent.py`, the text `PROMPT = """..."""` | save the file |
 | Claude | `usecases/marketing/claude/CLAUDE.md`, parts "Steps" and "Answer" | save the file |
-| n8n | n8n editor (http://localhost:5702, login `N8N_OWNER_EMAIL` / `N8N_OWNER_PASSWORD` from `.env`), workflow `Kit: marketing workflow`, node **Decide and draft** → Chat Messages → **Message** | click **Publish** (top right; the eval runs only the published version), then `make n8n-export UC=marketing` |
+| n8n | n8n editor (http://localhost:5702, login `N8N_OWNER_EMAIL` / `N8N_OWNER_PASSWORD` from `.env`), workflow `Kit: marketing workflow`, node **Decide and draft** → Chat Messages → **Message**; or the file `usecases/marketing/n8n/prompts/decide_and_draft.md` | editor: click **Publish** (top right; the eval runs only the published version). File: `make n8n-push UC=marketing` |
 
 You need `make serve` running and http://localhost:5700 → **marketing** open.
 
@@ -37,8 +37,8 @@ decide what is right.
 
 **Do**
 
-1. Add **one line** to the prompt, under step 4 (`4. Write a reply draft ...`). n8n: then **Publish** and
-   `make n8n-export UC=marketing`.
+1. Add **one line** to the prompt, under step 4 (`4. Write a reply draft ...`). n8n: then **Publish**
+   (or `make n8n-push UC=marketing` after a file edit).
 
    ```text
       If the sender's contact row has a note (a meeting, an event), refer to it in one short sentence.
@@ -77,7 +77,7 @@ the email (here `tech_team`, see `data/routing.md`). The scaffold has no such fi
    ```
 
 2. Add **one line** to the prompt, after the line about `reasons` (n8n: after step 5 in **Decide and draft**,
-   then **Publish** and `make n8n-export UC=marketing`; the schema needs no edit in n8n):
+   then **Publish** or `make n8n-push UC=marketing`; the schema needs no edit in n8n):
 
    ```text
    6. Write route_to: who must handle the email (tech_team, membership_owner or head, see routing).

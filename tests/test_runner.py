@@ -6,6 +6,7 @@ import json
 import os
 import threading
 import time
+import types
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -384,34 +385,66 @@ def test_n8n_failure_names_the_node(monkeypatch):
     assert by["Triage model"]["usage"] == {"input": 546, "output": 92, "total": 638}  # Responses API: n8n's estimate
 
 
-def test_n8n_older_than_kit(tmp_path, monkeypatch):
-    """After git pull the kit file is newer than n8n: say so, and say when FORCE=1 is needed."""
+def test_n8n_sync_before_eval_and_warning(tmp_path, monkeypatch):
+    """Only n8n changed: the eval pulls it into the files. The files changed (alone or both): stop, say what to run.
+    A draft that is not published: say Publish or n8n-push."""
     from kit import setup
 
-    monkeypatch.setattr(config, "ROOT", tmp_path)
-    monkeypatch.setattr(config, "USECASES_DIR", tmp_path / "usecases")
+    for mod in (config, setup):
+        monkeypatch.setattr(mod, "ROOT", tmp_path)
+        monkeypatch.setattr(mod, "USECASES_DIR", tmp_path / "usecases")
+    monkeypatch.setattr(setup, "RUNS_DIR", tmp_path / "runs")
     monkeypatch.setattr(setup, "IMPORTED_FILE", tmp_path / "runs" / "n8n-imported.json")
+    monkeypatch.setenv("N8N_API_KEY", "k")
     path = tmp_path / "usecases" / "demo" / "n8n" / "workflow.json"
-    path.parent.mkdir(parents=True)
+    (path.parent / "prompts").mkdir(parents=True)
 
     def wf(prompt):
-        node = {"name": "Triage", "type": "chainLlm", "typeVersion": 1, "parameters": {"text": prompt}}
-        return {"name": "Kit: demo workflow", "nodes": [node], "connections": {}}
+        node = {"name": "Triage", "type": "x.chainLlm", "typeVersion": 1, "parameters": {"text": prompt}}
+        return {"name": "Kit: demo workflow", "nodes": [node], "connections": {}, "settings": {}}
 
-    path.write_text(json.dumps(wf("v1")))
-    assert engines.n8n_older_than_kit("demo", "n8n", wf("v0")) is None  # no setup on this laptop yet: no guess
-    setup.remember_import("Kit: demo workflow", wf("v1"))  # make setup loaded v1
-    assert engines.n8n_older_than_kit("demo", "n8n", wf("v1")) is None
-    assert engines.n8n_older_than_kit("demo", "n8n", wf("mine")) is None  # edits in n8n, the file did not change
-    path.write_text(json.dumps(wf("v2")))  # git pull
-    assert engines.n8n_older_than_kit("demo", "n8n", wf("v1")) == (
-        "n8n has an older 'Kit: demo workflow' than the kit (usecases/demo/n8n/workflow.json): run `make setup`."
+    path.write_text(json.dumps(wf("={{PROMPT:triage.input}}"), indent=2) + "\n")
+    (path.parent / "prompts" / "triage.input.md").write_text("v1\n")
+    setup.remember_import("Kit: demo workflow", wf("=v1"))  # the last sync
+    n8n = {"full": {**wf("=v1"), "id": "w1", "active": True}}
+
+    class FakeN8n:
+        def __init__(self, base):
+            self.http = types.SimpleNamespace(timeout=None)
+
+        def workflows(self):
+            return [n8n["full"]]
+
+        def api(self, method, path, body=None):
+            return types.SimpleNamespace(json=lambda: n8n["full"])
+
+    monkeypatch.setattr(setup, "N8n", FakeN8n)
+    assert setup.sync_before_eval("demo") is None and engines.n8n_warning("demo") is None  # in sync
+    n8n["full"] = {**wf("=v2 from the editor"), "id": "w1", "active": True}  # edit + Publish in n8n
+    assert "the eval saves them" in engines.n8n_warning("demo")
+    note = setup.sync_before_eval("demo")
+    assert note == "n8n changes saved to usecases/demo/n8n/prompts/triage.input.md (not committed)"
+    assert (path.parent / "prompts" / "triage.input.md").read_text() == "v2 from the editor\n"
+    assert "PROMPT:triage.input" in path.read_text()  # the workflow file keeps the placeholder
+    (path.parent / "prompts" / "triage.input.md").write_text("v3 in the file\n")  # file edit, no push
+    with pytest.raises(ValueError, match="make n8n-push UC=demo"):
+        setup.sync_before_eval("demo")
+    n8n["full"] = {**wf("=v4 from the editor"), "id": "w1", "active": True}  # and n8n changed too
+    with pytest.raises(ValueError, match="Nothing was overwritten") as e:
+        setup.sync_before_eval("demo")
+    assert "make n8n-pull UC=demo FORCE=1" in str(e.value) and "make n8n-push UC=demo FORCE=1" in str(e.value)
+    assert (path.parent / "prompts" / "triage.input.md").read_text() == "v3 in the file\n"  # not overwritten
+    # FORCE pull: n8n wins, the files go to runs/n8n-backup/ first
+    done, text = setup.pull_one("demo", path, n8n["full"], force=True)
+    assert done and "runs/n8n-backup/" in text
+    assert (
+        list((tmp_path / "runs" / "n8n-backup").glob("*/prompts/triage.input.md"))[0].read_text() == "v3 in the file\n"
     )
-    both = engines.n8n_older_than_kit("demo", "n8n", wf("mine"))
-    assert "with edits made in n8n" in both and "`make setup FORCE=1` loads the kit file" in both
-    assert engines.n8n_older_than_kit("demo", "n8n", wf("v2")) is None  # n8n has the new file (setup, or by hand)
-    setup.remember_import("Kit: demo workflow", wf("v2"))  # make n8n-export / make setup
-    assert engines.n8n_older_than_kit("demo", "n8n", wf("v2")) is None
+    # a draft that is not published: the published version counts, and the warning says what to do
+    draft = {**wf("=draft"), "id": "w1", "active": True, "versionId": "b", "activeVersionId": "a"}
+    n8n["full"] = {**draft, "activeVersion": {"nodes": n8n["full"]["nodes"], "connections": {}}}
+    assert setup.sync_before_eval("demo") is None
+    assert "Publish in n8n, or run make n8n-push UC=demo" in engines.n8n_warning("demo")
 
 
 def test_n8n_tool_calls_from_http_nodes():
@@ -482,7 +515,16 @@ def test_claude_run_with_fake_cli():
     assert err is None and out["category"] == "a"
 
 
-def test_n8n_run(n8n):
+def test_n8n_needs_a_strict_schema(n8n):
+    """The n8n model nodes send output_schema as strict json_schema: say it before the run, in one line."""
+    with pytest.raises(
+        cases.CaseError, match="n8n needs a strict output.schema.json: the result: tags not in required"
+    ):
+        runner.run_eval("fake", "n8n", case_ids=["f01"])
+
+
+def test_n8n_run(n8n, monkeypatch):
+    monkeypatch.setattr(runner, "strict_problem", lambda schema: None)  # the fake schema has an optional field
     run = runner.run_eval("fake", "n8n", case_ids=["f01", "f02"])
     assert run["cases"][0]["output"]["tags"] == ["z"]
     assert FakeN8n.last["output_schema"]["type"] == "object"  # every engine gets the result shape
@@ -533,6 +575,15 @@ def test_compare():
     )
     changes = {r["id"]: r["change"] for r in runner.compare("a", "b")["cases"]}
     assert changes == {"c1": "better", "c2": "worse", "c3": "better", "c4": "removed", "c5": "new"}
+    assert not runner.compare("a", "b")["agent_changed"]  # old run files have no agent_version
+    v1, v2 = {"engine": "n8n", "agent_version": {"hash": "1"}}, {"engine": "n8n", "agent_version": {"hash": "2"}}
+    assert runner.agent_changed(v1, v2) and not runner.agent_changed(v1, v1)
+
+
+def test_run_file_has_the_agent_version(monkeypatch):
+    run = runner.run_eval("fake", "python", case_ids=["f01"])
+    assert len(run["agent_version"]["hash"]) == 16
+    assert run["agent_version"] == runner.agent_version("fake", "python")  # nothing changed in between
 
 
 def test_unknown_case_id_stops_start():

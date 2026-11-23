@@ -26,7 +26,7 @@ The scaffold does the same small job on each engine, so you can compare them.
 
 | Engine | What you change |
 |---|---|
-| **n8n** (:5702) | the workflow `Kit: <uc> workflow` in the n8n editor. Click **Publish**, then `make n8n-export` (commit `n8n/workflow.json`) |
+| **n8n** (:5702) | the workflow `Kit: <uc> workflow` in the n8n editor (click **Publish**), or its files `n8n/prompts/*.md`, `n8n/workflow.json` (then `make n8n-push`). The eval saves n8n edits to the files |
 | **Claude Code** (your login) | `claude/CLAUDE.md`, skills in `claude/.claude/skills/` |
 | **Python** (OpenAI SDK) | `python/agent.py` |
 
@@ -39,7 +39,8 @@ tools). Run it as engine `n8n-agent`.
 ## Repo map
 
 ```text
-Makefile                   make up · setup · serve · check · eval · n8n-export · down · test · fmt · lint
+CLAUDE.md  .claude/skills/ for Claude Code at the repo root: it builds and evals the agents with you
+Makefile                   make up · setup · serve · check · eval · compare · n8n-push · n8n-pull · down · test · lint
 .env.example               settings template: copy to .env
 usecases/<uc>/             YOUR TEAM OWNS THIS FOLDER
   BRIEF.md                 the business problem; you write your design in it

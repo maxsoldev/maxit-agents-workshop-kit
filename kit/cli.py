@@ -2,12 +2,14 @@
 
 kit setup [--force]  first-time setup: n8n account + key + credential + workflows, Langfuse check (kit/setup.py)
 kit check            one case per use case and engine; prints OK or what to fix (kit/setup.py)
-kit n8n-export [UC]  save the n8n workflows (your editor changes) to usecases/<uc>/n8n/ (workflow.json, agent.json)
+kit n8n-push [UC]    files -> n8n: usecases/<uc>/n8n/*.json and n8n/prompts/*.md, then publish (kit/setup.py)
+kit n8n-pull [UC]    n8n -> files: the published workflows to usecases/<uc>/n8n/ (n8n-export = the same)
 kit serve            UI on :5700 and tools MCP on :5701 in one process (kit/ui, kit/tools.py)
 kit tools            only the tools MCP server (kit/tools.py)
 kit tool NAME k=v    try one tool by hand and print its JSON (no name: list the tools)
 kit eval UC ENGINE   run the cases of a use case on one engine (kit/runner)
 kit run-case UC ENGINE CASE   run one case; print the engine input, output, log (stderr) and checks
+kit compare RUN_A RUN_B       how run B changed against run A, per case
 """
 
 from __future__ import annotations
@@ -24,8 +26,14 @@ def main(argv: list[str] | None = None) -> int:
     st = sub.add_parser("setup", help="first-time setup of n8n and Langfuse")
     st.add_argument("--force", action="store_true", help="load workflow.json into n8n even if n8n has edits")
     sub.add_parser("check", help="smoke check: one case per use case and engine")
-    ex = sub.add_parser("n8n-export", help="save the n8n workflows to usecases/<uc>/n8n/*.json")
-    ex.add_argument("usecase", nargs="?", default="", help="one use case (default: all)")
+    for cmd, text in [
+        ("n8n-push", "files -> n8n: load usecases/<uc>/n8n/ (workflows and prompts) into n8n and publish"),
+        ("n8n-pull", "n8n -> files: save the published n8n workflows to usecases/<uc>/n8n/"),
+        ("n8n-export", "the same as n8n-pull"),
+    ]:
+        ex = sub.add_parser(cmd, help=text)
+        ex.add_argument("usecase", nargs="?", default="", help="one use case (default: all)")
+        ex.add_argument("--force", action="store_true", help="overwrite the other side even if it changed too")
     sub.add_parser("serve", help="UI and tools server")
     sub.add_parser("tools", help="only the tools MCP server")
     ev = sub.add_parser("eval", help="run an eval")
@@ -37,13 +45,16 @@ def main(argv: list[str] | None = None) -> int:
     tl = sub.add_parser("tool", help="try a tool by hand: kit tool trains_search from_place=... date=...")
     tl.add_argument("name", nargs="?", default="", help="tool name (empty: list the tools)")
     tl.add_argument("args", nargs="*", help="key=value")
+    cp = sub.add_parser("compare", help="compare two runs per case: kit compare <run_id before> <run_id after>")
+    cp.add_argument("run_a")
+    cp.add_argument("run_b")
     rc = sub.add_parser("run-case", help="run one case; print the engine input, output, log and checks")
     rc.add_argument("usecase")
     rc.add_argument("engine", choices=ALL_ENGINES)
     rc.add_argument("case_id")
     a = p.parse_args(argv)
 
-    if a.cmd in ("setup", "check", "n8n-export"):
+    if a.cmd in ("setup", "check", "n8n-push", "n8n-pull", "n8n-export"):
         from kit import setup
 
         return setup.main(a.cmd, force=getattr(a, "force", False), usecase=getattr(a, "usecase", ""))
@@ -67,6 +78,10 @@ def main(argv: list[str] | None = None) -> int:
         from kit.runner import cli as runner_cli
 
         return runner_cli.run_one(a.usecase, a.engine, a.case_id)
+    if a.cmd == "compare":
+        from kit.runner import cli as runner_cli
+
+        return runner_cli.compare_cli(a.run_a, a.run_b)
     return 2
 
 

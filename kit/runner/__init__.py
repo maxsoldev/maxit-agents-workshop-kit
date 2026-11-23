@@ -31,6 +31,7 @@ __all__ = [
     "validate_case",
     "CaseError",
     "n8n_warning",
+    "agent_changed",
 ]
 
 
@@ -70,6 +71,59 @@ def case_hash(case: dict) -> str:
         {k: case.get(k) for k in ("today", "input", "expected", "checks")}, sort_keys=True, ensure_ascii=False
     )
     return hashlib.sha256(text.encode()).hexdigest()[:12]
+
+
+def strict_problem(node, where: str = "the result") -> str | None:
+    """Why a JSON Schema is not OpenAI-strict (the n8n model nodes send it as strict json_schema), or None.
+    Strict: every object has all its properties in `required` and `additionalProperties: false`."""
+    if isinstance(node, list):
+        return next((p for x in node if (p := strict_problem(x, where))), None)
+    if not isinstance(node, dict):
+        return None
+    if node.get("type") == "object" or "properties" in node:
+        props = node.get("properties") or {}
+        missing = [k for k in props if k not in (node.get("required") or [])]
+        if missing:
+            return f"{where}: {', '.join(missing)} not in required"
+        if node.get("additionalProperties") is not False:
+            return f"{where}: no additionalProperties: false"
+        return next(
+            (p for k, v in props.items() if (p := strict_problem(v, k if where == "the result" else f"{where}.{k}"))),
+            None,
+        )
+    return next((p for v in node.values() if (p := strict_problem(v, where))), None)  # items, anyOf, $defs
+
+
+AGENT_FOLDERS = {"n8n": "n8n", "n8n-agent": "n8n", "claude": "claude", "python": "python"}
+
+
+def agent_version(uc: str, engine: str) -> dict:
+    """What the engine ran: {"hash", "git"}. n8n: the workflow with its prompts (the same hash as the sync
+    state); claude, python: all files of the engine folder. `git` = the commit if that folder has no
+    changes that are not committed, else None. Compare uses `hash` ("workflow changed")."""
+    folder = usecase_dir(uc) / AGENT_FOLDERS.get(engine, engine)
+    h = None
+    if engine in ("n8n", "n8n-agent"):
+        from kit import setup
+
+        h = setup.files_hash(folder / ("agent.json" if engine == "n8n-agent" else "workflow.json"))
+    if h is None:
+        digest = hashlib.sha256()
+        for p in sorted(folder.rglob("*")) if folder.is_dir() else []:
+            if p.is_file() and "__pycache__" not in p.parts and p.name != ".DS_Store":
+                digest.update(str(p.relative_to(folder)).encode() + b"\0" + p.read_bytes() + b"\0")
+        h = digest.hexdigest()[:16]
+    git = None
+    try:
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--", str(folder)], cwd=folder.parent, capture_output=True, text=True
+        )
+        if dirty.returncode == 0 and not dirty.stdout.strip():
+            head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=folder.parent, capture_output=True)
+            git = head.stdout.decode().strip() or None
+    except OSError:
+        pass
+    return {"hash": h, "git": git}
 
 
 def run_case(uc: str, engine: str, case: dict, schema: dict, run_id: str, run_name: str, experiment=None) -> dict:
@@ -183,8 +237,20 @@ def run_eval(usecase: str, engine: str, case_ids=None, name=None, on_progress=No
         "summary": summarize([]),
         "cases": [],
     }
-    if engine in ("n8n", "n8n-agent") and (warning := n8n_warning(usecase, engine)):
-        run["warning"] = warning  # the run used an older workflow, or the published one, not the latest edits
+    if engine in ("n8n", "n8n-agent"):
+        if problem := strict_problem(schema):
+            raise CaseError(
+                f"n8n needs a strict output.schema.json: {problem}. Put every field in required, and "
+                'additionalProperties: false in every object; use "" (or []) for an empty value'
+            )
+        from kit import setup  # n8n -> files if only n8n changed; stops if the files changed (contracts §5)
+
+        if synced := setup.sync_before_eval(usecase, engine):
+            run["n8n_sync"] = synced
+            print(f"NOTE  {synced}", file=sys.stderr, flush=True)
+        if warning := n8n_warning(usecase, engine):
+            run["warning"] = warning  # e.g. edits in n8n that are not published: the run used the published one
+    run["agent_version"] = agent_version(usecase, engine)
     save_run(run)  # reserves the run id; ended_at = None means "still running"
     experiment = _start_experiment(usecase, all_cases, run)
     run["experiment_url"] = experiment["url"] if experiment else None
@@ -255,5 +321,13 @@ def compare(run_id_a: str, run_id_b: str) -> dict:
                 "b_checks": list(_check_count(cb)),
             }
         )
-    keys = ("run_id", "name", "engine", "summary")
-    return {"a": {k: a.get(k) for k in keys}, "b": {k: b.get(k) for k in keys}, "counts": counts, "cases": rows}
+    keys = ("run_id", "name", "engine", "summary", "agent_version")
+    out = {"a": {k: a.get(k) for k in keys}, "b": {k: b.get(k) for k in keys}, "counts": counts, "cases": rows}
+    out["agent_changed"] = agent_changed(a, b)
+    return out
+
+
+def agent_changed(a: dict | None, b: dict | None) -> bool:
+    """True if two runs of the same engine ran different agent files (n8n: "workflow changed")."""
+    ha, hb = (((r or {}).get("agent_version") or {}).get("hash") for r in (a, b))
+    return bool(ha and hb and ha != hb and a.get("engine") == b.get("engine"))

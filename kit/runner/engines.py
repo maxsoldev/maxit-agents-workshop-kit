@@ -345,50 +345,23 @@ def _n8n_workflow(api: httpx.Client, hook: str) -> dict | None:
 
 
 def n8n_warning(uc: str, engine: str = "n8n") -> str | None:
-    """A warning about the n8n workflow of `uc` (engine n8n or n8n-agent), else None: it is older than the
-    kit file, or it has edits that are not published (n8n 2.x saves editor edits as a draft; the webhook, so
-    the eval, runs the published version)."""
-    if not settings().n8n_api_key:
-        return None
-    try:
-        w = _n8n_workflow(_n8n_api(), n8n_hook(uc, engine))
-    except (httpx.HTTPError, ValueError):
-        return None
-    if not w:
-        return None
-    found = [n8n_older_than_kit(uc, engine, w)]
-    if w.get("activeVersionId") and w.get("versionId") != w["activeVersionId"]:
-        found.append(
-            f"n8n: '{w['name']}' has changes that are not published. The eval runs the published version: "
-            "click Publish in the n8n editor."
-        )
-    return " ".join(x for x in found if x) or None
+    """A warning about the n8n workflow of `uc` (engine n8n or n8n-agent), else None: the files and n8n are
+    not in sync (kit/setup.py `sync_advice`), or n8n has edits that are not published (the webhook, so the
+    eval, runs the published version)."""
+    from kit import setup  # setup owns the sync state
 
-
-def n8n_older_than_kit(uc: str, engine: str, w: dict) -> str | None:
-    """A warning if the kit file (usecases/<uc>/n8n/*.json) changed since `make setup` put it into n8n
-    (e.g. after git pull), but n8n still has the old one. Compares hashes: the file, n8n, and what setup
-    last imported (runs/n8n-imported.json, also written by make n8n-export)."""
-    from kit import setup  # setup owns the hash and the placeholders
-
-    path = config.USECASES_DIR / uc / "n8n" / ("agent.json" if engine == "n8n-agent" else "workflow.json")
-    s = settings()
-    try:
-        kit = setup.workflow_hash(
-            json.loads(setup.fill_placeholders(path.read_text(), s.n8n_openai_credential_id, s.tools_url_docker))
-        )
-    except (OSError, ValueError):
+    st = setup.n8n_status(uc, engine)
+    if not st:
         return None
-    now, last = setup.workflow_hash(w), setup.imported_hashes().get(w["name"])
-    if kit in (now, last) or last is None:  # the same, the file did not change, or no setup on this laptop yet
-        return None
-    rel = path.relative_to(config.ROOT) if path.is_relative_to(config.ROOT) else path
-    if now == last:  # n8n has what setup put there: make setup loads the new file
-        return f"n8n has an older '{w['name']}' than the kit ({rel}): run `make setup`."
-    return (
-        f"n8n has an older '{w['name']}' than the kit ({rel}), with edits made in n8n. `make setup` keeps "
-        f"them; `make setup FORCE=1` loads the kit file (your n8n version goes to runs/n8n-backup/ first)."
-    )
+    rel = st["path"].relative_to(config.ROOT) if st["path"].is_relative_to(config.ROOT) else st["path"]
+    found = []
+    if st["state"] == "n8n":
+        found.append(f"'{st['name']}' has n8n edits that are not in {rel} yet: the eval saves them to the files.")
+    elif st["state"] != "same":
+        found.append(setup.sync_advice(st["state"], uc, rel, st["name"]))
+    if st["draft"]:
+        found.append(setup.draft_advice(uc, st["name"]))
+    return " ".join(found) or None
 
 
 def _post_n8n(hook: str, engine_input: dict, call_id: str):
@@ -462,6 +435,22 @@ def read_stream(out: str, limit: int = 4000):
     return result, calls
 
 
+def builder_excludes(folder) -> dict:
+    """Settings that keep the builder's files out of the engine. Claude Code also loads the CLAUDE.md files
+    and the .claude/skills of the parent folders (the repo root: for your Claude Code session, not the agent)."""
+    mds, skills, d = [], {}, folder.parent
+    while True:
+        for p in {d, d.resolve()}:
+            mds += [str(p / "CLAUDE.md"), str(p / "CLAUDE.local.md")]
+        skills.update({s.name: "off" for s in (d / ".claude" / "skills").glob("*/") if s.is_dir()})
+        if d == config.ROOT or d.parent == d or not d.is_relative_to(config.ROOT):
+            break
+        d = d.parent
+    for own in (folder / ".claude" / "skills").glob("*/"):  # a skill of the agent with the same name stays on
+        skills.pop(own.name, None)
+    return {"claudeMdExcludes": sorted(set(mds)), "skillOverrides": skills}
+
+
 def call_claude(uc: str, engine_input: dict, extra_env: dict):
     folder = config.USECASES_DIR / uc / "claude"
     if not shutil.which("claude"):
@@ -485,6 +474,8 @@ def call_claude(uc: str, engine_input: dict, extra_env: dict):
         "mcp__kit",
         "--setting-sources",
         "project",
+        "--settings",
+        json.dumps(builder_excludes(folder)),
         "--no-session-persistence",
     ]
     # Claude Code checks the answer against the schema (as n8n and python do) and puts it in `structured_output`.

@@ -5,6 +5,7 @@
 <div class="head">
   <h1>{{ run.name or run.run_id }} <span class="muted">· {{ (run.usecase or '')|uc_name }} · {{ run.engine }} · {{ run.started_at|when }}</span></h1>
 </div>
+{% if run.n8n_sync %}<div class="banner">Before this run: {{ run.n8n_sync }}</div>{% endif %}
 {% if run.warning %}<div class="banner">This run: {{ run.warning }}</div>{% endif %}
 {% if run.experiment_url and langfuse_link %}<p><a href="{{ run.experiment_url }}" target="_blank">Open this experiment in Langfuse ↗</a> <span class="muted small">(dataset {{ run.usecase }}: compare runs per case, with the scores)</span></p>{% endif %}
 <div class="summary">
@@ -30,7 +31,8 @@
       </select></label>
     {% if other %}
     <div class="diff"><span class="better">▲ {{ counts.better }} better</span> <span class="worse">▼ {{ counts.worse }} worse</span>
-      <span class="muted">{{ counts.same }} same{% if counts.new %} · {{ counts.new }} new case(s){% endif %}{% if counts.changed %} · {{ counts.changed }} case(s) changed since then{% endif %}</span></div>
+      <span class="muted">{{ counts.same }} same{% if counts.new %} · {{ counts.new }} new case(s){% endif %}{% if counts.changed %} · {{ counts.changed }} case(s) changed since then{% endif %}</span>
+      {% if agent_changed %}<span class="badge changed" title="the agent files (n8n: the workflow and its prompts) are not the same as in the other run">{{ 'workflow' if run.engine in ('n8n', 'n8n-agent') else 'agent' }} changed</span>{% endif %}</div>
     {% endif %}
   </form>
 </div>

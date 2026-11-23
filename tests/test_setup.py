@@ -238,3 +238,96 @@ def test_kit_engines_limits_profiles_and_engines():
     assert parse_engines("n8n-agent,n8n") == ("n8n", "n8n-agent")  # the example only when listed
     assert compose_profiles({"KIT_ENGINES": "claude,python"}) == ["langfuse"]
     assert compose_profiles({"KIT_ENGINES": "n8n"}) == ["n8n", "langfuse"]
+
+
+def test_prompt_files_round_trip():
+    """The kit workflow files keep their prompts in n8n/prompts/*.md. Filling them in and splitting them out
+    again gives the same files, byte for byte (a pull with no change keeps git diff clean)."""
+    from kit import n8n_files
+    from kit.config import USECASES_DIR
+
+    for f in sorted(USECASES_DIR.glob("*/n8n/*.json")):
+        text = f.read_text(encoding="utf-8")
+        filled = n8n_files.fill_prompts(json.loads(text), f.parent / "prompts")
+        assert "{{PROMPT:" not in json.dumps(filled)
+        wf, prompts = n8n_files.split_prompts(filled, f.stem)
+        assert json.dumps(wf, indent=2, ensure_ascii=False) + "\n" == text, f
+        for name, body in prompts.items():
+            assert (f.parent / "prompts" / f"{name}.md").read_text(encoding="utf-8") == body + "\n"
+    assert n8n_files.prompt_base("Decide and draft") == "decide_and_draft"
+    assert n8n_files.prompt_base("Agent", "agent") == "agent" and n8n_files.prompt_base("Plan", "agent") == "agent_plan"
+
+
+def test_sync_state():
+    assert setup.sync_state("a", "a", None) == "same"
+    assert setup.sync_state("a", "b", "a") == "n8n"  # edited in n8n
+    assert setup.sync_state("b", "a", "a") == "files"  # edited in the files (or git pull)
+    assert setup.sync_state("b", "c", "a") == "both"
+    assert setup.sync_state("b", "c", None) == "unknown"
+
+
+def test_push_keeps_n8n_edits_and_discards_drafts(tmp_path, monkeypatch):
+    """Push: the files changed -> update n8n. n8n changed since the last sync -> keep it (unless FORCE).
+    Only an unpublished draft -> discard it."""
+
+    def wf(text):
+        node = {"name": "Triage", "type": "x.chainLlm", "parameters": {"text": text}}
+        return {"name": "Kit: x workflow", "nodes": [node], "connections": {}, "settings": {}}
+
+    (tmp_path / "usecases/x/n8n/prompts").mkdir(parents=True)
+    (tmp_path / "usecases/x/n8n/workflow.json").write_text(json.dumps(wf("={{PROMPT:triage.input}}")))
+    prompt = tmp_path / "usecases/x/n8n/prompts/triage.input.md"
+    prompt.write_text("v1\n")
+    for name, value in [("ROOT", tmp_path), ("RUNS_DIR", tmp_path / "runs"), ("USECASES_DIR", tmp_path / "usecases")]:
+        monkeypatch.setattr(setup, name, value)
+    monkeypatch.setattr(setup, "IMPORTED_FILE", tmp_path / "runs/n8n-imported.json")
+    monkeypatch.setattr(setup, "free_webhook_paths", lambda *a: None)
+    setup.remember_import("Kit: x workflow", wf("=v1"))
+    calls, n8n = [], {"full": {**wf("=v1"), "id": "w1", "active": True}}
+
+    def api(method, path, body=None):
+        calls.append((method, body))
+        return httpx.Response(200, json=n8n["full"] if method == "GET" else {})
+
+    fake = types.SimpleNamespace(workflows=lambda: [n8n["full"]], api=api)
+    puts = lambda: [b for m, b in calls if m == "PUT"]  # noqa: E731
+    prompt.write_text("v2\n")  # a file edit
+    assert setup.import_workflows(fake, "cred") and puts()[0]["nodes"][0]["parameters"]["text"] == "=v2"
+    calls.clear()
+    n8n["full"] = {**wf("=mine"), "id": "w1", "active": True}  # edited and published in n8n
+    assert setup.import_workflows(fake, "cred") and not puts()  # kept
+    assert setup.import_workflows(fake, "cred", force=True) and puts()  # FORCE: the files win
+    calls.clear()
+    published = {"nodes": wf("=v2")["nodes"], "connections": {}}
+    n8n["full"] = {**wf("=draft"), "id": "w1", "active": True, "activeVersionId": "a", "versionId": "b",
+                   "activeVersion": published}  # fmt: skip
+    assert setup.import_workflows(fake, "cred") and puts()  # an unpublished draft is discarded
+
+
+def test_strict_schema_for_n8n():
+    from kit.runner import strict_problem
+
+    item = {"type": "object", "additionalProperties": False, "required": ["c"], "properties": {"c": {}}}
+    ok = {"type": "object", "additionalProperties": False, "required": ["a", "b"],
+          "properties": {"a": {"type": "string"}, "b": {"type": "array", "items": item}}}  # fmt: skip
+    assert strict_problem(ok) is None
+    assert strict_problem({**ok, "required": ["a"]}) == "the result: b not in required"
+    inner = json.loads(json.dumps(ok))
+    inner["properties"]["b"]["items"].pop("additionalProperties")
+    assert strict_problem(inner) == "b: no additionalProperties: false"
+    from kit.config import USECASES_DIR
+
+    for f in USECASES_DIR.glob("*/output.schema.json"):  # the scaffolds work on n8n
+        assert strict_problem(json.loads(f.read_text())) is None, f
+
+
+def test_claude_engine_does_not_load_the_builder_files():
+    """The builder's root CLAUDE.md and .claude/skills are for your Claude Code session, not for the agent."""
+    from kit.config import ROOT, USECASES_DIR
+    from kit.runner.engines import builder_excludes
+
+    out = builder_excludes(USECASES_DIR / "marketing" / "claude")
+    assert str(ROOT / "CLAUDE.md") in out["claudeMdExcludes"]
+    assert str(USECASES_DIR / "marketing" / "claude" / "CLAUDE.md") not in out["claudeMdExcludes"]
+    builder = {p.name for p in (ROOT / ".claude" / "skills").glob("*/")}
+    assert set(out["skillOverrides"]) == builder and set(out["skillOverrides"].values()) <= {"off"}
