@@ -130,7 +130,8 @@ This runs the first case of each use case on each engine (only the ones in `KIT_
 - **Check:** OK for n8n, claude and python on both use cases. A failing check (the case does not pass) is
   fine; an error (the engine did not answer) is not.
 - **If it goes wrong:** the line says which engine and why. Claude: run `claude` once and log in. n8n: run
-  `make setup` again. Python: check `OPENAI_API_KEY`.
+  `make setup` again. Python: the "Next:" text fits the error (the key, `OPENAI_BASE_URL`, or the model name
+  `KIT_MODEL`).
 
 You are ready. Go to the design block in `docs/day-plan.md`.
 

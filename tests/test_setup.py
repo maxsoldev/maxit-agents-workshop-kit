@@ -36,6 +36,19 @@ def test_check_with_a_fake_runner(tmp_path, monkeypatch, capsys):
     assert "SKIP  demo/claude (d1)" in out
 
 
+def test_python_next_step_fits_the_error():
+    def hint(text):
+        return setup.next_step("python", f"agent.py exit 1: {text}", "marketing", "m22")
+
+    assert "OPENAI_API_KEY" in hint("openai.AuthenticationError: Error code: 401 - invalid key")
+    assert "OPENAI_BASE_URL" in hint("openai.APIConnectionError: Connection error.")
+    assert "KIT_MODEL" in hint("openai.BadRequestError: Error code: 400 - Function tools ... not supported")
+    assert "KIT_MODEL" in hint("openai.PermissionDeniedError: Error code: 403 - model not available")
+    assert "credit" in hint("openai.RateLimitError: Error code: 429")
+    assert hint("KeyError: 'email'") == "make run-case UC=marketing ENGINE=python CASE=m22 shows the agent log"
+    assert "claude" in setup.next_step("claude", "Error code: 401")  # other engines keep their hint
+
+
 def test_read_env_skips_comments_and_strips_quotes(tmp_path):
     f = tmp_path / ".env"
     f.write_text("# comment\n\nA=1\nB = 'two'\nexport C=\"x=y\"\nnot a line\n")

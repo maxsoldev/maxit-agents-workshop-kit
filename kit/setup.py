@@ -557,8 +557,27 @@ def setup(force: bool = False) -> int:
 NEXT_STEP = {
     "n8n": "is n8n up (make up) and the workflow active (make setup)? Is the tools server on (make serve)?",
     "claude": "run `claude` once and log in; is the tools server on (make serve)?",
-    "python": "is OPENAI_API_KEY set? Run the agent by hand to see its log on stderr",
+    "python": "make run-case UC={uc} ENGINE=python CASE={case} shows the agent log",
 }
+# Python failures: the OpenAI error in the message says what is wrong. First match wins.
+PYTHON_HINTS = [
+    (("AuthenticationError", "Error code: 401"), "check OPENAI_API_KEY in .env (make setup tests the key)"),
+    (("APIConnectionError", "APITimeoutError", "Connection error"),
+     "the model API does not answer: check OPENAI_API_KEY and OPENAI_BASE_URL in .env, and your network"),
+    (("RateLimitError", "Error code: 429"), "rate limit or no credit: wait a minute, or check the credit of your key"),
+    (("BadRequestError", "PermissionDeniedError", "NotFoundError", "Error code: 4"),
+     "the model API refused the call: check KIT_MODEL (the model name; your key or gateway must have it) "
+     "and the API call in python/agent.py"),
+]
+
+
+def next_step(engine: str, reason: str, uc: str = "<uc>", case: str = "<id>") -> str:
+    """The next step after a failure; for python it fits the OpenAI error in `reason`."""
+    if engine == "python":
+        for needles, hint in PYTHON_HINTS:
+            if any(n in reason for n in needles):
+                return hint
+    return NEXT_STEP[engine].format(uc=uc, case=case)
 
 
 def _port_open(port: int) -> bool:
@@ -614,7 +633,7 @@ def check() -> int:
                 run = run_eval(uc, engine, case_ids=[first], name="check")
                 case = run["cases"][0]
             except Exception as e:  # the check must go on to the next engine
-                print(f"FAIL  {label}: {type(e).__name__}: {e}. Next: {NEXT_STEP[engine]}")
+                print(f"FAIL  {label}: {type(e).__name__}: {e}. Next: {next_step(engine, str(e), uc, first)}")
                 bad += 1
                 continue
             if case.get("passed"):
@@ -625,7 +644,7 @@ def check() -> int:
                 if c.get("passed") is False)
             if case.get("error"):
                 bad += 1
-                print(f"FAIL  {label}: {reason}. Next: {NEXT_STEP[engine]}")
+                print(f"FAIL  {label}: {reason}. Next: {next_step(engine, reason, uc, first)}")
             else:  # the engine answered; only checks failed. That is normal for a scaffold.
                 print(f"OK    {label}: the engine works, some checks fail ({reason[:200]})")
     print("\nAll engines answer." if not bad else f"\n{bad} engine(s) failed. Fix them, then run make check again.")
