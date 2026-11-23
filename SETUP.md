@@ -127,13 +127,14 @@ make check
 
 This runs the first case of each use case on each engine (only the ones in `KIT_ENGINES`).
 
-- **Check:** OK for n8n, claude and python on both use cases. A failing check (the case does not pass) is
-  fine; an error (the engine did not answer) is not.
-- **If it goes wrong:** the line says which engine and why. Claude: run `claude` once and log in. n8n: run
-  `make setup` again. Python: the "Next:" text fits the error (the key, `OPENAI_BASE_URL`, or the model name
-  `KIT_MODEL`).
+- **Check:** one `ANSWERS` line for each engine and use case, and at the end "All N engines answer".
+  `ANSWERS ...: 2/3 checks pass` is fine: the engine gave a result, and the result is not right yet. Making
+  the results right is the work of the day. Only an `ERROR` line is a problem: that engine gave no result.
+- **If it goes wrong:** the `ERROR` line says which engine and why, and "Next:" says what to do. Claude: run
+  `claude` once and log in. n8n: run `make setup` again. Python: the "Next:" text fits the error (the key,
+  `OPENAI_BASE_URL`, or the model name `KIT_MODEL`).
 
-You are ready. Go to the design block in `docs/day-plan.md`.
+You are ready. Go to `docs/tutorial.md`.
 
 ## Langfuse: local, hosted or off
 

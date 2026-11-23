@@ -1,7 +1,8 @@
 """`kit setup` and `kit check`.
 
 setup: checks the host tools, sets up n8n (owner, API key, OpenAI credential, workflows) and checks Langfuse.
-check: runs the first case of each use case on each engine and prints OK or what to fix.
+check: runs the first case of each use case on each engine and prints ANSWERS (with the check score) or
+ERROR (and what to fix).
 Both are safe to run again. They print names of keys, never their values.
 """
 
@@ -597,6 +598,9 @@ def setup(force: bool = False) -> int:
 
 # ---------- kit check ----------
 
+# Line labels. ANSWERS: the engine gave a result (checks may fail). ERROR: no result; fix the setup.
+ANSWERS, ERROR, SKIP = "ANSWERS  ", "ERROR    ", "SKIP     "
+
 NEXT_STEP = {
     "n8n": "is n8n up (make up) and the workflow active (make setup)? Is the tools server on (make serve)?",
     "claude": "run `claude` once and log in; is the tools server on (make serve)?",
@@ -655,41 +659,45 @@ def check() -> int:
                 print(f"WARN  the tools server did not start on :{s.tools_port}; tool calls will fail. Run make serve")
     unused = [e for e in ("n8n", "claude", "python") if e not in s.engines]
     if unused:
-        print(f"SKIP  {', '.join(unused)}: not in KIT_ENGINES")
+        print(f"{SKIP}{', '.join(unused)}: not in KIT_ENGINES")
     # One row per use case × engine, in print order: (uc, engine, first case id, a line known before any run).
     rows = []
     for uc in usecases():
         lines = (USECASES_DIR / uc / "cases.jsonl").read_text().splitlines()
         first = next((json.loads(x)["id"] for x in lines if x.strip()), None)
         if not first:
-            rows.append((uc, None, None, f"SKIP  {uc}: cases.jsonl has no cases"))
+            rows.append((uc, None, None, f"{SKIP}{uc}: cases.jsonl has no cases"))
             continue
         for engine in s.engines:
             rows.append((uc, engine, first, _check_before_run(uc, engine, first, s)))
     todo = [r for r in rows if r[3] is None]
     if todo:
         print(f"Running {len(todo)} checks in parallel (one case each; this can take a few minutes) ...", flush=True)
-    bad = 0
+    bad = good = 0
     with ThreadPoolExecutor(max_workers=max(1, len(todo))) as pool:
         futures = [None if line else pool.submit(_check_run, run_eval, uc, e, first) for uc, e, first, line in rows]
         for (_uc, _e, _first, line), future in zip(rows, futures, strict=True):
             line = line or future.result()  # wait for this row only: the lines stay in the fixed order
-            bad += line.startswith("FAIL")
+            bad += line.startswith(ERROR)
+            good += line.startswith(ANSWERS)
             print(line, flush=True)
-    print("\nAll engines answer." if not bad else f"\n{bad} engine(s) failed. Fix them, then run make check again.")
-    return 1 if bad else 0
+    if bad:
+        print(f"\n{bad} engine(s) do not answer (ERROR lines). Fix them, then run make check again.")
+        return 1
+    print(f"\nAll {good} engines answer. Wrong answers are fine here: making them right is the day (docs/tutorial.md).")
+    return 0
 
 
 def _check_before_run(uc: str, engine: str, first: str, s) -> str | None:
-    """The SKIP / FAIL line for a pair that cannot run; None if it can run."""
+    """The SKIP / ERROR line for a pair that cannot run; None if it can run."""
     label = f"{uc}/{engine} ({first})"
     if not (USECASES_DIR / uc / engine).exists():
-        return f"SKIP  {label}: no usecases/{uc}/{engine}/ folder"
+        return f"{SKIP}{label}: no usecases/{uc}/{engine}/ folder"
     if engine == "n8n" and not s.n8n_api_key and s.n8n_mode == "local":
-        return f"FAIL  {label}: n8n is not set up. Next: make up, make setup"
+        return f"{ERROR}{label}: n8n is not set up. Next: make up, make setup"
     if engine == "n8n" and not s.openai_api_key and s.n8n_mode == "local":
         return (
-            f"FAIL  {label}: no OPENAI_API_KEY, so the workflow is not active. "
+            f"{ERROR}{label}: no OPENAI_API_KEY, so the workflow is not active. "
             "Next: put the key in .env, then make setup"
         )
     return None
@@ -701,18 +709,17 @@ def _check_run(run_eval, uc: str, engine: str, first: str) -> str:
     try:
         case = run_eval(uc, engine, case_ids=[first], name="check")["cases"][0]
     except Exception as e:  # the check must go on to the next engine
-        return f"FAIL  {label}: {type(e).__name__}: {e}. Next: {next_step(engine, str(e), uc, first)}"
-    if case.get("passed"):
-        return f"OK    {label}"
-    reason = case.get("error") or "; ".join(
-        f"{c['type']} {c.get('field', '')}: {c.get('reason', '')}"
-        for c in case.get("checks", [])
-        if c.get("passed") is False
-    )
+        return f"{ERROR}{label}: {type(e).__name__}: {e}. Next: {next_step(engine, str(e), uc, first)}"
     if case.get("error"):
-        return f"FAIL  {label}: {reason}. Next: {next_step(engine, reason, uc, first)}"
-    # the engine answered; only checks failed. That is normal for a scaffold.
-    return f"OK    {label}: the engine works, some checks fail ({reason[:200]})"
+        reason = case["error"]
+        return f"{ERROR}{label}: {reason}. Next: {next_step(engine, reason, uc, first)}"
+    # The engine answered. Failed checks are normal for a scaffold: making them pass is the day.
+    checks = [c for c in case.get("checks", []) if c.get("passed") is not None]
+    failed = [c for c in checks if c.get("passed") is False]
+    if not failed:
+        return f"{ANSWERS}{label}: all checks pass"
+    reason = "; ".join(f"{c['type']} {c.get('field', '')}: {c.get('reason', '')}" for c in failed)
+    return f"{ANSWERS}{label}: {len(checks) - len(failed)}/{len(checks)} checks pass. {reason[:200]}"
 
 
 # ---------- kit n8n-export ----------

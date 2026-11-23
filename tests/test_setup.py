@@ -25,11 +25,16 @@ def test_check_with_a_fake_runner(tmp_path, monkeypatch, capsys):
         both_running.wait()
         if engine == "n8n":
             time.sleep(0.2)  # n8n ends last, but its line must still come first
+        checks = [
+            {"type": "equals", "field": "kind", "passed": True, "reason": "got leave"},
+            {"type": "equals", "field": "who", "passed": False, "reason": "got Ann, expected Bob"},
+            {"type": "judge", "field": "draft", "passed": None, "reason": "judge skipped", "skipped": True},
+        ]
         case = {
             "id": "d1",
-            "passed": engine == "python",
+            "passed": False,
             "error": "HTTP 404" if engine == "n8n" else None,
-            "checks": [],
+            "checks": [] if engine == "n8n" else checks,
         }
         return {"cases": [case]}
 
@@ -45,10 +50,27 @@ def test_check_with_a_fake_runner(tmp_path, monkeypatch, capsys):
     assert sorted(calls) == [("demo", "n8n", ["d1"]), ("demo", "python", ["d1"])]
     lines = out.splitlines()
     assert lines[1] == "Running 2 checks in parallel (one case each; this can take a few minutes) ..."
-    assert lines[2].startswith("FAIL  demo/n8n (d1): HTTP 404")  # fixed order: use case, then n8n, claude, python
-    assert lines[3].startswith("SKIP  demo/claude (d1)")
-    assert lines[4] == "OK    demo/python (d1)"
-    assert lines[-1] == "1 engine(s) failed. Fix them, then run make check again."
+    assert lines[2].startswith("ERROR    demo/n8n (d1): HTTP 404. Next: ")  # fixed order: n8n, claude, python
+    assert lines[3].startswith("SKIP     demo/claude (d1)")
+    # a wrong answer is not an error; a skipped judge does not count
+    assert lines[4] == "ANSWERS  demo/python (d1): 1/2 checks pass. equals who: got Ann, expected Bob"
+    assert lines[-1] == "1 engine(s) do not answer (ERROR lines). Fix them, then run make check again."
+
+
+def test_check_says_wrong_answers_are_fine(tmp_path, monkeypatch, capsys):
+    (tmp_path / "demo" / "python").mkdir(parents=True)
+    (tmp_path / "demo" / "cases.jsonl").write_text('{"id": "d1"}\n')
+    case = {"id": "d1", "passed": True, "error": None, "checks": [{"type": "equals", "passed": True}]}
+    run_eval = lambda *a, **k: {"cases": [case]}  # noqa: E731
+    monkeypatch.setitem(sys.modules, "kit.runner", types.SimpleNamespace(run_eval=run_eval))
+    monkeypatch.setattr(setup, "USECASES_DIR", tmp_path)
+    monkeypatch.setattr(setup, "usecases", lambda: ["demo"])
+    monkeypatch.setattr(setup, "_port_open", lambda port: True)
+    monkeypatch.setenv("KIT_ENGINES", "python")
+    assert setup.check() == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert "ANSWERS  demo/python (d1): all checks pass" in lines
+    assert lines[-1].startswith("All 1 engines answer. Wrong answers are fine here")
 
 
 def test_python_next_step_fits_the_error():

@@ -15,7 +15,7 @@ help:
 	@echo "              keeps your n8n edits; FORCE=1 loads workflow.json over them"
 	@echo "make n8n-export [UC=travel]  save your n8n editor changes to usecases/<uc>/n8n/workflow.json"
 	@echo "make serve    kit UI on :5700 and tools server on :5701 (keep it running)"
-	@echo "make check    one case per use case and engine: OK or what to fix"
+	@echo "make check    one case per use case and engine: ANSWERS (and the score) or ERROR (what to fix)"
 	@echo "make eval UC=marketing ENGINE=n8n [CASES=m01,m02] [NAME=try-1] [HOLDOUT=1]"
 	@echo "make run-case UC=marketing ENGINE=python CASE=m14   one case: input, output, log, checks"
 	@echo "make test     run the kit tests"
