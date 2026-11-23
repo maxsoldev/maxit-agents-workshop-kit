@@ -353,10 +353,18 @@ def run_progress(request: Request, uc: str):
 
 # ---------- runs and results ----------
 
+CHECK_RUN = "check"  # the name `make check` gives its runs
+
+
 @app.get("/uc/{uc}/runs", response_class=HTMLResponse)
-def runs_page(request: Request, uc: str):
+def runs_page(request: Request, uc: str, checks: int = 0):
+    """All runs; the `make check` runs only with ?checks=1."""
     uc_dir(uc)
-    return page(request, "runs.html", uc, runs=runner().list_runs(uc))
+    runs = runner().list_runs(uc)
+    hidden = sum(1 for r in runs if r.get("name") == CHECK_RUN)
+    if not checks:
+        runs = [r for r in runs if r.get("name") != CHECK_RUN]
+    return page(request, "runs.html", uc, runs=runs, hidden=hidden, show_checks=bool(checks))
 
 
 def compare_cases(run: dict, other: dict | None) -> dict:
@@ -382,7 +390,12 @@ def results_page(request: Request, run_id: str, vs: str = ""):
     except (FileNotFoundError, KeyError):
         raise HTTPException(404, f"No run '{run_id}'")
     uc = run.get("usecase")
-    others = [r for r in runner().list_runs(uc) if r.get("run_id") != run_id]
+    # Compare list: no `make check` runs; the same engine first; mark runs with other cases.
+    ids = sorted(c.get("id", "") for c in run.get("cases", []))
+    others = [r for r in runner().list_runs(uc) if r.get("run_id") != run_id and r.get("name") != CHECK_RUN]
+    others.sort(key=lambda r: r.get("engine") != run.get("engine"))  # stable: newest first in each group
+    for r in others:
+        r["other_cases"] = r.get("case_ids") is not None and r.get("case_ids") != ids
     if not vs:  # default: the previous run of the same engine
         older = [r for r in others if r.get("engine") == run.get("engine") and r.get("run_id", "") < run_id]
         vs = older[0]["run_id"] if older else ""

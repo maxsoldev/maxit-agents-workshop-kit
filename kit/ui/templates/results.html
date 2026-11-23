@@ -21,7 +21,7 @@
       <select name="vs" onchange="this.form.submit()">
         <option value="none" {{ 'selected' if not other }}>— no compare —</option>
         {% for r in others %}
-        <option value="{{ r.run_id }}" {{ 'selected' if r.run_id == vs }}>{{ r.engine }} · {{ r.name or r.run_id }} · {{ r.started_at|when }} ·{{ (r.summary or {}).passed }}/{{ (r.summary or {}).cases }}</option>
+        <option value="{{ r.run_id }}" {{ 'selected' if r.run_id == vs }}>{{ r.engine }} · {{ r.name or r.run_id }} · {{ r.started_at|when }} · {{ (r.summary or {}).passed }}/{{ (r.summary or {}).cases }}{{ ' · other cases' if r.other_cases }}</option>
         {% endfor %}
       </select></label>
     {% if other %}

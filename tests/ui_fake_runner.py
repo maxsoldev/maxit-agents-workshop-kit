@@ -104,7 +104,8 @@ def load_run(run_id):
 def list_runs(usecase=None):
     runs = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(config.RUNS_DIR.glob("*.json"), reverse=True)] \
         if config.RUNS_DIR.exists() else []
-    return [{k: r.get(k) for k in ("run_id", "name", "usecase", "engine", "started_at", "ended_at", "summary")}
+    return [{**{k: r.get(k) for k in ("run_id", "name", "usecase", "engine", "started_at", "ended_at", "summary")},
+             "case_ids": sorted(c["id"] for c in r.get("cases", []))}
             for r in runs if usecase in (None, r.get("usecase"))]
 
 

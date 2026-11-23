@@ -49,5 +49,7 @@ def list_runs(usecase: str | None = None) -> list[dict]:
         except (OSError, ValueError):
             continue
         if usecase is None or run.get("usecase") == usecase:
-            runs.append({k: run.get(k) for k in SUMMARY_KEYS})
+            row = {k: run.get(k) for k in SUMMARY_KEYS}
+            row["case_ids"] = sorted(c.get("id", "") for c in run.get("cases") or [])  # to see other case sets
+            runs.append(row)
     return sorted(runs, key=lambda r: (r.get("started_at") or "", r.get("run_id") or ""), reverse=True)

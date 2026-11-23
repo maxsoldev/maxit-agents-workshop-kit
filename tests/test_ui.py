@@ -140,6 +140,30 @@ def test_run_results_runs(client):
     assert client.get("/runs/nope").status_code == 404
 
 
+def test_check_runs_hidden_and_compare_default(client):
+    config.RUNS_DIR.mkdir(parents=True, exist_ok=True)
+
+    def save(run_id, engine, name, ids):
+        run = {"run_id": run_id, "name": name, "usecase": "demo", "engine": engine, "started_at": run_id,
+               "summary": {"cases": len(ids), "passed": 0, "by_check": {}},
+               "cases": [{"id": i, "title": i, "passed": False, "checks": [], "input": {}, "expected": {},
+                          "output": {}} for i in ids]}
+        (config.RUNS_DIR / f"{run_id}.json").write_text(json.dumps(run))
+
+    save("20261124-100000-demo-n8n", "n8n", "base", ["m06", "m07"])
+    save("20261124-100500-demo-python", "python", "py", ["m06", "m07"])
+    save("20261124-101000-demo-n8n", "n8n", "check", ["m06"])
+    save("20261124-101500-demo-n8n", "n8n", "small", ["m06"])
+    save("20261124-102000-demo-n8n", "n8n", "now", ["m06", "m07"])
+    runs = client.get("/uc/demo/runs").text
+    assert ">check<" not in runs and "1 <code>make check</code> run(s) hidden" in runs
+    assert ">check<" in client.get("/uc/demo/runs?checks=1").text
+    page = client.get("/runs/20261124-102000-demo-n8n").text
+    assert 'value="20261124-101500-demo-n8n" selected' in page  # previous n8n run, not the check run
+    assert "small · " in page and "other cases" in page and "20261124-101000-demo-n8n" not in page
+    assert page.index("small") < page.index("py ·")  # the same engine first
+
+
 def test_compare_marks_changes(client):
     from kit.ui import app as ui
     a = {"cases": [{"id": "x", "passed": True}, {"id": "y", "passed": False}, {"id": "z", "passed": True}]}

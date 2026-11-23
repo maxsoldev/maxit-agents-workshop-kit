@@ -89,10 +89,14 @@ variables (§6). Claude uses the participant's own login.
 ```python
 from kit.runner import run_eval, list_runs, load_run, compare
 run = run_eval(usecase, engine, case_ids=None, name=None, on_progress=None)  # blocking; returns the run dict
-list_runs(usecase=None) -> list[dict]   # newest first; summary fields only
+list_runs(usecase=None) -> list[dict]   # newest first; summary fields and the sorted `case_ids`
 load_run(run_id) -> dict
 compare(run_id_a, run_id_b) -> dict     # per case: better / worse / same
 ```
+
+`make check` names its runs `check`: the UI hides them in the Runs list (link "Show checks") and in Compare.
+Compare defaults to the previous run of the same engine, lists that engine first, and marks runs with other
+case ids ("other cases").
 
 `on_progress(event: dict)` is called with `{"case_id", "status": "running"|"done", "passed"?}`. Cases run up to
 4 in parallel (claude 2).
